@@ -1,6 +1,10 @@
-# Projeto ERP - Backend (Django)
+# Projeto ERP - CONFIA +
 
-Este é o repositório backend do projeto ERP, construído com Django e Django REST Framework.
+## O que é um ERP?
+Um **ERP (Enterprise Resource Planning)** é um **sistema integrado de gestão empresarial** que reúne, em uma única plataforma, os principais processos de uma organização — como finanças, compras, vendas, estoque, produção e recursos humanos — permitindo que todos os setores compartilhem informações em tempo real e trabalhem de forma mais eficiente e centralizada.
+
+## O que é o Confia +?
+UM **ERP** simplificado, de tamanho reduzido e disponível na web, com o foco nas necessidades de microempreendedores.
 
 ## Setup do Projeto
 
@@ -33,7 +37,63 @@ Siga os passos abaixo para configurar o ambiente de desenvolvimento local.
 
 O servidor estará disponível em `http://127.0.0.1:8000/`.
 
----
+
+-----
+
+## Como Rodar o Projeto (Ambiente de Desenvolvimento)
+
+Para rodar o projeto localmente, você precisará de **dois terminais** abertos simultaneamente: um para o Backend (Django) e um para o Frontend (React).
+
+### Terminal 1: Rodando o Backend (Django)
+
+1.  Abra seu terminal e navegue até a pasta `backend`:
+
+    ```bash
+    cd /caminho/para/seu-projeto/backend
+    ```
+
+2.  Ative o ambiente virtual (venv). Se o seu `venv` está na raiz do projeto (um nível acima):
+
+    ```bash
+    # Windows
+    ..\venv\Scripts\activate
+
+    ```
+
+    *(Seu prompt deve agora começar com `(venv)`)*
+
+3.  Inicie o servidor do Django:
+
+    ```bash
+    py manage.py runserver
+    ```
+
+4.  **Pronto\!** O backend estará rodando em `http://127.0.0.1:8000/`.
+
+-----
+
+### Terminal 2: Rodando o Frontend (React + Vite)
+
+1.  Abra um **novo** terminal (mantenha o primeiro rodando\!).
+2.  Navegue até a pasta `frontend`:
+    ```bash
+    cd /caminho/para/seu-projeto/frontend
+    ```
+3.  **(Se for a primeira vez)** Instale as dependências:
+    ```bash
+    npm install
+    ```
+4.  Inicie o servidor de desenvolvimento do Vite:
+    ```bash
+    npm run dev
+    ```
+5.  **Pronto\!** O terminal mostrará a URL do frontend. Por padrão, será `http://localhost:5173/`.
+
+-----
+
+### Verificação
+
+Abra `http://localhost:5173/` (a URL do frontend) no seu navegador. Você deverá ver a interface do React carregando os dados do backend (que está em `http://127.0.0.1:8000/`). Dica: Para facilitar, use o Terminal Dividido (Split Terminal) do VS Code. Assim, você pode rodar os dois, lado a lado, na mesma janela.
 
 # NOTAS
 
