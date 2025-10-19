@@ -30,13 +30,6 @@ Siga os passos abaixo para configurar o ambiente de desenvolvimento local.
     python manage.py migrate
     ```
 
-5.  **Rode o servidor de desenvolvimento**
-    ```bash
-    python manage.py runserver
-    ```
-
-O servidor estará disponível em `http://127.0.0.1:8000/`.
-
 
 -----
 
@@ -55,7 +48,6 @@ Para rodar o projeto localmente, você precisará de **dois terminais** abertos 
 2.  Ative o ambiente virtual (venv). Se o seu `venv` está na raiz do projeto (um nível acima):
 
     ```bash
-    # Windows
     ..\venv\Scripts\activate
 
     ```
