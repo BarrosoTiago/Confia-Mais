@@ -22,3 +22,6 @@ env/
 
 # Arquivo de segredos (ver passo 4)
 .env
+
+# Arquivo de estrutura do projeto
+estruturaconfiamais.txt

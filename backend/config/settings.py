@@ -1,4 +1,6 @@
 from pathlib import Path
+from datetime import timedelta
+
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -11,6 +13,7 @@ ALLOWED_HOSTS = []
 
 
 INSTALLED_APPS = [
+    'rest_framework_simplejwt',
     'rest_framework',
     'corsheaders',
     'api',
@@ -24,7 +27,6 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
-    'django.middleware.common.CommonMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -58,6 +60,14 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
 ]
 
+# Permite que os cookies (como nosso refresh_token HttpOnly)
+CORS_ALLOW_CREDENTIALS = True 
+
+CORS_ALLOW_HEADERS = [
+    'Authorization',
+    'Content-Type',
+]
+
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
@@ -84,7 +94,35 @@ AUTH_PASSWORD_VALIDATORS = [
 
 
 
-LANGUAGE_CODE = 'en-us'
+# Configuração do Django REST Framework
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        # Informa ao DRF para usar JWT para autenticação
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ),
+    # ... (outras configurações do DRF)
+}
+
+# Configuração do Simple JWT
+
+SIMPLE_JWT = {
+    # Define o tempo de vida do Access Token (curto)
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=5),
+    
+    # Define o tempo de vida do Refresh Token (longo)
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
+    
+    # Permite a rotação de Refresh Tokens (mais seguro)
+    "ROTATE_REFRESH_TOKENS": True,
+    "BLACKLIST_AFTER_ROTATION": True, # Invalida o token antigo
+    
+    # Define o prefixo do cabeçalho de autorização (ex: "Bearer <token>")
+    "AUTH_HEADER_TYPES": ("Bearer",),
+}
+
+
+
+LANGUAGE_CODE = 'pt-br'
 
 TIME_ZONE = 'UTC'
 
