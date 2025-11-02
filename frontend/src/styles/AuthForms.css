@@ -1,0 +1,32 @@
+body {
+  background-image: url(../assets/auth-backgroundimg.png);
+  background-size: cover;
+  background-repeat: no-repeat;
+  background-position: center;
+  min-height: 100vh;
+}
+
+/* Container principal do Toast */
+.custom-error-toast {
+  background-color: #88040f; 
+  border: 1px solid #f5c6cb; 
+  border-radius: 0.375rem; /* Padrão do Bootstrap */
+}
+
+/* O corpo da mensagem */
+.custom-error-toast .toast-body {
+  color: #7d6668; 
+  font-weight: 500;
+}
+
+/* O cabeçalho (onde o título "Ocorreu um erro" fica) */
+.custom-error-toast .toast-header {
+  background-color: #af0012;
+  color: #5c2228;
+  border-bottom: 1px solid #f5c6cb;
+}
+
+/* Botão 'X' de fechar */
+.custom-error-toast .btn-close {
+  filter: grayscale(100%) brightness(60%);
+}

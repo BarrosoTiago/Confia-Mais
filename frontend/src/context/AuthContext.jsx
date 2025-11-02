@@ -1,10 +1,9 @@
 import { createContext, useContext, useState } from 'react';
 import axios from 'axios';
 
-// Configura a instância base do Axios
 const api = axios.create({
-    baseURL: 'http://localhost:8000/api', // URL do seu backend Django
-    withCredentials: true // Permite que o Axios envie o cookie HttpOnly
+    baseURL: 'http://localhost:8000/api', 
+    withCredentials: true 
 });
 
 const AuthContext = createContext();
@@ -13,43 +12,39 @@ export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
     const [accessToken, setAccessToken] = useState(null);
 
-    // Função de Login
+    const [notification, setNotification] = useState(null); 
+    const clearNotification = () => setNotification(null);
+
     const login = async (username, password) => {
         try {
             const response = await api.post('/login/', {
                 username,
                 password
             });
-            
             setAccessToken(response.data.access);
-
-            return true;
+            return response.data; // Retorna dados no sucesso
         } catch (error) {
-            console.error("Falha no login:", error);
-            return false;
+            console.error("Falha no login (Contexto):", error);
+            throw error; // Lança o erro para a página (Login.jsx)
         }
     };
 
-    // Função de Cadastro
-const register = async (userData) => {
+    const register = async (userData) => {
         try {
-            await api.post('/register/', userData);
-            return true;
+            const response = await api.post('/register/', userData);
+            return response.data;
         } catch (error) {
             console.error("Falha no cadastro (Contexto):", error);
-
-            // Se o Django enviou um objeto de validação (erro 400)
             if (error.response && error.response.data) {
-                console.error("Erro de validação:", error.response.data);
+                // Lança o objeto de validação (ex: { email: [...] })
                 throw error.response.data; 
             } else {
+                // Lança um erro genérico de rede
                 throw new Error("Erro de rede ou servidor indisponível.");
             }
-            return false;
         }
     };
 
-    // Função de Logout
     const logout = async () => {
         try {
             await api.post('/logout/');
@@ -60,13 +55,15 @@ const register = async (userData) => {
         setUser(null);
     };
 
-
     const value = {
         user,
         accessToken,
         login,
         register,
         logout,
+        notification,
+        setNotification,
+        clearNotification,
     };
 
     return (
@@ -76,7 +73,6 @@ const register = async (userData) => {
     );
 };
 
-// Hook customizado para usar o contexto
 export const useAuth = () => {
     return useContext(AuthContext);
 };

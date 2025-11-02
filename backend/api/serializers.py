@@ -33,10 +33,8 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         # 4. Lista os campos que o serializer vai aceitar e validar
-        fields = ('username', 'email', 'password', 'password_confirm', 'first_name', 'last_name')
+        fields = ('username', 'email', 'password', 'password_confirm') 
         extra_kwargs = {
-            'first_name': {'required': True},
-            'last_name': {'required': True},
             'username': {
                 'validators': [UniqueValidator(queryset=User.objects.all(), message="Este nome de usuário já está em uso.")]
             }
@@ -51,13 +49,14 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         return attrs
 
     def create(self, validated_data):
-        """
         # 6. Lógica de criação do objeto (com hash de senha)
-        """
-        # Remove o campo de confirmação, pois ele não existe no modelo User
         validated_data.pop('password_confirm')
         
         # Usa o método create_user para salvar a senha com hash
         user = User.objects.create_user(**validated_data)
+
+        #Define o email explicitamente
+        user.email = validated_data['email']
+        user.save()
         
         return user
