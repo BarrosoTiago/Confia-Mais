@@ -1,10 +1,10 @@
 # Projeto ERP - CONFIA +
 
 ## O que é um ERP?
-Um **ERP (Enterprise Resource Planning)** é um **sistema integrado de gestão empresarial** que reúne, em uma única plataforma, os principais processos de uma organização — como finanças, compras, vendas, estoque, produção e recursos humanos — permitindo que todos os setores compartilhem informações em tempo real e trabalhem de forma mais eficiente e centralizada.
+Um **ERP (Enterprise Resource Planning)** é um **sistema de gestão financeira empresarial** que reúne, em uma única plataforma, os principais processos de uma organização — como finanças, vendas, serviços e recursos humanos — permitindo que todos os setores compartilhem informações em tempo real e trabalhem de forma mais eficiente e centralizada.
 
 ## O que é o Confia +?
-UM **ERP** simplificado, de tamanho reduzido e disponível na web, com o foco nas necessidades de microempreendedores.
+UM **ERP** simplificado, de tamanho reduzido e disponível na web, com o foco nas necessidades de microempreendedores e prestadores de serviços.
 
 ## Setup do Projeto
 
