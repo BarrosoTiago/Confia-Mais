@@ -32,6 +32,7 @@ Siga os passos abaixo para configurar o ambiente de desenvolvimento local.
 
 
 -----
+<br>
 
 ## Como Rodar o Projeto (Ambiente de Desenvolvimento)
 
@@ -87,6 +88,8 @@ Para rodar o projeto localmente, você precisará de **dois terminais** abertos 
 
 Abra `http://localhost:5173/` (a URL do frontend) no seu navegador. Você deverá ver a interface do React carregando os dados do backend (que está em `http://127.0.0.1:8000/`). Dica: Para facilitar, use o Terminal Dividido (Split Terminal) do VS Code. Assim, você pode rodar os dois, lado a lado, na mesma janela.
 
+<br>
+
 # NOTAS
 
 **Nota:** O app `api` atualmente contém um modelo `Tarefa` como prova de conceito para validar a comunicação entre Django e React. Este modelo deve ser substituído pela lógica de negócio real do ERP (ex: Produtos, Finanças, etc.), entre outras partes do backend que ainda não foram desenvolvidas.
@@ -96,137 +99,123 @@ Certo. Adicionar essas explicações conceituais na seção 0 é uma excelente i
 Aqui está o `README.md` atualizado com as novas explicações:
 
 -----
+<br>
 
-## Como Contribuir (Metodologia GitHub Flow)
+# Como Contribuir (Metodologia Fork & Pull Request)
 
-Este projeto utiliza o **GitHub Flow**, uma metodologia de trabalho simples e poderosa. Siga este guia para garantir que o processo de contribuição seja organizado.
+Este projeto utiliza um fluxo de trabalho baseado em **Forks** e **Linha de Comando (CLI)**. Siga este guia para garantir que o processo de contribuição seja organizado e padronizado.
 
-### 0\. Informações Essenciais
+## 0. Informações Essenciais
 
-  * **Branch `main`:** É a nossa branch principal. Ela **DEVE** estar sempre funcional. Todo o código na `main` é considerado "em produção". **NINGUÉM** deve enviar código (fazer *push*) diretamente para ela.
-  * **Branch (Ramificação):** É uma cópia isolada do projeto onde você pode trabalhar em uma nova funcionalidade (`feature`) ou corrigir um bug (`fix`) sem afetar a `main`. Sempre crie uma nova branch para *cada* tarefa.
-  * **Pull Request (PR):** É um "Pedido de Integração". Quando você termina seu trabalho na sua branch, você abre um Pull Request. Isso notifica a equipe para que seu código seja revisado, discutido e, se aprovado, integrado (feito *merge*) à branch `main`.
-  * **Por que sincronizar (`pull`/`fetch`) antes de enviar?**
-    Para evitar conflitos. Pense assim: a `main` pode ter recebido código novo de outros colegas *enquanto* você trabalhava na sua branch. Trazer essas atualizações para a sua branch *antes* de fazer o `push` permite que *você* resolva qualquer conflito no seu computador local. Isso garante que sua contribuição se integre perfeitamente à `main` quando o PR for aprovado.
-  * **O que o `Rebase` faz?**
-    É a nossa forma preferida de sincronizar. Em vez de *misturar* os históricos com um "commit de merge" (que polui o histórico), o `rebase` faz algo mais inteligente: ele pega os *seus* commits, coloca-os de lado temporariamente, atualiza sua branch com o código mais recente da `main` e, em seguida, "re-aplica" os seus commits, um por um, *no topo* do histórico. O resultado é um histórico de commits limpo e linear (uma linha reta), que é muito mais fácil de ler e manter.
+**Repositórios:**
+* **Repositório Principal (`upstream`):** É o repositório central do projeto. Apenas o mantenedor (líder) tem acesso de escrita. É para onde seu código será enviado no final.
+* **Seu Fork (`origin`):** É uma cópia pessoal sua do repositório principal, que fica no seu perfil do GitHub. É aqui que você tem permissão de escrita e onde você enviará suas branches de trabalho.
+
+**Conceitos:**
+* **Branch `main`:** A branch principal *do repositório principal* (`upstream`). Ela DEVE estar sempre funcional.
+* **Branch (Ramificação):** É uma cópia isolada do projeto *no seu fork* onde você trabalha em uma tarefa.
+* **Padrão de Nomes de Branch:** Usamos prefixos claros para organizar o trabalho:
+    * `feature/`: Para adicionar uma nova funcionalidade (ex: `feature/login-jwt`).
+    * `fix/`: Para corrigir um bug (ex: `fix/bug-calculo-estoque`).
+    * **Porquê?** Isso torna o histórico do projeto legível. Com uma rápida olhada, qualquer pessoa da equipe sabe o *propósito* daquela branch.
+* **Pull Request (PR):** É um "Pedido de Integração". Quando você termina seu trabalho *no seu fork*, você abre um Pull Request. Isso notifica o mantenedor para que seu código seja revisado e, se aprovado, integrado ao **repositório principal**.
+* **Por que sincronizar?** Para evitar conflitos. A `main` do repositório principal (`upstream`) pode ter recebido código novo de outros colegas *enquanto* você trabalhava. Trazer essas atualizações para a sua branch *antes* de abrir o PR permite que você resolva qualquer conflito localmente.
+* **O que o `Rebase` faz?** É a nossa forma preferida de sincronizar. Ele pega os seus commits, atualiza sua branch com o código mais recente da `main` do `upstream` e, em seguida, "re-aplica" os seus commits no topo. O resultado é um histórico de commits limpo e linear.
 
 **O Fluxo de Trabalho é:**
+1.  **Sincronizar Fork:** Atualizar a `main` do *seu fork* com a `main` do *repositório principal*.
+2.  **Criar Branch:** Criar uma nova branch a partir da `main` do *seu fork* (usando o padrão `feature/` ou `fix/`).
+3.  **Trabalhar:** Fazer commits locais na sua branch.
+4.  **Sincronizar de Novo:** Atualizar a sua *feature branch* com as últimas mudanças da `main` do *repositório principal* (usando `rebase`).
+5.  **Enviar (Push):** Fazer `push` da sua branch para o *seu fork* (`origin`).
+6.  **Abrir PR:** Abrir um Pull Request do `seu-fork/feature-branch` para o `repositorio-principal/main`.
 
-1.  **Sincronizar:** Atualizar a sua `main` local.
-2.  **Criar:** Criar uma nova branch a partir da `main`.
-3.  **Trabalhar:** Fazer *commits* locais na sua branch.
-4.  **Sincronizar de Novo:** Atualizar a sua branch com quaisquer mudanças da `main` (usando `rebase`) para evitar conflitos.
-5.  **Enviar:** Fazer *push* da sua branch para o GitHub.
-6.  **Abrir PR:** Abrir um Pull Request.
+---
 
------
+## 1. Fluxo de Trabalho (Linha de Comando - CLI)
 
-### 1\. Como Criar uma Branch (Interface do VS Code)
+Siga estes passos para cada nova tarefa ou correção.
 
-Este é o método recomendado se você prefere a interface gráfica.
+### 1.0 Setup Inicial (Feito Apenas Uma Vez)
 
-#### 1.1 Sincronizar e Criar a Branch
+1.  **Fork:** No GitHub, clique no botão "Fork" na página do repositório principal.
+2.  **Clone:** Clone o *seu fork* para o seu computador:
+    ```bash
+    git clone [URL_DO_SEU_FORK.git]
+    ```
+3.  **Adicione o `upstream`:** Entre na pasta e adicione o repositório principal como um "remote" chamado `upstream`:
+    ```bash
+    cd [nome-do-projeto]
+    git remote add upstream [URL_DO_REPOSITORIO_PRINCIPAL.git]
+    ```
 
-1.  **Mude para a `main`:** Clique no nome da branch no canto inferior esquerdo e selecione `main` na lista.
-2.  **Atualize a `main`:** Clique no ícone de "Sincronizar Alterações" (as duas setas 🔄 ou uma nuvem ☁️) no canto inferior esquerdo. Isto executa um `git pull` e garante que tem o código mais recente.
-3.  **Crie a Nova Branch:** Clique novamente no nome da branch (`main`).
-4.  Selecione a opção **`+ Criar nova branch...`**.
-5.  Digite um nome descritivo para sua branch.
-      * *Padrão recomendado:* `feature/nome-da-tarefa` (para novas funções) ou `fix/nome-do-bug` (para correções).
-      * *Exemplo:* `feature/autenticacao-jwt`
-6.  Pressione Enter.
+### 1.1 Sincronizar e Criar a Branch
 
-#### 1.2 Trabalhar: Fazer Commits Locais
-
-1.  Faça o seu trabalho (crie/edite ficheiros).
-2.  Vá ao painel **Source Control** (Controle de Versão) ⎇ na barra lateral.
-3.  Os seus ficheiros modificados aparecerão em "Alterações".
-4.  Escreva uma mensagem de *commit* clara e descritiva na caixa de texto no topo (ex: `feat: adiciona modelo de utilizador`).
-5.  Clique no ícone de "Confirmar" (✔️) para fazer o *commit* local. Pode repetir este passo quantas vezes precisar.
-
-#### 1.3 Enviar para o Repositório Remoto (Com Segurança)
-
-1.  **Sincronize ANTES de enviar:** É uma boa prática atualizar a sua branch com as últimas mudanças da `main` *antes* de fazer o *push*, para resolver conflitos localmente.
-      * Mude para a branch `main` (passo 1.1) e clique em "Sincronizar Alterações".
-      * Mude de volta para a sua *feature branch*.
-      * Clique na seta para baixo ao lado do nome da branch no canto inferior esquerdo e selecione `Branch > Rebase Branch...` (Rebase de Branch).
-      * Escolha `main` na lista. Isto aplica as suas alterações "por cima" das atualizações da `main`, mantendo um histórico limpo. (Se houver conflitos, o VS Code irá guiá-lo para resolvê-los).
-2.  **Envie (Push):** Após o *rebase* (ou se for o primeiro *push*), clique no ícone de "Publicar Branch" (a nuvem ☁️) no canto inferior esquerdo.
-
-#### 1.4 Verificando a sua Branch
-
-  * **Como saber em qual branch você está?**
-    Basta olhar no **canto inferior esquerdo** da janela do VS Code. O nome exibido ali é a branch em que você está no momento. Verifique se é o nome da sua *feature branch* (ex: `feature/autenticacao-jwt`) e não a `main`.
-
------
-
-### 2\. Como Criar uma Branch (Linha de Comando - CLI)
-
-Para quem prefere usar o terminal integrado do VS Code (`Ctrl + '` ou `Cmd + '`).
-
-#### 2.1 Sincronizar e Criar a Branch
-
-1.  Primeiro, garanta que a sua `main` local está atualizada com a do repositório remoto:
+1.  Primeiro, garanta que a `main` do seu fork local está sincronizada com a `main` principal (`upstream`):
     ```bash
     git checkout main
-    git pull origin main
+    git fetch upstream
+    git rebase upstream/main
+    git push origin main
     ```
-2.  Agora, crie e mude para a sua nova branch com um único comando:
-    ```bash
-    # Use o padrão feature/ ou fix/
-    git checkout -b feature/nome-da-tarefa
-    ```
-      * *Exemplo:* `git checkout -b feature/autenticacao-jwt`
+    *(Isto atualiza sua `main` local com o `upstream` e depois atualiza a `main` do seu fork no GitHub)*
 
-#### 2.2 Trabalhar: Fazer Commits Locais
-
-1.  Faça o seu trabalho (crie/edite ficheiros).
-2.  Adicione os ficheiros que deseja "commitar":
+2.  Agora, crie sua nova branch a partir da `main` atualizada (seguindo o padrão explicado na Seção 0):
     ```bash
-    git add .  # O "." adiciona todos os ficheiros modificados
+    # Exemplo para feature:
+    git checkout -b feature/autenticacao-jwt
+    
+    # Exemplo para correção:
+    git checkout -b fix/bug-calculo-preco
     ```
-3.  Faça o *commit* local com uma mensagem clara:
+
+### 1.2 Trabalhar: Fazer Commits Locais
+
+1.  Faça o seu trabalho (crie/edite **arquivos**).
+2.  Adicione os **arquivos** que deseja "commitar":
+    ```bash
+    git add .
+    ```
+3.  Faça o commit local com uma mensagem clara:
     ```bash
     git commit -m "feat: implementa endpoint de login"
     ```
-4.  Pode repetir os passos 2 e 3 quantas vezes forem necessárias.
+4.  Repita os passos 1-3 quantas vezes forem necessárias.
 
-#### 2.3 Enviar para o Repositório Remoto (Com Segurança)
+### 1.3 Enviar para o Repositório Remoto (Com Segurança)
 
-Esta é a melhor prática para evitar conflitos e manter o histórico limpo.
-
-1.  **Sincronize com a `main`:** Antes de fazer o *push*, atualize a sua branch com as últimas mudanças da `main`. Usamos `rebase` para isto:
+1.  **Sincronize com o `upstream`:** Antes de fazer o push, atualize sua branch com as últimas mudanças da `main` principal.
     ```bash
-    # 1. Busca as atualizações do repositório
-    git fetch origin
+    # 1. Busca as atualizações do repositório principal
+    git fetch upstream
 
-    # 2. Aplica as suas alterações por cima das atualizações da main
-    git rebase origin/main
+    # 2. Aplica as suas alterações por cima das atualizações da main principal
+    git rebase upstream/main
     ```
-2.  **Resolva Conflitos (Se houver):** Se o `rebase` parar devido a um conflito, o terminal avisará. Abra os ficheiros indicados no VS Code, resolva os conflitos (o editor mostrará opções como "Accept Current Change", "Accept Incoming Change"), salve o ficheiro e continue:
+2.  **Resolva Conflitos (Se houver):** Se o `rebase` parar, o terminal avisará. Abra os **arquivos** indicados no VS Code, resolva os conflitos, salve o **arquivo** e continue:
     ```bash
-    git add .  # Adiciona os ficheiros resolvidos
+    git add .
     git rebase --continue
     ```
-3.  **Envie (Push):**
-      * Se for o **primeiro push** desta branch:
+3.  **Envie (Push) para o SEU FORK (`origin`):**
+    * Se for o **primeiro push** desta branch:
         ```bash
-        git push -u origin feature/nome-da-tarefa
+        git push -u origin feature/autenticacao-jwt
         ```
-      * Para **pushes seguintes** (ou se fez `rebase`):
+    * Para **pushes seguintes** (ou se fez `rebase`):
         ```bash
-        git push
+        git push --force-with-lease
         ```
-          * *Nota:* Se fez um `rebase` numa branch que *já* existia no remoto, pode precisar forçar o push: `git push --force-with-lease`. Faça isto com cuidado.
 
-#### 2.4 Verificando a sua Branch
+### 1.4 Verificando a sua Branch
 
-  * **Como saber em qual branch você está?**
+* **Como saber em qual branch você está?**
     Antes de fazer `commit` ou `push`, digite `git status` no terminal. A primeira linha da resposta será `On branch [nome-da-sua-branch]`. Você também pode usar `git branch`, que listará todas as branches locais e marcará a atual com um asterisco (`*`).
 
------
+---
 
-### Próximo Passo
+## Próximo Passo
 
-Após verificar que está na branch correta e enviar as suas alterações, vá até a página do repositório no GitHub. Você verá um aviso amarelo com um botão para **"Compare & pull request"**. Clique nele para iniciar a revisão do seu código.
+Após enviar sua branch para o **seu fork** (`origin`), vá até a página do **repositório principal** (`upstream`) no GitHub. Você verá um aviso amarelo com um botão para **"Compare & pull request"**.
+
+Clique nele, escreva uma boa descrição e envie seu PR. O mantenedor será notificado para revisar seu código.
