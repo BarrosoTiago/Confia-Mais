@@ -12,6 +12,8 @@ import dropdownIcon from "../assets/dropdown-otimized.svg";
 function Login() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  
+  // Importamos o login e o setNotification do nosso Contexto
   const { login, setNotification } = useAuth();
   const navigate = useNavigate();
 
@@ -20,9 +22,23 @@ function Login() {
     setNotification(null); // Limpa notificações antigas
 
     try {
-      await login(username, password);
-      navigate("/dashboard");
+      // 1. Faz o login e RECEBE os dados do usuário de volta (graças ao nosso AuthContext atualizado)
+      const userData = await login(username, password);
+      
+      console.log("Login realizado com sucesso:", userData); // Debug para você ver no F12
+
+      // 2. VERIFICAÇÃO INTELIGENTE DE ROTA
+      // Se o tipo for CLIENTE, vai para o painel de agendamentos
+      if (userData.tipo_usuario === 'CLIENTE') {
+        navigate("/cliente-dashboard");
+      } 
+      // Se for ADMIN (Empreendedor), vai para o painel de gestão
+      else {
+        navigate("/admin-dashboard");
+      }
+
     } catch (err) {
+      console.error(err);
       setNotification("Usuário ou senha inválidos.");
     }
   };
@@ -99,7 +115,6 @@ function Login() {
 
           <button type="submit" className="btn btn-primary d-block w-75 mt-3 mx-auto ">Confirmar</button>
 
-          
           <br />
           <p className="my-4 text-muted">—————————— ou ———————————</p>
           <br />

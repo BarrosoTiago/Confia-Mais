@@ -17,6 +17,10 @@ INSTALLED_APPS = [
     'rest_framework',
     'corsheaders',
     'api',
+    'usuarios',
+    'servicos',
+    'financeiro',
+    'agendamentos',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -54,6 +58,9 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'config.wsgi.application'
+
+# Configuração do CORS
+CORS_ALLOW_ALL_ORIGINS = False # Por segurança, não deixe True em produção
 
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
@@ -99,6 +106,9 @@ REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         # Informa ao DRF para usar JWT para autenticação
         'rest_framework_simplejwt.authentication.JWTAuthentication',
+
+        # Habilita login via Sessão (para VOCÊ testar no navegador agora)
+        'rest_framework.authentication.SessionAuthentication',
     ),
     # ... (outras configurações do DRF)
 }
@@ -130,7 +140,8 @@ USE_I18N = True
 
 USE_TZ = True
 
-
+# Substituindo o model de usuário padrão
+AUTH_USER_MODEL = 'usuarios.Usuario'
 
 STATIC_URL = 'static/'
 
