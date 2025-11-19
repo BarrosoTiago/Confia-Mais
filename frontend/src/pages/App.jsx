@@ -7,6 +7,7 @@ import Register from './Register.jsx';
 import ClienteDashboard from './ClienteDashboard'; 
 import AdminDashboard from './AdminDashboard'; // <--- IMPORTANTE: Importe o arquivo novo
 import Despesas from './Despesas';
+import Servicos from './Servicos';
 
 import Toast from 'react-bootstrap/Toast';
 import ToastContainer from 'react-bootstrap/ToastContainer';
@@ -64,6 +65,15 @@ function App() {
                         <ProtectedRoute>
                             <Despesas />
                 </ProtectedRoute>
+                    } 
+                />
+
+                <Route 
+                    path="/admin/servicos" 
+                    element={
+                        <ProtectedRoute>
+                            <Servicos />
+                        </ProtectedRoute>
                     } 
                 />
 

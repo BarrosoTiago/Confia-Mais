@@ -81,6 +81,9 @@ export default function AdminDashboard() {
         {/* --- CABEÇALHO FINANCEIRO (COM O NOVO BOTÃO) --- */}
         <div className="d-flex justify-content-between align-items-center mb-3">
             <h4 className="text-secondary mb-0">Resumo do Mês</h4>
+            <Button variant="outline-primary" size="sm" onClick={() => navigate('/admin/servicos')}>
+                ✂️ Serviços
+            </Button>
             <Button variant="outline-danger" size="sm" onClick={() => navigate('/admin/despesas')}>
                 💰 Gerenciar Despesas
             </Button>
