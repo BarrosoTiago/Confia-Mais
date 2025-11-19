@@ -1,10 +1,7 @@
 import { createContext, useContext, useState } from 'react';
 import axios from 'axios';
 
-const api = axios.create({
-    baseURL: 'http://localhost:8000/api', 
-    withCredentials: true 
-});
+import api from '../services/api'; // <--- Importa o arquivo centralizado
 
 const AuthContext = createContext();
 
@@ -17,29 +14,40 @@ export const AuthProvider = ({ children }) => {
 
     const login = async (username, password) => {
         try {
-            const response = await api.post('/login/', {
+            // CORREÇÃO 1: A URL correta agora é /auth/login/
+            const response = await api.post('/auth/login/', {
                 username,
                 password
             });
-            setAccessToken(response.data.access);
-            return response.data; // Retorna dados no sucesso
+
+            // Extrai os dados da resposta
+            const { access, refresh, ...userData } = response.data;
+
+            setAccessToken(access);
+            
+            // MELHORIA: Salva os dados do usuário (tipo_usuario, nome) no estado global
+            setUser(userData); 
+
+            // Configura o token para todas as próximas requisições do Axios
+            api.defaults.headers.Authorization = `Bearer ${access}`;
+
+            return response.data; 
         } catch (error) {
             console.error("Falha no login (Contexto):", error);
-            throw error; // Lança o erro para a página (Login.jsx)
+            throw error; 
         }
     };
 
     const register = async (userData) => {
         try {
-            const response = await api.post('/register/', userData);
+            // CORREÇÃO 2: A URL correta agora é /auth/register/
+            const response = await api.post('/auth/register/', userData);
             return response.data;
         } catch (error) {
             console.error("Falha no cadastro (Contexto):", error);
             if (error.response && error.response.data) {
-                // Lança o objeto de validação (ex: { email: [...] })
                 throw error.response.data; 
             } else {
-                // Lança um erro genérico de rede
                 throw new Error("Erro de rede ou servidor indisponível.");
             }
         }
@@ -47,12 +55,14 @@ export const AuthProvider = ({ children }) => {
 
     const logout = async () => {
         try {
-            await api.post('/logout/');
+            // Se tiver endpoint de logout no backend, descomente abaixo
+            // await api.post('/auth/logout/');
         } catch (error) {
             console.error("Erro no logout:", error);
         }
         setAccessToken(null);
         setUser(null);
+        api.defaults.headers.Authorization = null; // Remove o token do header
     };
 
     const value = {

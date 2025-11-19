@@ -1,18 +1,24 @@
-from django.urls import path
-from .views import UserRegistrationView, CustomTokenObtainPairView, LogoutView
-from rest_framework_simplejwt.views import TokenRefreshView
+from django.urls import path, include
+from rest_framework.routers import DefaultRouter
+from agendamentos.views import AgendamentoViewSet
+from servicos.views import ServicoViewSet
+from financeiro.views import TransacaoViewSet, DespesaViewSet, CalculadoraViewSet
+# Importe as views de autenticação
+from .views import CustomLoginView, UserRegistrationView
 
+router = DefaultRouter()
+router.register(r'agendamentos', AgendamentoViewSet, basename='agendamento')
+router.register(r'servicos', ServicoViewSet, basename='servico')
+router.register(r'financeiro/transacoes', TransacaoViewSet, basename='transacao')
+router.register(r'financeiro/despesas', DespesaViewSet, basename='despesa')
+router.register(r'financeiro/calculadora', CalculadoraViewSet, basename='calculadora')
 
 urlpatterns = [
-    path('register/', UserRegistrationView.as_view(), name='user-register'),
+    # --- ROTAS DE AUTENTICAÇÃO (O QUE ESTAVA FALTANDO) ---
+    # Atenção: Adicionei o prefixo 'auth/' para ficar organizado
+    path('auth/login/', CustomLoginView.as_view(), name='token_obtain_pair'),
+    path('auth/register/', UserRegistrationView.as_view(), name='register'),
     
-    # URL de Login (usa nossa view customizada)
-    path('login/', CustomTokenObtainPairView.as_view(), name='token_obtain_pair'),
-    
-    # URL de Logout (usa nossa view customizada)
-    path('logout/', LogoutView.as_view(), name='user-logout'),
-    
-    # URL de Refresh (usa a view padrão do simplejwt)
-    # Esta view lerá automaticamente o cookie 'refresh_token'
-    path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    # --- ROTAS DA API (ROUTER) ---
+    path('', include(router.urls)),
 ]

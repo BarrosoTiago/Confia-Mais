@@ -1,23 +1,17 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+
+// Importação das Páginas Reais
 import Login from './Login.jsx';
 import Register from './Register.jsx';
+import ClienteDashboard from './ClienteDashboard'; 
+import AdminDashboard from './AdminDashboard'; // <--- IMPORTANTE: Importe o arquivo novo
+import Despesas from './Despesas';
 
 import Toast from 'react-bootstrap/Toast';
 import ToastContainer from 'react-bootstrap/ToastContainer';
 
-// Componente simples de Dashboard
-function Dashboard() {
-    const { logout } = useAuth();
-    return (
-        <div>
-            <h1>Bem-vindo ao Dashboard!</h1>
-            <button onClick={logout} className="btn btn-danger">Sair (Logout)</button>
-        </div>
-    );
-}
-
-// Componente para proteger rotas
+// Função de Proteção de Rota (Mantenha esta)
 function ProtectedRoute({ children }) {
     const { accessToken } = useAuth();
     
@@ -32,45 +26,49 @@ function App() {
     const { notification, clearNotification } = useAuth();
 
     return (
-        //  Fragment (<>) para ter o App e o Toast no mesmo nível
         <>
-            {/* --- Container do Toast --- */}
-            <ToastContainer
-                position="top-end" 
-                className="p-3" 
-                style={{ zIndex: 9999 }} // Garante que fique "acima de tudo"
-            >
-                <Toast
-                    show={notification !== null} 
-                    onClose={clearNotification} 
-                    // Duração de 15 segundos
-                    delay={15000} 
-                    autohide 
-                    className="custom-error-toast"
-                    bg={null}
-                >
-                    <Toast.Header closeButton={true}>
-                        <strong className="me-auto text-danger">Ocorreu um erro</strong>
-                    </Toast.Header>
-                    <Toast.Body>{notification}</Toast.Body>
+            <ToastContainer position="top-end" className="p-3" style={{ zIndex: 9999 }}>
+                <Toast show={notification !== null} onClose={clearNotification} delay={5000} autohide bg="danger">
+                    <Toast.Header><strong className="me-auto">Aviso</strong></Toast.Header>
+                    <Toast.Body className="text-white">{notification}</Toast.Body>
                 </Toast>
             </ToastContainer>
-
 
             <Routes>
                 <Route path="/login" element={<Login />} />
                 <Route path="/register" element={<Register />} />
                 
+                {/* Rota do Cliente */}
                 <Route 
-                    path="/dashboard" 
+                    path="/cliente-dashboard" 
                     element={
                         <ProtectedRoute>
-                            <Dashboard />
+                            <ClienteDashboard />
                         </ProtectedRoute>
                     } 
                 />
-                
-                <Route path="/" element={<Navigate to="/dashboard" />} />
+
+                {/* Rota do Admin (Agora aponta para o arquivo AdminDashboard) */}
+                <Route 
+                    path="/admin-dashboard" 
+                    element={
+                        <ProtectedRoute>
+                            <AdminDashboard />
+                        </ProtectedRoute>
+                    } 
+                />
+
+                <Route 
+                    path="/admin/despesas" 
+                    element={
+                        <ProtectedRoute>
+                            <Despesas />
+                </ProtectedRoute>
+                    } 
+                />
+
+                <Route path="/" element={<Navigate to="/login" />} />
+                <Route path="*" element={<h1>Página não encontrada (404)</h1>} />
             </Routes>
         </>
     );
