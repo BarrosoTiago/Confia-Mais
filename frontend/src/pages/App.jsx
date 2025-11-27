@@ -8,6 +8,9 @@ import ClienteDashboard from './ClienteDashboard';
 import AdminDashboard from './AdminDashboard'; // <--- IMPORTANTE: Importe o arquivo novo
 import Despesas from './Despesas';
 import Servicos from './Servicos';
+import Agendamentos from './Agendamentos';
+import Financeiro from './Financeiro';
+import ConfigHorarios from './ConfigHorarios';
 
 import Toast from 'react-bootstrap/Toast';
 import ToastContainer from 'react-bootstrap/ToastContainer';
@@ -77,8 +80,27 @@ function App() {
                     } 
                 />
 
+                <Route 
+                    path="/admin/agendamentos" 
+                    element={
+                        <ProtectedRoute>
+                            <Agendamentos />
+                        </ProtectedRoute>
+                    } 
+                />
+
+                <Route 
+                    path="/admin/financeiro" 
+                    element={
+                        <ProtectedRoute>
+                            <Financeiro />
+                        </ProtectedRoute>
+                    } 
+                />
+
                 <Route path="/" element={<Navigate to="/login" />} />
                 <Route path="*" element={<h1>Página não encontrada (404)</h1>} />
+                <Route path="/admin/config-horarios" element={<ProtectedRoute><ConfigHorarios /></ProtectedRoute>} />
             </Routes>
         </>
     );

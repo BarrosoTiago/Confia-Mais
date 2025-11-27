@@ -59,3 +59,8 @@ class CalculadoraViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         # Retorna apenas a calculadora do usuário logado
         return CalculadoraPrecificacao.objects.filter(usuario=self.request.user)
+
+class PagamentoViewSet(viewsets.ModelViewSet):
+    serializer_class = PagamentoSerializer
+    permission_classes = [permissions.IsAdminUser]
+    queryset = Pagamento.objects.all().order_by('-data_pagamento')
