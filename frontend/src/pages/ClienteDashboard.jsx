@@ -2,25 +2,31 @@ import { useState, useEffect } from 'react';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { Container, Row, Col, Card, Form, Button, Spinner, Badge, Alert } from 'react-bootstrap';
 
 export default function ClienteDashboard() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   
+  // Estados de Dados Gerais
   const [servicos, setServicos] = useState([]);
   const [meusAgendamentos, setMeusAgendamentos] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Estado para o formulário de agendamento rápido
+  // Estados para a Lógica de Horários (UX Melhorada)
+  const [horariosLoja, setHorariosLoja] = useState([]);
+  const [loadingHorarios, setLoadingHorarios] = useState(false);
+
+  // Estado do Formulário
   const [agendamentoData, setAgendamentoData] = useState({
     servico_id: '',
     data_hora: ''
   });
 
+  // 1. Carrega dados iniciais (Serviços e Meus Agendamentos)
   useEffect(() => {
     async function loadData() {
       try {
-        // Busca serviços e agendamentos em paralelo
         const [respServicos, respAgendamentos] = await Promise.all([
             api.get('/servicos/'),
             api.get('/agendamentos/')
@@ -34,10 +40,32 @@ export default function ClienteDashboard() {
         setLoading(false);
       }
     }
-
     loadData();
   }, []);
 
+  // 2. Monitora a escolha do serviço para buscar os horários do dono
+  useEffect(() => {
+    if (agendamentoData.servico_id) {
+        fetchHorarios(agendamentoData.servico_id);
+    } else {
+        setHorariosLoja([]);
+    }
+  }, [agendamentoData.servico_id]);
+
+  async function fetchHorarios(servicoId) {
+    try {
+        setLoadingHorarios(true);
+        // Chama a rota pública que criamos no backend
+        const response = await api.get(`/horarios/disponiveis/?servico_id=${servicoId}`);
+        setHorariosLoja(response.data);
+    } catch (error) {
+        console.error("Erro ao buscar horários", error);
+    } finally {
+        setLoadingHorarios(false);
+    }
+  }
+
+  // Envia o Agendamento
   async function handleAgendar(e) {
     e.preventDefault();
     if (!agendamentoData.servico_id || !agendamentoData.data_hora) {
@@ -47,52 +75,57 @@ export default function ClienteDashboard() {
 
     try {
         await api.post('/agendamentos/', {
-            servicos: [agendamentoData.servico_id], // API espera uma lista de IDs
+            servicos: [agendamentoData.servico_id],
             data_hora_inicio: agendamentoData.data_hora
         });
         
         alert("Agendamento realizado com sucesso!");
-        // Recarrega a lista para mostrar o novo
+        
+        // Limpa o form e recarrega a lista
+        setAgendamentoData({ servico_id: '', data_hora: '' });
         const resp = await api.get('/agendamentos/');
         setMeusAgendamentos(resp.data);
         
     } catch (error) {
-        // Mostra o erro que configuramos no Backend (ex: Conflito de horário)
         console.error(error.response);
-        const msg = error.response?.data?.data_hora_inicio?.[0] || "Erro ao agendar.";
+        // Tenta pegar a mensagem específica de validação de horário/conflito
+        const msg = error.response?.data?.data_hora_inicio?.[0] || "Erro ao agendar. Tente outro horário.";
         alert(msg);
     }
   }
 
-  if (loading) return <div className="p-5 text-center">Carregando...</div>;
+  if (loading) return (
+    <Container className="vh-100 d-flex justify-content-center align-items-center">
+        <Spinner animation="border" variant="primary" />
+    </Container>
+  );
 
   return (
-    <div className="container-fluid bg-light min-vh-100">
-      {/* Navbar Simples */}
-      <nav className="navbar navbar-dark bg-primary px-4 mb-4">
+    <div className="bg-light min-vh-100 pb-5">
+      {/* Navbar */}
+      <nav className="navbar navbar-dark bg-primary px-4 mb-4 shadow">
         <span className="navbar-brand mb-0 h1">Olá, {user?.nome_completo || user?.username}</span>
-        <button onClick={() => { logout(); navigate('/'); }} className="btn btn-outline-light btn-sm">
+        <Button variant="outline-light" size="sm" onClick={() => { logout(); navigate('/login'); }}>
             Sair
-        </button>
+        </Button>
       </nav>
 
-      <div className="container">
-        <div className="row">
-            
-            {/* COLUNA DA ESQUERDA: AGENDAR NOVO */}
-            <div className="col-md-5 mb-4">
-                <div className="card shadow-sm border-0">
-                    <div className="card-header bg-white fw-bold text-primary">
-                        Novo Agendamento
-                    </div>
-                    <div className="card-body">
-                        <form onSubmit={handleAgendar}>
-                            <div className="mb-3">
-                                <label className="form-label">Escolha o Serviço:</label>
-                                <select 
-                                    className="form-select"
+      <Container>
+        <Row>
+            {/* COLUNA DA ESQUERDA: FORMULÁRIO + HORÁRIOS */}
+            <Col md={5} className="mb-4">
+                <Card shadow="sm" className="border-0 mb-3">
+                    <Card.Header className="bg-white fw-bold text-primary border-bottom-0 pt-3">
+                        📅 Novo Agendamento
+                    </Card.Header>
+                    <Card.Body>
+                        <Form onSubmit={handleAgendar}>
+                            <Form.Group className="mb-3">
+                                <Form.Label>Escolha o Serviço:</Form.Label>
+                                <Form.Select 
                                     value={agendamentoData.servico_id}
                                     onChange={e => setAgendamentoData({...agendamentoData, servico_id: e.target.value})}
+                                    required
                                 >
                                     <option value="">Selecione...</option>
                                     {servicos.map(servico => (
@@ -100,59 +133,114 @@ export default function ClienteDashboard() {
                                             {servico.nome} - R$ {servico.preco} ({servico.duracao_minutos} min)
                                         </option>
                                     ))}
-                                </select>
+                                </Form.Select>
+                            </Form.Group>
+
+                            {/* --- ÁREA VISUAL DE HORÁRIOS --- */}
+                            <div className="mb-3 p-3 bg-light rounded border">
+                                <h6 className="text-muted small fw-bold text-uppercase mb-3">
+                                    🕒 Horários de Atendimento
+                                </h6>
+                                
+                                {loadingHorarios ? (
+                                    <div className="text-center py-2"><Spinner animation="border" size="sm" /></div>
+                                ) : !agendamentoData.servico_id ? (
+                                    <div className="text-center text-muted small fst-italic">
+                                        Selecione um serviço acima para ver a disponibilidade.
+                                    </div>
+                                ) : horariosLoja.length === 0 ? (
+                                    <Alert variant="warning" className="small py-2 mb-0">
+                                        Horários não configurados pelo estabelecimento.
+                                    </Alert>
+                                ) : (
+                                    <div className="table-responsive">
+                                        <table className="table table-sm table-borderless small mb-0">
+                                            <tbody>
+                                                {horariosLoja.map(h => {
+                                                    const dias = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'];
+                                                    // Verifica se é o dia de hoje (JS: 0=Dom, Py: 0=Seg. Ajuste necessário)
+                                                    // getDay(): 0=Dom, 1=Seg...
+                                                    // h.dia_semana: 0=Seg...
+                                                    // Conversão: (dia_semana + 1) % 7 == getDay()
+                                                    const isHoje = new Date().getDay() === (h.dia_semana + 1) % 7; 
+                                                    
+                                                    return (
+                                                        <tr key={h.id} className={isHoje ? "fw-bold text-primary bg-white" : "text-muted"}>
+                                                            <td className="ps-2">
+                                                                {dias[h.dia_semana]} 
+                                                                {isHoje && <Badge bg="primary" className="ms-2" style={{fontSize:'0.6em'}}>HOJE</Badge>}
+                                                            </td>
+                                                            <td className="text-end pe-2">
+                                                                {h.fechado ? (
+                                                                    <span className="badge bg-secondary opacity-50">Fechado</span>
+                                                                ) : (
+                                                                    `${h.horario_abertura.slice(0,5)} - ${h.horario_fechamento.slice(0,5)}`
+                                                                )}
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )}
                             </div>
 
-                            <div className="mb-3">
-                                <label className="form-label">Data e Hora:</label>
-                                <input 
+                            <Form.Group className="mb-3">
+                                <Form.Label>Data e Hora:</Form.Label>
+                                <Form.Control 
                                     type="datetime-local" 
-                                    className="form-control"
                                     value={agendamentoData.data_hora}
                                     onChange={e => setAgendamentoData({...agendamentoData, data_hora: e.target.value})}
+                                    required
                                 />
-                            </div>
+                                <Form.Text className="text-muted">
+                                    Verifique a tabela acima antes de escolher.
+                                </Form.Text>
+                            </Form.Group>
 
-                            <button type="submit" className="btn btn-success w-100">
+                            <Button type="submit" variant="success" className="w-100 fw-bold">
                                 Confirmar Agendamento
-                            </button>
-                        </form>
-                    </div>
-                </div>
-            </div>
+                            </Button>
+                        </Form>
+                    </Card.Body>
+                </Card>
+            </Col>
 
             {/* COLUNA DA DIREITA: MEUS AGENDAMENTOS */}
-            <div className="col-md-7">
+            <Col md={7}>
                 <h4 className="mb-3 text-secondary">Meus Agendamentos</h4>
                 {meusAgendamentos.length === 0 ? (
-                    <div className="alert alert-info">Você ainda não tem agendamentos.</div>
+                    <Alert variant="info">Você ainda não tem agendamentos futuros.</Alert>
                 ) : (
-                    <div className="list-group shadow-sm">
+                    <div className="d-flex flex-column gap-2">
                         {meusAgendamentos.map(agenda => (
-                            <div key={agenda.id} className="list-group-item d-flex justify-content-between align-items-center">
-                                <div>
-                                    <h6 className="mb-1 fw-bold">
-                                        {agenda.servicos_detalhes?.map(s => s.nome).join(', ')}
-                                    </h6>
-                                    <small className="text-muted">
-                                        📅 {new Date(agenda.data_hora_inicio).toLocaleDateString()} às 
-                                        {new Date(agenda.data_hora_inicio).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                                    </small>
-                                </div>
-                                <span className={`badge ${
-                                    agenda.status === 'PENDENTE' ? 'bg-warning text-dark' : 
-                                    agenda.status === 'CONFIRMADO' ? 'bg-success' : 'bg-secondary'
-                                }`}>
-                                    {agenda.status}
-                                </span>
-                            </div>
+                            <Card key={agenda.id} className="border-0 shadow-sm">
+                                <Card.Body className="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <h6 className="mb-1 fw-bold text-primary">
+                                            {agenda.servicos_detalhes?.map(s => s.nome).join(', ')}
+                                        </h6>
+                                        <div className="text-muted small">
+                                            📅 {new Date(agenda.data_hora_inicio).toLocaleDateString()} <br/>
+                                            ⏰ {new Date(agenda.data_hora_inicio).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                                        </div>
+                                    </div>
+                                    <Badge bg={
+                                        agenda.status === 'PENDENTE' ? 'warning' : 
+                                        agenda.status === 'CONFIRMADO' ? 'success' : 
+                                        agenda.status === 'CONCLUIDO' ? 'primary' : 'secondary'
+                                    } className="p-2">
+                                        {agenda.status}
+                                    </Badge>
+                                </Card.Body>
+                            </Card>
                         ))}
                     </div>
                 )}
-            </div>
-
-        </div>
-      </div>
+            </Col>
+        </Row>
+      </Container>
     </div>
   );
 }

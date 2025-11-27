@@ -3,6 +3,10 @@ from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from .serializers import UserRegistrationSerializer, CustomTokenObtainPairSerializer
+from rest_framework.generics import CreateAPIView, ListAPIView 
+from django.contrib.auth import get_user_model
+
+User = get_user_model()
 
 class UserRegistrationView(generics.CreateAPIView):
     """
@@ -74,3 +78,13 @@ class LogoutView(APIView):
         response = Response({"message": "Logout realizado com sucesso."}, status=status.HTTP_200_OK)
         response.delete_cookie('refresh_token')
         return response
+    
+class ClienteListView(ListAPIView):
+    """
+    Lista apenas usuários do tipo CLIENTE para o Admin selecionar.
+    """
+    permission_classes = [permissions.IsAdminUser]
+    serializer_class = UserRegistrationSerializer # Retorna id, username, nome, etc.
+    
+    def get_queryset(self):
+        return User.objects.filter(tipo_usuario='CLIENTE')

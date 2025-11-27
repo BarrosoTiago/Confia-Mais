@@ -78,31 +78,45 @@ export default function AdminDashboard() {
 
       <Container>
         
-        {/* --- CABEÇALHO FINANCEIRO (COM O NOVO BOTÃO) --- */}
+        {/* --- CABEÇALHO FINANCEIRO E BOTÕES DE GESTÃO --- */}
         <div className="d-flex justify-content-between align-items-center mb-3">
             <h4 className="text-secondary mb-0">Resumo do Mês</h4>
-            <Button variant="outline-primary" size="sm" onClick={() => navigate('/admin/servicos')}>
-                ✂️ Serviços
-            </Button>
-            <Button variant="outline-danger" size="sm" onClick={() => navigate('/admin/despesas')}>
-                💰 Gerenciar Despesas
-            </Button>
+            
+            {/* Agrupamento dos botões */}
+            <div className="d-flex gap-2">
+                <Button variant="outline-primary" size="sm" onClick={() => navigate('/admin/servicos')}>
+                    ✂️ Serviços
+                </Button>
+                
+                {/* NOVO BOTÃO ADICIONADO */}
+                <Button variant="outline-dark" size="sm" onClick={() => navigate('/admin/config-horarios')}>
+                    ⚙️ Horários
+                </Button>
+
+                <Button variant="outline-danger" size="sm" onClick={() => navigate('/admin/despesas')}>
+                    💰 Despesas
+                </Button>
+            </div>
         </div>
 
         {/* --- CARDS FINANCEIROS --- */}
         <Row className="mb-5">
             <Col md={4}>
-                <Card className="text-white bg-success mb-3 shadow-sm">
+                <Card className="text-white bg-success mb-3 shadow-sm h-100"
+                style={{ cursor: 'pointer' }} // Faz a mãozinha aparecer
+                onClick={() => navigate('/admin/financeiro')} // O comando de ir para a tela
+                >
                     <Card.Body>
                         <Card.Title>Receita (Entradas)</Card.Title>
                         <Card.Text className="fs-2 fw-bold">
                             {formatMoney(financeiro.receita)}
                         </Card.Text>
+                        <small>Clique para gerenciar →</small>
                     </Card.Body>
                 </Card>
             </Col>
             <Col md={4}>
-                <Card className="text-white bg-danger mb-3 shadow-sm">
+                <Card className="text-white bg-danger mb-3 shadow-sm h-100">
                     <Card.Body>
                         <Card.Title>Despesas (Saídas)</Card.Title>
                         <Card.Text className="fs-2 fw-bold">
@@ -112,7 +126,7 @@ export default function AdminDashboard() {
                 </Card>
             </Col>
             <Col md={4}>
-                <Card className={`text-white mb-3 shadow-sm ${financeiro.lucro >= 0 ? 'bg-primary' : 'bg-warning'}`}>
+                <Card className={`text-white mb-3 shadow-sm h-100 ${financeiro.lucro >= 0 ? 'bg-primary' : 'bg-warning'}`}>
                     <Card.Body>
                         <Card.Title>Lucro Líquido</Card.Title>
                         <Card.Text className="fs-2 fw-bold">
@@ -126,8 +140,9 @@ export default function AdminDashboard() {
         {/* --- TABELA DE AGENDAMENTOS --- */}
         <div className="d-flex justify-content-between align-items-center mb-3">
             <h4 className="text-secondary">Próximos Agendamentos</h4>
-            {/* Opcional: Botão para criar agendamento manual se quiser no futuro */}
-            {/* <Button variant="primary" size="sm">Adicionar Manualmente</Button> */}
+            <Button variant="primary" size="sm" onClick={() => navigate('/admin/agendamentos')}>
+                Gerenciar Agenda Completa
+            </Button>
         </div>
 
         <Card className="shadow-sm border-0 mb-5">

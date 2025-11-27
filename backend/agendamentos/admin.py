@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Agendamento
+from .models import Agendamento, HorarioFuncionamento
 
 @admin.register(Agendamento)
 class AgendamentoAdmin(admin.ModelAdmin):
@@ -14,3 +14,8 @@ class AgendamentoAdmin(admin.ModelAdmin):
     def get_servicos(self, obj):
         return ", ".join([s.nome for s in obj.servicos.all()])
     get_servicos.short_description = 'Serviços'
+
+@admin.register(HorarioFuncionamento)
+class HorarioAdmin(admin.ModelAdmin):
+    list_display = ('get_dia_semana_display', 'horario_abertura', 'horario_fechamento', 'fechado')
+    ordering = ('dia_semana',)
