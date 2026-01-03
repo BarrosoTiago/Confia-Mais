@@ -26,11 +26,8 @@ class Agendamento(models.Model):
     criado_em = models.DateTimeField(auto_now_add=True)
     observacoes = models.TextField(blank=True, null=True, verbose_name="Observações do Cliente")
 
-    def save(self, *args, **kwargs):
-        super().save(*args, **kwargs)
-
     def __str__(self):
-        return f"Agendamento de {self.cliente} em {self.data_hora_inicio.strftime('%d/%m %H:%M')}"
+        return f"Agendamento de {self.cliente} em {self.data_hora_inicio}"
     
     class Meta:
         ordering = ['-data_hora_inicio'] 
@@ -49,26 +46,69 @@ class HorarioFuncionamento(models.Model):
     usuario = models.ForeignKey(
         settings.AUTH_USER_MODEL, 
         on_delete=models.CASCADE,
-        related_name='horarios_funcionamento',
-        null=True, blank=True 
+        related_name='horarios_funcionamento'
     )
 
-    # CORREÇÃO AQUI: Removido o unique=True, pois agora a unicidade é par (usuario + dia)
     dia_semana = models.IntegerField(choices=DIAS_SEMANA) 
     
-    horario_abertura = models.TimeField()
-    horario_fechamento = models.TimeField()
-    fechado = models.BooleanField(default=False)
+    horario_inicio = models.TimeField(verbose_name="Abertura")
+    horario_fim = models.TimeField(verbose_name="Fechamento")
+    
+    almoco_inicio = models.TimeField(null=True, blank=True, verbose_name="Início Almoço")
+    almoco_fim = models.TimeField(null=True, blank=True, verbose_name="Fim Almoço")
+    
+    ativo = models.BooleanField(default=True, verbose_name="Dia Ativo/Trabalhado")
 
     def __str__(self):
-        status = "Fechado" if self.fechado else f"{self.horario_abertura} - {self.horario_fechamento}"
-        user_str = self.usuario.username if self.usuario else "Geral"
-        return f"{user_str} - {self.get_dia_semana_display()}: {status}"
+        return f"{self.usuario} - {self.get_dia_semana_display()}"
     
     class Meta:
         ordering = ['dia_semana']
-        verbose_name = "Horário de Funcionamento"
-        verbose_name_plural = "Horários de Funcionamento"
-        
-        # CORREÇÃO AQUI: Garante que UM usuário não tenha DOIS horários para o MESMO dia
         unique_together = ('usuario', 'dia_semana')
+
+class Avaliacao(models.Model):
+    agendamento = models.OneToOneField(Agendamento, on_delete=models.CASCADE, related_name='avaliacao')
+    nota = models.IntegerField(choices=[(i, i) for i in range(1, 6)], verbose_name="Estrelas")
+    comentario = models.TextField(blank=True, null=True, verbose_name="Comentário")
+    criado_em = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Nota {self.nota} para {self.agendamento}"
+
+# --- NOVO MODELO: DESPESA (Faltava este!) 💸 ---
+class Despesa(models.Model):
+    usuario = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='minhas_despesas'
+    )
+    descricao = models.CharField(max_length=200, verbose_name="Descrição")
+    valor = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Valor (R$)")
+    data = models.DateField(verbose_name="Data do Pagamento")
+    
+    CATEGORIA_CHOICES = (
+        ('FIXA', 'Fixa (Aluguel, Internet)'),
+        ('VARIAVEL', 'Variável (Produtos, Extras)'),
+        ('INVESTIMENTO', 'Investimento'),
+    )
+    categoria = models.CharField(max_length=20, choices=CATEGORIA_CHOICES, default='VARIAVEL')
+
+    def __str__(self):
+        return f"{self.descricao} - R$ {self.valor}"
+
+# --- NOVO MODELO: PAGAMENTOS RECEBIDOS 💰 ---
+class Pagamento(models.Model):
+    agendamento = models.ForeignKey(Agendamento, on_delete=models.CASCADE, related_name='pagamentos')
+    valor = models.DecimalField(max_digits=10, decimal_places=2)
+    forma = models.CharField(max_length=50, choices=[
+        ('PIX', 'Pix'),
+        ('DINHEIRO', 'Dinheiro'),
+        ('CARTAO_CREDITO', 'Cartão Crédito'),
+        ('CARTAO_DEBITO', 'Cartão Débito'),
+        ('FIADO', 'Fiado / Pendente')
+    ], default='DINHEIRO')
+    data = models.DateTimeField(auto_now_add=True)
+    observacao = models.CharField(max_length=200, blank=True, null=True)
+
+    def __str__(self):
+        return f"R$ {self.valor} ({self.forma})"

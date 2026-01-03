@@ -1,109 +1,132 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { AuthProvider, useAuth } from "../context/AuthContext"; 
+import { Toast, ToastContainer } from 'react-bootstrap';
 
-// Importação das Páginas Reais
-import Login from './Login.jsx';
-import Register from './Register.jsx';
-import ClienteDashboard from './ClienteDashboard'; 
-import AdminDashboard from './AdminDashboard'; // <--- IMPORTANTE: Importe o arquivo novo
-import Despesas from './Despesas';
-import Servicos from './Servicos';
-import Agendamentos from './Agendamentos';
-import Financeiro from './Financeiro';
-import ConfigHorarios from './ConfigHorarios';
+// Importação das Telas
+// Como o App.jsx está na pasta 'pages', não precisamos do prefixo "./pages/"
+import Login from "./Login";
+import Register from "./Register";
+import AdminDashboard from "./AdminDashboard";
+import ClienteDashboard from "./ClienteDashboard";
+import ConfigHorarios from "./ConfigHorarios";
+import Servicos from "./Servicos";
+import Financeiro from "./Financeiro";
+import Despesas from "./Despesas";
+import Agendamentos from "./Agendamentos";
+import RecuperarSenha from "./RecuperarSenha"; 
+import Vitrine from "./Vitrine";
+import PerfilLoja from "./PerfilLoja";
+import HistoricoGeral from "./HistoricoGeral";
+import CalculadoraPreco from "./CalculadoraPreco"; // <--- CAMINHO CORRIGIDO
 
-import Toast from 'react-bootstrap/Toast';
-import ToastContainer from 'react-bootstrap/ToastContainer';
+// --- Componente que Protege as Rotas ---
+const PrivateRoute = ({ children, role }) => {
+  const { user, loading } = useAuth();
 
-// Função de Proteção de Rota (Mantenha esta)
-function ProtectedRoute({ children }) {
-    const { accessToken } = useAuth();
-    
-    if (!accessToken) {
-        return <Navigate to="/login" replace />;
-    }
+  if (loading) {
+     return (
+       <div className="d-flex justify-content-center align-items-center vh-100">
+         <div className="spinner-border text-primary" role="status">
+           <span className="visually-hidden">Carregando...</span>
+         </div>
+       </div>
+     );
+  }
 
-    return children;
-}
+  if (!user) {
+    return <Navigate to="/login" />;
+  }
 
-function App() {
+  if (role === 'ADMIN' && user.tipo_usuario !== 'ADMIN') {
+    return <Navigate to="/vitrine" />;
+  }
+
+  return children;
+};
+
+// --- Notificação Global ---
+const GlobalNotification = () => {
     const { notification, clearNotification } = useAuth();
+    if (!notification) return null;
 
     return (
-        <>
-            <ToastContainer position="top-end" className="p-3" style={{ zIndex: 9999 }}>
-                <Toast show={notification !== null} onClose={clearNotification} delay={5000} autohide bg="danger">
-                    <Toast.Header><strong className="me-auto">Aviso</strong></Toast.Header>
-                    <Toast.Body className="text-white">{notification}</Toast.Body>
-                </Toast>
-            </ToastContainer>
-
-            <Routes>
-                <Route path="/login" element={<Login />} />
-                <Route path="/register" element={<Register />} />
-                
-                {/* Rota do Cliente */}
-                <Route 
-                    path="/cliente-dashboard" 
-                    element={
-                        <ProtectedRoute>
-                            <ClienteDashboard />
-                        </ProtectedRoute>
-                    } 
-                />
-
-                {/* Rota do Admin (Agora aponta para o arquivo AdminDashboard) */}
-                <Route 
-                    path="/admin-dashboard" 
-                    element={
-                        <ProtectedRoute>
-                            <AdminDashboard />
-                        </ProtectedRoute>
-                    } 
-                />
-
-                <Route 
-                    path="/admin/despesas" 
-                    element={
-                        <ProtectedRoute>
-                            <Despesas />
-                </ProtectedRoute>
-                    } 
-                />
-
-                <Route 
-                    path="/admin/servicos" 
-                    element={
-                        <ProtectedRoute>
-                            <Servicos />
-                        </ProtectedRoute>
-                    } 
-                />
-
-                <Route 
-                    path="/admin/agendamentos" 
-                    element={
-                        <ProtectedRoute>
-                            <Agendamentos />
-                        </ProtectedRoute>
-                    } 
-                />
-
-                <Route 
-                    path="/admin/financeiro" 
-                    element={
-                        <ProtectedRoute>
-                            <Financeiro />
-                        </ProtectedRoute>
-                    } 
-                />
-
-                <Route path="/" element={<Navigate to="/login" />} />
-                <Route path="*" element={<h1>Página não encontrada (404)</h1>} />
-                <Route path="/admin/config-horarios" element={<ProtectedRoute><ConfigHorarios /></ProtectedRoute>} />
-            </Routes>
-        </>
+        <ToastContainer position="top-end" className="p-3" style={{ zIndex: 9999 }}>
+            <Toast 
+                show={!!notification} 
+                onClose={clearNotification} 
+                delay={4000} 
+                autohide 
+                bg={notification.type === 'error' ? 'danger' : 'success'}
+            >
+                <Toast.Header closeButton={true}>
+                    <strong className="me-auto">
+                        {notification.type === 'error' ? 'Aviso' : 'Sucesso'}
+                    </strong>
+                </Toast.Header>
+                <Toast.Body className="text-white">
+                    {notification.message}
+                </Toast.Body>
+            </Toast>
+        </ToastContainer>
     );
-}
+};
 
-export default App;
+export default function App() {
+  return (
+    <BrowserRouter>
+      <AuthProvider>
+        <GlobalNotification />
+
+        <Routes>
+          {/* --- Rotas Públicas --- */}
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+          <Route path="/recuperar-senha" element={<RecuperarSenha />} />
+
+          {/* --- Rotas do ADMIN (Empreendedor) --- */}
+          <Route path="/admin-dashboard" element={
+            <PrivateRoute role="ADMIN"><AdminDashboard /></PrivateRoute>
+          } />
+          <Route path="/admin/config-horarios" element={
+            <PrivateRoute role="ADMIN"><ConfigHorarios /></PrivateRoute>
+          } />
+          <Route path="/admin/servicos" element={
+            <PrivateRoute role="ADMIN"><Servicos /></PrivateRoute>
+          } />
+          <Route path="/admin/financeiro" element={
+            <PrivateRoute role="ADMIN"><Financeiro /></PrivateRoute>
+          } />
+          <Route path="/admin/despesas" element={
+            <PrivateRoute role="ADMIN"><Despesas /></PrivateRoute>
+          } />
+          <Route path="/admin/agendamentos" element={
+            <PrivateRoute role="ADMIN"><Agendamentos /></PrivateRoute>
+          } />
+          <Route path="/admin/perfil" element={
+            <PrivateRoute role="ADMIN"><PerfilLoja /></PrivateRoute>
+          } />
+          
+          {/* ROTA DA CALCULADORA */}
+          <Route path="/admin/calculadora" element={
+            <PrivateRoute role="ADMIN"><CalculadoraPreco /></PrivateRoute>
+          } />
+
+          {/* --- Rotas do CLIENTE --- */}
+          <Route path="/vitrine" element={
+            <PrivateRoute role="CLIENTE"><Vitrine /></PrivateRoute>
+          } />
+          
+          <Route path="/meus-agendamentos" element={
+            <PrivateRoute role="CLIENTE"><HistoricoGeral /></PrivateRoute>
+          } />
+
+          <Route path="/cliente-dashboard" element={
+            <PrivateRoute role="CLIENTE"><ClienteDashboard /></PrivateRoute>
+          } />
+
+          <Route path="*" element={<Navigate to="/login" />} />
+        </Routes>
+      </AuthProvider>
+    </BrowserRouter>
+  );
+}

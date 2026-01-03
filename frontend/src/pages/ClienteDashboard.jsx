@@ -1,246 +1,361 @@
 import { useState, useEffect } from 'react';
+import { Container, Row, Col, Card, Button, Modal, Spinner, Badge } from 'react-bootstrap';
 import api from '../services/api';
-import { useAuth } from '../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
-import { Container, Row, Col, Card, Form, Button, Spinner, Badge, Alert } from 'react-bootstrap';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { 
+  FaArrowLeft, FaMapMarkerAlt, FaStar, FaClock, FaCheckCircle, 
+  FaChevronLeft, FaChevronRight, FaStore, FaCalendarDay, FaSun, FaMoon 
+} from 'react-icons/fa';
 
 export default function ClienteDashboard() {
-  const { user, logout } = useAuth();
   const navigate = useNavigate();
-  
-  // Estados de Dados Gerais
+  const location = useLocation();
+  const lojaRecebida = location.state?.loja;
+
+  const [loja, setLoja] = useState(lojaRecebida || null);
   const [servicos, setServicos] = useState([]);
-  const [meusAgendamentos, setMeusAgendamentos] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Estados para a Lógica de Horários (UX Melhorada)
-  const [horariosLoja, setHorariosLoja] = useState([]);
-  const [loadingHorarios, setLoadingHorarios] = useState(false);
+  // Modal
+  const [showModal, setShowModal] = useState(false);
+  const [servicoSelecionado, setServicoSelecionado] = useState(null);
+  const [dataSelecionada, setDataSelecionada] = useState(new Date());
+  const [mesAtual, setMesAtual] = useState(new Date());
+  const [horaSelecionada, setHoraSelecionada] = useState('');
+  const [agendando, setAgendando] = useState(false);
 
-  // Estado do Formulário
-  const [agendamentoData, setAgendamentoData] = useState({
-    servico_id: '',
-    data_hora: ''
-  });
+  // Lista de Horários
+  const HORARIOS_BASE = [
+    "08:00", "08:30", "09:00", "09:30", "10:00", "10:30", "11:00", 
+    "13:00", "13:30", "14:00", "14:30", "15:00", "15:30", "16:00", "17:00", "17:30", "18:00"
+  ];
 
-  // 1. Carrega dados iniciais (Serviços e Meus Agendamentos)
+  const periodos = {
+      manha: HORARIOS_BASE.filter(h => parseInt(h.split(':')[0]) < 12),
+      tarde: HORARIOS_BASE.filter(h => parseInt(h.split(':')[0]) >= 12)
+  };
+
   useEffect(() => {
-    async function loadData() {
-      try {
-        const [respServicos, respAgendamentos] = await Promise.all([
-            api.get('/servicos/'),
-            api.get('/agendamentos/')
-        ]);
-
-        setServicos(respServicos.data);
-        setMeusAgendamentos(respAgendamentos.data);
-      } catch (error) {
-        console.error("Erro ao carregar dados", error);
-      } finally {
-        setLoading(false);
-      }
+    if (!lojaRecebida || !lojaRecebida.id) {
+      navigate('/vitrine'); 
+      return;
     }
-    loadData();
-  }, []);
+    loadServicos();
+  }, [lojaRecebida]);
 
-  // 2. Monitora a escolha do serviço para buscar os horários do dono
-  useEffect(() => {
-    if (agendamentoData.servico_id) {
-        fetchHorarios(agendamentoData.servico_id);
-    } else {
-        setHorariosLoja([]);
-    }
-  }, [agendamentoData.servico_id]);
-
-  async function fetchHorarios(servicoId) {
+  async function loadServicos() {
     try {
-        setLoadingHorarios(true);
-        // Chama a rota pública que criamos no backend
-        const response = await api.get(`/horarios/disponiveis/?servico_id=${servicoId}`);
-        setHorariosLoja(response.data);
+      const response = await api.get('/servicos/');
+      const todos = response.data || [];
+
+      const filtrados = todos.filter(s => {
+          const idDono = s.criado_por || s.empreendedor || s.user;
+          const idFinal = (typeof idDono === 'object' && idDono !== null) ? idDono.id : idDono;
+          return String(idFinal) === String(lojaRecebida.id);
+      });
+      
+      setServicos(filtrados);
     } catch (error) {
-        console.error("Erro ao buscar horários", error);
+      setServicos([]); 
     } finally {
-        setLoadingHorarios(false);
+      setLoading(false);
     }
   }
 
-  // Envia o Agendamento
-  async function handleAgendar(e) {
-    e.preventDefault();
-    if (!agendamentoData.servico_id || !agendamentoData.data_hora) {
-        alert("Preencha todos os campos!");
-        return;
-    }
+  // --- LÓGICA DE CALENDÁRIO ---
+  const getDiasNoMes = (date) => new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+  const getDiaSemanaInicio = (date) => new Date(date.getFullYear(), date.getMonth(), 1).getDay();
+  const mudarMes = (offset) => setMesAtual(new Date(mesAtual.setMonth(mesAtual.getMonth() + offset)));
+  
+  const isSameDay = (d1, d2) => {
+      return d1.getDate() === d2.getDate() && 
+             d1.getMonth() === d2.getMonth() && 
+             d1.getFullYear() === d2.getFullYear();
+  };
 
-    try {
-        await api.post('/agendamentos/', {
-            servicos: [agendamentoData.servico_id],
-            data_hora_inicio: agendamentoData.data_hora
-        });
-        
-        alert("Agendamento realizado com sucesso!");
-        
-        // Limpa o form e recarrega a lista
-        setAgendamentoData({ servico_id: '', data_hora: '' });
-        const resp = await api.get('/agendamentos/');
-        setMeusAgendamentos(resp.data);
-        
-    } catch (error) {
-        console.error(error.response);
-        // Tenta pegar a mensagem específica de validação de horário/conflito
-        const msg = error.response?.data?.data_hora_inicio?.[0] || "Erro ao agendar. Tente outro horário.";
-        alert(msg);
-    }
-  }
+  const handleOpenModal = (servico) => {
+      setServicoSelecionado(servico);
+      setDataSelecionada(new Date()); 
+      setHoraSelecionada('');
+      setShowModal(true);
+  };
 
-  if (loading) return (
-    <Container className="vh-100 d-flex justify-content-center align-items-center">
-        <Spinner animation="border" variant="primary" />
-    </Container>
-  );
+  const handleConfirmarAgendamento = async () => {
+      if(!horaSelecionada) return;
+      setAgendando(true);
+      const ano = dataSelecionada.getFullYear();
+      const mes = String(dataSelecionada.getMonth() + 1).padStart(2, '0');
+      const dia = String(dataSelecionada.getDate()).padStart(2, '0');
+      const dataHoraFinal = `${ano}-${mes}-${dia}T${horaSelecionada}:00`;
+
+      try {
+          await api.post('/agendamentos/', {
+              empreendedor: lojaRecebida.id, 
+              servicos: [servicoSelecionado.id],
+              data_hora_inicio: dataHoraFinal
+          });
+          alert("✅ Agendamento realizado com sucesso!");
+          setShowModal(false);
+          navigate('/meus-agendamentos');
+      } catch (error) {
+          alert("Erro ao agendar. Tente novamente.");
+      } finally {
+          setAgendando(false);
+      }
+  };
+
+  const diasVazios = Array.from({ length: getDiaSemanaInicio(mesAtual) }, (_, i) => i);
+  const diasDoMes = Array.from({ length: getDiasNoMes(mesAtual) }, (_, i) => i + 1);
+
+  if (loading) return <div style={{height:'100vh', display:'flex', justifyContent:'center', alignItems:'center', background:'#A8DADC'}}><Spinner animation="border" style={{color:'#002B55'}}/></div>;
 
   return (
-    <div className="bg-light min-vh-100 pb-5">
-      {/* Navbar */}
-      <nav className="navbar navbar-dark bg-primary px-4 mb-4 shadow">
-        <span className="navbar-brand mb-0 h1">Olá, {user?.nome_completo || user?.username}</span>
-        <Button variant="outline-light" size="sm" onClick={() => { logout(); navigate('/login'); }}>
-            Sair
-        </Button>
-      </nav>
+    <div className="client-dashboard-wrapper">
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        
+        .client-dashboard-wrapper { min-height: 100vh; background-color: #A8DADC; font-family: 'Inter', sans-serif; padding-bottom: 50px; }
+        .container-limit { max-width: 1000px; margin: 0 auto; }
+        
+        /* HERO LOJA */
+        .shop-hero { background: white; border-radius: 0 0 30px 30px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,43,85,0.1); margin-bottom: 30px; position: relative; }
+        .shop-cover { height: 180px; background: linear-gradient(135deg, #002B55 0%, #00509E 100%); position: relative; }
+        .btn-back-float { position: absolute; top: 20px; left: 20px; background: rgba(255,255,255,0.2); backdrop-filter: blur(5px); border: none; color: white; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; transition: 0.2s; cursor: pointer; z-index: 10; }
+        .btn-back-float:hover { background: white; color: #002B55; }
+        .shop-info-card { text-align: center; padding: 0 20px 30px 20px; margin-top: -60px; position: relative; }
+        .shop-avatar { width: 120px; height: 120px; background: white; border-radius: 50%; border: 4px solid white; box-shadow: 0 5px 15px rgba(0,0,0,0.1); display: flex; align-items: center; justify-content: center; font-size: 3rem; color: #002B55; margin: 0 auto 15px auto; }
+        .shop-name { font-family: 'Libre Baskerville'; font-weight: 700; font-size: 1.8rem; color: #002B55; margin-bottom: 5px; }
+        .shop-meta { display: flex; justify-content: center; gap: 15px; color: #666; font-size: 0.9rem; margin-bottom: 15px; }
+        .badge-rating { background: #FFF8E1; color: #F9A825; border: 1px solid #FFE082; padding: 5px 10px; border-radius: 20px; font-weight: 700; display: flex; align-items: center; gap: 5px; }
+        
+        /* SERVIÇOS */
+        .section-title { font-family: 'Libre Baskerville'; color: #002B55; font-size: 1.4rem; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
+        .service-card { background: white; border-radius: 16px; padding: 20px; margin-bottom: 15px; box-shadow: 0 4px 10px rgba(0,43,85,0.03); border: 1px solid transparent; display: flex; justify-content: space-between; align-items: center; transition: 0.2s; }
+        .service-card:hover { transform: translateY(-3px); box-shadow: 0 8px 20px rgba(0,43,85,0.08); border-color: #A8DADC; }
+        .svc-info h5 { font-weight: 700; color: #333; margin: 0 0 5px 0; font-size: 1.1rem; }
+        .svc-meta { display: flex; gap: 15px; font-size: 0.9rem; color: #666; }
+        .svc-price { color: #2DCE89; font-weight: 700; font-size: 1.1rem; }
+        .btn-book { background: #002B55; color: white; border: none; padding: 10px 25px; border-radius: 30px; font-weight: 600; transition: 0.2s; box-shadow: 0 4px 10px rgba(0,43,85,0.2); }
+        .btn-book:hover { background: #004080; transform: scale(1.05); }
+        
+        /* MODAL E CALENDÁRIO OTIMIZADO */
+        .modal-clean-header { background: #002B55; color: white; border: none; padding: 20px 30px; border-radius: 0; }
+        .modal-clean-header .btn-close { filter: invert(1); opacity: 1; }
+        
+        /* Removida a borda do wrapper para evitar 'caixa dentro de caixa' */
+        .calendar-wrapper { padding: 10px; height: 100%; }
+        
+        .cal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; font-weight: 700; color: #002B55; }
+        .cal-nav { cursor: pointer; padding: 5px; color: #002B55; font-size: 1.1rem; }
+        
+        .calendar-grid { 
+            display: grid; 
+            grid-template-columns: repeat(7, 1fr); 
+            gap: 8px; 
+            text-align: center;
+        }
+        
+        .week-day { 
+            font-size: 0.8rem; font-weight: 700; color: #888; 
+            margin-bottom: 10px; text-transform: uppercase;
+        }
+        
+        .day-cell { 
+            height: 42px; display: flex; align-items: center; justify-content: center; 
+            border-radius: 12px; font-size: 1rem; cursor: pointer; 
+            transition: 0.2s; position: relative; font-weight: 600;
+        }
+        .day-cell:hover { background: #E3F2FD; }
+        .day-cell.today { color: #002B55; font-weight: 900; border: 2px solid #002B55; background: transparent; }
+        .day-cell.selected { background: #002B55 !important; color: white !important; box-shadow: 0 4px 10px rgba(0,43,85,0.3); border: none; }
 
-      <Container>
-        <Row>
-            {/* COLUNA DA ESQUERDA: FORMULÁRIO + HORÁRIOS */}
-            <Col md={5} className="mb-4">
-                <Card shadow="sm" className="border-0 mb-3">
-                    <Card.Header className="bg-white fw-bold text-primary border-bottom-0 pt-3">
-                        📅 Novo Agendamento
-                    </Card.Header>
-                    <Card.Body>
-                        <Form onSubmit={handleAgendar}>
-                            <Form.Group className="mb-3">
-                                <Form.Label>Escolha o Serviço:</Form.Label>
-                                <Form.Select 
-                                    value={agendamentoData.servico_id}
-                                    onChange={e => setAgendamentoData({...agendamentoData, servico_id: e.target.value})}
-                                    required
-                                >
-                                    <option value="">Selecione...</option>
-                                    {servicos.map(servico => (
-                                        <option key={servico.id} value={servico.id}>
-                                            {servico.nome} - R$ {servico.preco} ({servico.duracao_minutos} min)
-                                        </option>
-                                    ))}
-                                </Form.Select>
-                            </Form.Group>
+        /* HORÁRIOS */
+        .time-section { margin-top: 10px; }
+        .period-label { font-size: 0.8rem; font-weight: 800; color: #8898AA; margin: 15px 0 10px 0; display: flex; align-items: center; gap: 6px; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #F1F3F5; padding-bottom: 5px; }
+        
+        .chips-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+        
+        .time-chip {
+            background: #fff; border: 1px solid #E9ECEF; padding: 10px 5px; border-radius: 12px;
+            font-size: 0.9rem; font-weight: 600; color: #495057; cursor: pointer; transition: 0.2s; text-align: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.02);
+        }
+        .time-chip:hover { border-color: #002B55; color: #002B55; background: #E3F2FD; }
+        .time-chip.selected { background: #002B55; color: white; border-color: #002B55; box-shadow: 0 4px 12px rgba(0,43,85,0.2); transform: scale(1.05); z-index: 2; }
 
-                            {/* --- ÁREA VISUAL DE HORÁRIOS --- */}
-                            <div className="mb-3 p-3 bg-light rounded border">
-                                <h6 className="text-muted small fw-bold text-uppercase mb-3">
-                                    🕒 Horários de Atendimento
-                                </h6>
-                                
-                                {loadingHorarios ? (
-                                    <div className="text-center py-2"><Spinner animation="border" size="sm" /></div>
-                                ) : !agendamentoData.servico_id ? (
-                                    <div className="text-center text-muted small fst-italic">
-                                        Selecione um serviço acima para ver a disponibilidade.
-                                    </div>
-                                ) : horariosLoja.length === 0 ? (
-                                    <Alert variant="warning" className="small py-2 mb-0">
-                                        Horários não configurados pelo estabelecimento.
-                                    </Alert>
-                                ) : (
-                                    <div className="table-responsive">
-                                        <table className="table table-sm table-borderless small mb-0">
-                                            <tbody>
-                                                {horariosLoja.map(h => {
-                                                    const dias = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'];
-                                                    // Verifica se é o dia de hoje (JS: 0=Dom, Py: 0=Seg. Ajuste necessário)
-                                                    // getDay(): 0=Dom, 1=Seg...
-                                                    // h.dia_semana: 0=Seg...
-                                                    // Conversão: (dia_semana + 1) % 7 == getDay()
-                                                    const isHoje = new Date().getDay() === (h.dia_semana + 1) % 7; 
-                                                    
-                                                    return (
-                                                        <tr key={h.id} className={isHoje ? "fw-bold text-primary bg-white" : "text-muted"}>
-                                                            <td className="ps-2">
-                                                                {dias[h.dia_semana]} 
-                                                                {isHoje && <Badge bg="primary" className="ms-2" style={{fontSize:'0.6em'}}>HOJE</Badge>}
-                                                            </td>
-                                                            <td className="text-end pe-2">
-                                                                {h.fechado ? (
-                                                                    <span className="badge bg-secondary opacity-50">Fechado</span>
-                                                                ) : (
-                                                                    `${h.horario_abertura.slice(0,5)} - ${h.horario_fechamento.slice(0,5)}`
-                                                                )}
-                                                            </td>
-                                                        </tr>
-                                                    );
-                                                })}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                )}
-                            </div>
+        @media(max-width: 992px) { 
+            .chips-grid { grid-template-columns: repeat(3, 1fr); }
+            .col-left { border-right: none !important; border-bottom: 1px solid #E9ECEF; }
+        }
+      `}</style>
 
-                            <Form.Group className="mb-3">
-                                <Form.Label>Data e Hora:</Form.Label>
-                                <Form.Control 
-                                    type="datetime-local" 
-                                    value={agendamentoData.data_hora}
-                                    onChange={e => setAgendamentoData({...agendamentoData, data_hora: e.target.value})}
-                                    required
-                                />
-                                <Form.Text className="text-muted">
-                                    Verifique a tabela acima antes de escolher.
-                                </Form.Text>
-                            </Form.Group>
+      {/* 1. HERO PERFIL DA LOJA */}
+      <div className="shop-hero">
+          <button className="btn-back-float" onClick={() => navigate('/vitrine')}>
+              <FaArrowLeft />
+          </button>
+          <div className="shop-cover" style={loja?.capa ? {background: `url(${loja.capa}) center/cover`} : {}}></div>
+          <div className="container-limit">
+              <div className="shop-info-card">
+                  <div className="shop-avatar">
+                      {loja?.foto ? <img src={loja.foto} alt="Loja" style={{width:'100%', height:'100%', borderRadius:'50%', objectFit:'cover'}} /> : <FaStore />}
+                  </div>
+                  <h1 className="shop-name">{loja?.nome_completo || loja?.username}</h1>
+                  <div className="shop-meta">
+                      <span><FaMapMarkerAlt /> {loja?.bairro || 'Centro'}</span>
+                      <div className="badge-rating"><FaStar size={12}/> {loja?.nota_media || '5.0'}</div>
+                  </div>
+                  <p className="text-muted small" style={{maxWidth: '600px', margin: '0 auto'}}>
+                      {loja?.descricao || "Bem-vindo! Escolha um serviço abaixo e agende seu horário conosco."}
+                  </p>
+              </div>
+          </div>
+      </div>
 
-                            <Button type="submit" variant="success" className="w-100 fw-bold">
-                                Confirmar Agendamento
-                            </Button>
-                        </Form>
-                    </Card.Body>
-                </Card>
-            </Col>
+      <div className="container-limit px-3">
+          <div className="section-title">
+              <FaCheckCircle className="text-success" /> Serviços Disponíveis
+          </div>
 
-            {/* COLUNA DA DIREITA: MEUS AGENDAMENTOS */}
-            <Col md={7}>
-                <h4 className="mb-3 text-secondary">Meus Agendamentos</h4>
-                {meusAgendamentos.length === 0 ? (
-                    <Alert variant="info">Você ainda não tem agendamentos futuros.</Alert>
-                ) : (
-                    <div className="d-flex flex-column gap-2">
-                        {meusAgendamentos.map(agenda => (
-                            <Card key={agenda.id} className="border-0 shadow-sm">
-                                <Card.Body className="d-flex justify-content-between align-items-center">
-                                    <div>
-                                        <h6 className="mb-1 fw-bold text-primary">
-                                            {agenda.servicos_detalhes?.map(s => s.nome).join(', ')}
-                                        </h6>
-                                        <div className="text-muted small">
-                                            📅 {new Date(agenda.data_hora_inicio).toLocaleDateString()} <br/>
-                                            ⏰ {new Date(agenda.data_hora_inicio).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                                        </div>
-                                    </div>
-                                    <Badge bg={
-                                        agenda.status === 'PENDENTE' ? 'warning' : 
-                                        agenda.status === 'CONFIRMADO' ? 'success' : 
-                                        agenda.status === 'CONCLUIDO' ? 'primary' : 'secondary'
-                                    } className="p-2">
-                                        {agenda.status}
-                                    </Badge>
-                                </Card.Body>
-                            </Card>
-                        ))}
-                    </div>
-                )}
-            </Col>
-        </Row>
-      </Container>
+          {servicos.length === 0 ? (
+              <div className="text-center py-5 text-muted bg-white rounded-3 shadow-sm">
+                  <FaStore size={30} className="mb-3 opacity-50"/>
+                  <p>Nenhum serviço disponível nesta loja no momento.</p>
+              </div>
+          ) : servicos.map(servico => (
+              <div key={servico.id} className="service-card">
+                  <div className="svc-info">
+                      <h5>{servico.nome}</h5>
+                      <div className="svc-meta">
+                          <span><FaClock className="me-1"/> {servico.duracao_minutos} min</span>
+                          <span className="svc-price">R$ {parseFloat(servico.preco).toFixed(2)}</span>
+                      </div>
+                  </div>
+                  <button className="btn-book" onClick={() => handleOpenModal(servico)}>
+                      Agendar
+                  </button>
+              </div>
+          ))}
+
+          {/* 3. MODAL DE AGENDAMENTO (XL) */}
+          <Modal show={showModal} onHide={() => setShowModal(false)} centered size="xl">
+              <Modal.Header closeButton className="modal-clean-header">
+                  <Modal.Title style={{fontFamily: 'Libre Baskerville'}}>
+                      Agendar: {servicoSelecionado?.nome}
+                  </Modal.Title>
+              </Modal.Header>
+              
+              <Modal.Body className="p-0">
+                  <Row className="g-0" style={{minHeight: '400px'}}> {/* Altura mínima para não colapsar */}
+                      
+                      {/* ESQUERDA: CALENDÁRIO */}
+                      <Col md={12} lg={6} className="p-4 border-end col-left d-flex flex-column justify-content-center">
+                          <h6 className="text-muted fw-bold mb-4 small text-uppercase text-center">
+                              <FaCalendarDay className="me-2"/> Escolha o Dia
+                          </h6>
+                          
+                          <div className="calendar-wrapper">
+                              <div className="cal-header px-3">
+                                  <span className="cal-nav" onClick={() => mudarMes(-1)}><FaChevronLeft /></span>
+                                  <span>{mesAtual.toLocaleDateString('pt-BR', {month: 'long', year: 'numeric'})}</span>
+                                  <span className="cal-nav" onClick={() => mudarMes(1)}><FaChevronRight /></span>
+                              </div>
+                              
+                              <div className="calendar-grid">
+                                  <div className="week-day">D</div>
+                                  <div className="week-day">S</div>
+                                  <div className="week-day">T</div>
+                                  <div className="week-day">Q</div>
+                                  <div className="week-day">Q</div>
+                                  <div className="week-day">S</div>
+                                  <div className="week-day">S</div>
+
+                                  {diasVazios.map(v => <div key={`empty-${v}`}></div>)}
+                                  {diasDoMes.map(dia => {
+                                      const dateClone = new Date(mesAtual); dateClone.setDate(dia);
+                                      const isSelected = isSameDay(dateClone, dataSelecionada);
+                                      const isToday = isSameDay(dateClone, new Date());
+                                      return ( 
+                                          <div 
+                                              key={dia} 
+                                              className={`day-cell ${isSelected ? 'selected' : ''} ${isToday ? 'today' : ''}`}
+                                              onClick={() => { setDataSelecionada(dateClone); setHoraSelecionada(''); }}
+                                          >
+                                              {dia}
+                                          </div>
+                                      )
+                                  })}
+                              </div>
+                          </div>
+                      </Col>
+
+                      {/* DIREITA: HORÁRIOS */}
+                      <Col md={12} lg={6} className="p-4 bg-light">
+                          <div className="d-flex justify-content-between align-items-center mb-3">
+                              <h6 className="text-muted fw-bold small text-uppercase m-0">
+                                  <FaClock className="me-2"/> Horários
+                              </h6>
+                              <div className="text-primary fw-bold small bg-white px-3 py-1 rounded shadow-sm">
+                                  {dataSelecionada.toLocaleDateString('pt-BR', {weekday: 'long', day: 'numeric'})}
+                              </div>
+                          </div>
+                          
+                          <div className="time-section">
+                              {periodos.manha.length > 0 && (
+                                  <>
+                                      <div className="period-label"><FaSun /> Manhã</div>
+                                      <div className="chips-grid">
+                                          {periodos.manha.map(hora => (
+                                              <div 
+                                                  key={hora} 
+                                                  className={`time-chip ${horaSelecionada === hora ? 'selected' : ''}`}
+                                                  onClick={() => setHoraSelecionada(hora)}
+                                              >
+                                                  {hora}
+                                              </div>
+                                          ))}
+                                      </div>
+                                  </>
+                              )}
+
+                              {periodos.tarde.length > 0 && (
+                                  <>
+                                      <div className="period-label mt-4"><FaMoon /> Tarde</div>
+                                      <div className="chips-grid">
+                                          {periodos.tarde.map(hora => (
+                                              <div 
+                                                  key={hora} 
+                                                  className={`time-chip ${horaSelecionada === hora ? 'selected' : ''}`}
+                                                  onClick={() => setHoraSelecionada(hora)}
+                                              >
+                                                  {hora}
+                                              </div>
+                                          ))}
+                                      </div>
+                                  </>
+                              )}
+                          </div>
+                      </Col>
+                  </Row>
+              </Modal.Body>
+              
+              {/* RODAPÉ DO MODAL (FOOTER FIXO) */}
+              <Modal.Footer style={{borderTop:'1px solid #E9ECEF', background:'#F8F9FA'}}>
+                  <Button variant="link" className="text-muted text-decoration-none fw-bold me-auto" onClick={() => setShowModal(false)}>
+                      Cancelar
+                  </Button>
+                  <Button 
+                      className="px-5 py-2 rounded-pill fw-bold shadow-sm" 
+                      style={{background: '#002B55', border: 'none'}}
+                      disabled={!horaSelecionada || agendando}
+                      onClick={handleConfirmarAgendamento}
+                  >
+                      {agendando ? <Spinner size="sm"/> : "Confirmar Agendamento"}
+                  </Button>
+              </Modal.Footer>
+          </Modal>
+      </div>
     </div>
   );
 }

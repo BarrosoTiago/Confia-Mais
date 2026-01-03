@@ -1,0 +1,74 @@
+/* src/styles/CalendarOverrides.css */
+
+/* Remove a borda padrão e adiciona sombra suave */
+.react-calendar {
+    border: none !important;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    width: 100% !important;
+    padding: 10px;
+}
+
+/* Estilo do Cabeçalho (Mês/Ano) */
+.react-calendar__navigation {
+    margin-bottom: 1em;
+}
+
+.react-calendar__navigation button {
+    min-width: 44px;
+    background: none;
+    font-size: 1.1em;
+    font-weight: bold;
+    color: #0d6efd; /* Azul Bootstrap */
+    border-radius: 8px;
+}
+
+.react-calendar__navigation button:enabled:hover,
+.react-calendar__navigation button:enabled:focus {
+    background-color: #e7f1ff;
+}
+
+/* Dias da Semana */
+.react-calendar__month-view__weekdays {
+    text-align: center;
+    text-transform: uppercase;
+    font-weight: bold;
+    font-size: 0.75em;
+    color: #6c757d;
+}
+
+/* Dias do Mês */
+.react-calendar__tile {
+    padding: 10px 6px;
+    background: none;
+    text-align: center;
+    line-height: 16px;
+    font-weight: 500;
+    border-radius: 8px;
+    transition: all 0.2s;
+}
+
+.react-calendar__tile:enabled:hover,
+.react-calendar__tile:enabled:focus {
+    background-color: #e9ecef;
+    color: #0d6efd;
+}
+
+/* Dia Selecionado */
+.react-calendar__tile--active {
+    background: #0d6efd !important;
+    color: white !important;
+    box-shadow: 0 2px 5px rgba(13, 110, 253, 0.3);
+}
+
+.react-calendar__tile--now {
+    background: #fff3cd;
+    color: #856404;
+    font-weight: bold;
+}
+
+.react-calendar__tile--now:enabled:hover,
+.react-calendar__tile--now:enabled:focus {
+    background: #ffeeba;
+}

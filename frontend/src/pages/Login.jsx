@@ -1,145 +1,324 @@
-import { useState } from "react";
-import { useAuth } from "../context/AuthContext";
-import { useNavigate, Link } from "react-router-dom";
-import "../styles/AuthForms.css";
+import { useState } from 'react';
+import { useAuth } from '../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
+import { Container, Row, Col, Form, Button, InputGroup, Spinner, Alert } from 'react-bootstrap';
+// Adicionei FaEye e FaEyeSlash
+import { FaUser, FaKey, FaChevronDown, FaEye, FaEyeSlash } from 'react-icons/fa';
+import { TbArrowsSort } from 'react-icons/tb';
 
-import logotipo from "../assets/logotipo.svg";
-import switchIcon from "../assets/switch.svg";
-import emailIcon from "../assets/email.svg";
-import passwordIcon from "../assets/password.svg";
-import dropdownIcon from "../assets/dropdown-otimized.svg";
+// Importe o logo oficial
+import logoOficial from '../assets/logotipo.svg'; 
 
-function Login() {
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
+export default function Login() {
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   
-  // Importamos o login e o setNotification do nosso Contexto
-  const { login, setNotification } = useAuth();
+  // Novo estado para controlar a visibilidade da senha
+  const [showPassword, setShowPassword] = useState(false);
+
+  const { login } = useAuth(); 
   const navigate = useNavigate();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  const handleSubmit = async (e) => {
+  async function handleSubmit(e) {
     e.preventDefault();
-    setNotification(null); // Limpa notificações antigas
-
+    setLoading(true);
+    setError('');
     try {
-      // 1. Faz o login e RECEBE os dados do usuário de volta (graças ao nosso AuthContext atualizado)
       const userData = await login(username, password);
-      
-      console.log("Login realizado com sucesso:", userData); // Debug para você ver no F12
-
-      // 2. VERIFICAÇÃO INTELIGENTE DE ROTA
-      // Se o tipo for CLIENTE, vai para o painel de agendamentos
-      if (userData.tipo_usuario === 'CLIENTE') {
-        navigate("/cliente-dashboard");
-      } 
-      // Se for ADMIN (Empreendedor), vai para o painel de gestão
-      else {
-        navigate("/admin-dashboard");
+      if (userData && userData.tipo_usuario === 'ADMIN') {
+          navigate('/admin-dashboard');
+      } else {
+          navigate('/vitrine'); 
       }
-
     } catch (err) {
       console.error(err);
-      setNotification("Usuário ou senha inválidos.");
+      setError('Credenciais inválidas.');
+    } finally {
+      setLoading(false);
     }
-  };
+  }
 
   return (
-    <div className="container-fluid vh-100 d-flex align-items-center">
-      {/* Coluna do formulário */}
-      <div className="col-md-6 d-flex justify-content-center">
-        <form
-          onSubmit={handleSubmit}
-          className="form-box d-flex justify-content-center flex-column p-5 rounded bg-light shadow-sm text-center"
-        >
-          <h1 className="mb-4">Login</h1>
+    <>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&display=swap');
+        
+        .login-page-wrapper {
+          background: linear-gradient(90deg, #002B55 35%, #A8DADC 35%);
+          min-height: 100vh;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-family: 'Libre Baskerville', serif;
+          overflow: hidden;
+        }
 
-          <div id="formAccordionLogin">
-            {/* Campo de Usuário (Username) */}
-            <div className="mb-3">
-              <div
-                id="username-label"
-                className="d-flex align-items-center justify-content-between gap-2 p-3 bg-light border rounded text-center shadow-sm"
-                data-bs-toggle="collapse"
-                data-bs-target="#inputUsername"
-                style={{ cursor: "pointer", width: "250px", margin: "0 auto" }}
-                role="button"
-                aria-expanded="false"
-                aria-controls="inputUsername"
-              >
-                <img src={emailIcon} alt="" className="me-2" style={{ width: "20px", height: "20px" }} />
-                Usuário
-                <img src={dropdownIcon} alt="" style={{ width: "15px", height: "15px" }} />
+        .card-login {
+          background-color: #F8F9FA;
+          border-radius: 12px;
+          padding: 4rem 3.5rem;
+          box-shadow: 0 25px 50px rgba(0,0,0,0.18);
+          width: 100%;
+          max-width: 500px;
+          min-height: 620px;
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+          margin-right: -60px; 
+          position: relative;
+          z-index: 10;
+        }
+
+        .login-title {
+          color: #002B55;
+          font-weight: 700;
+          font-size: 1.3rem;
+          letter-spacing: 2px;
+          margin-bottom: 3rem;
+          text-transform: uppercase;
+        }
+
+        .custom-label {
+          color: #002B55;
+          font-weight: 700;
+          font-size: 0.75rem;
+          letter-spacing: 1.5px;
+          margin-bottom: 8px;
+          text-transform: uppercase;
+          display: flex;
+          align-items: center;
+        }
+        
+        .custom-input-group {
+          border-bottom: 2px solid #002B55;
+          margin-bottom: 2.5rem;
+          transition: border-color 0.3s;
+        }
+        .custom-input-group:focus-within {
+           border-color: #0056b3;
+        }
+
+        .custom-input {
+          border: none;
+          background: transparent;
+          border-radius: 0;
+          padding: 10px 0 10px 12px;
+          color: #002B55;
+          font-weight: 400;
+          font-size: 1rem;
+        }
+        .custom-input:focus {
+          background: transparent;
+          box-shadow: none;
+        }
+        .custom-input::placeholder {
+            color: #002B55; 
+            opacity: 0.5;
+            font-size: 0.9rem;
+            font-style: italic;
+        }
+
+        /* Classe para o ícone clicável do olho */
+        .password-toggle {
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+        .password-toggle:hover {
+            color: #0056b3 !important;
+        }
+
+        .btn-entrar {
+            background-color: #002B55;
+            border: none;
+            padding: 16px;
+            font-weight: 700;
+            letter-spacing: 1.5px;
+            width: 100%;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 6px rgba(0,43,85,0.2);
+        }
+        .btn-entrar:hover {
+            background-color: #001a33;
+            transform: translateY(-1px);
+            box-shadow: 0 6px 8px rgba(0,43,85,0.3);
+        }
+
+        .btn-primeiro-acesso {
+          background-color: #E0E0E0;
+          color: #002B55;
+          border: none;
+          padding: 16px;
+          font-weight: 700;
+          letter-spacing: 1px;
+          width: 100%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 6px;
+          font-size: 0.9rem;
+          text-transform: uppercase;
+          transition: all 0.3s ease;
+        }
+        .btn-primeiro-acesso:hover {
+          background-color: #d0d0d0;
+          color: #000;
+        }
+
+        .brand-container {
+          padding-left: 80px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          height: 100%;
+        }
+
+        .brand-logo-img {
+          width: 100%;
+          max-width: 600px;
+          height: auto;
+          filter: drop-shadow(0px 15px 25px rgba(0,43,85,0.2));
+          transform: scale(1.05);
+        }
+
+        @media (max-width: 992px) {
+           .login-page-wrapper {
+              background: #A8DADC;
+              flex-direction: column;
+              padding: 20px;
+              height: auto;
+           }
+           .card-login {
+              margin-right: 0;
+              margin-bottom: 50px;
+              max-width: 100%;
+              min-height: auto;
+              padding: 2.5rem;
+           }
+           .brand-container {
+              padding-left: 0;
+              margin-bottom: 40px;
+           }
+           .brand-logo-img {
+              max-width: 300px;
+           }
+        }
+      `}</style>
+
+      <div className="login-page-wrapper">
+        <Container fluid>
+          <Row className="justify-content-center align-items-center h-100">
+            
+            {/* COLUNA ESQUERDA - CARTÃO */}
+            <Col md={10} lg={5} xl={4} className="d-flex justify-content-center justify-content-lg-end">
+              <div className="card-login">
+                <h3 className="login-title">Login</h3>
+
+                {error && <Alert variant="danger" className="py-2 small text-center mb-4">{error}</Alert>}
+
+                <Form onSubmit={handleSubmit}>
+                  {/* USUÁRIO */}
+                  <div className="mb-4">
+                    <label className="custom-label">
+                      <FaUser className="me-2" size={14} /> EMAIL / USUÁRIO
+                    </label>
+                    <InputGroup className="custom-input-group">
+                      <Form.Control 
+                        type="text" 
+                        placeholder="Digite seu usuário" 
+                        className="custom-input"
+                        value={username}
+                        onChange={e => setUsername(e.target.value)}
+                        required
+                      />
+                      <InputGroup.Text className="bg-transparent border-0 pe-0">
+                        {/* Mantive o Chevron no usuário apenas por estilo */}
+                        <FaChevronDown color="#002B55" size={10} />
+                      </InputGroup.Text>
+                    </InputGroup>
+                  </div>
+
+                  {/* SENHA (COM O OLHINHO) */}
+                  <div className="mb-2">
+                    <label className="custom-label">
+                      <FaKey className="me-2" size={14} /> SENHA
+                    </label>
+                    <InputGroup className="custom-input-group">
+                      <Form.Control 
+                        // Aqui está a mágica: se showPassword for true, vira 'text', senão 'password'
+                        type={showPassword ? "text" : "password"} 
+                        placeholder="******" 
+                        className="custom-input"
+                        value={password}
+                        onChange={e => setPassword(e.target.value)}
+                        required
+                      />
+                      <InputGroup.Text 
+                        className="bg-transparent border-0 pe-0 password-toggle"
+                        onClick={() => setShowPassword(!showPassword)} // Alterna o estado ao clicar
+                        title={showPassword ? "Ocultar senha" : "Ver senha"}
+                      >
+                        {showPassword ? (
+                            <FaEyeSlash color="#002B55" size={18} /> 
+                        ) : (
+                            <FaEye color="#002B55" size={18} />
+                        )}
+                      </InputGroup.Text>
+                    </InputGroup>
+                  </div>
+
+                  {/* Link Esqueci Senha */}
+                  <div className="text-end mb-5">
+                     <span 
+                        style={{
+                            cursor:'pointer', 
+                            fontSize:'0.8rem', 
+                            color:'#555', 
+                            fontStyle:'italic',
+                            textDecoration: 'underline',
+                            textUnderlineOffset: '3px'
+                        }}
+                        onClick={() => navigate('/recuperar-senha')}
+                     >
+                        Esqueci minha senha
+                     </span>
+                  </div>
+
+                  {/* Botão Entrar */}
+                  <Button type="submit" className="btn-entrar mb-4" disabled={loading}>
+                    {loading ? <Spinner size="sm"/> : 'ENTRAR'}
+                  </Button>
+
+                  {/* Divisor */}
+                  <div className="d-flex align-items-center mb-4">
+                    <hr className="flex-grow-1 border-secondary opacity-25" />
+                    <span className="mx-3 fw-bold small text-muted" style={{fontFamily: 'sans-serif'}}>ou</span>
+                    <hr className="flex-grow-1 border-secondary opacity-25" />
+                  </div>
+
+                  {/* Botão Primeiro Acesso */}
+                  <Button className="btn-primeiro-acesso" onClick={() => navigate('/register')}>
+                    <TbArrowsSort className="me-2" size={20} />
+                    PRIMEIRO ACESSO
+                  </Button>
+                </Form>
               </div>
-              <div id="inputUsername" className="collapse mt-3" data-bs-parent="#formAccordionLogin">
-                <input
-                  type="text"
-                  className="form-control"
-                  placeholder="Digite seu usuário..."
-                  style={{ width: "250px", margin: "0 auto" }}
-                  onChange={(e) => setUsername(e.target.value)}
-                  aria-labelledby="username-label"
-                  required
-                />
+            </Col>
+
+            {/* COLUNA DIREITA - LOGO SVG */}
+            <Col md={10} lg={6} xl={6}>
+              <div className="brand-container">
+                <img src={logoOficial} alt="Logo Confia+" className="brand-logo-img" />
               </div>
-            </div>
+            </Col>
 
-            {/* Campo de Senha */}
-            <div className="mb-3">
-              <div
-                id="password-label"
-                className="d-flex align-items-center justify-content-between gap-2 p-3 bg-light border rounded text-center shadow-sm"
-                data-bs-toggle="collapse"
-                data-bs-target="#inputSenha"
-                style={{ cursor: "pointer", width: "250px", margin: "0 auto" }}
-                role="button"
-                aria-expanded="false"
-                aria-controls="inputSenha"
-              >
-                <img src={passwordIcon} alt="" className="me-2" style={{ width: "20px", height: "20px" }} />
-                Senha
-                <img src={dropdownIcon} alt="" style={{ width: "15px", height: "15px" }} />
-              </div>
-              <div id="inputSenha" className="collapse mt-3" data-bs-parent="#formAccordionLogin">
-                <input
-                  type="password"
-                  className="form-control"
-                  placeholder="Digite sua senha..."
-                  style={{ width: "250px", margin: "0 auto" }}
-                  onChange={(e) => setPassword(e.target.value)}
-                  aria-labelledby="password-label"
-                  required
-                />
-              </div>
-            </div>
-          </div>
-
-          <button type="submit" className="btn btn-primary d-block w-75 mt-3 mx-auto ">Confirmar</button>
-
-          <br />
-          <p className="my-4 text-muted">—————————— ou ———————————</p>
-          <br />
-          
-          <Link to="/register" className="text-decoration-none d-block mx-auto ms-50">
-            <button type="button" className="btn btn-outline-primary d-flex align-items-center justify-content-center gap-2 ms-50 px-4 py-2">
-              <img src={switchIcon} alt="" className="me-2" style={{ width: "20px", height: "20px" }} />
-              <span>PRIMEIRO ACESSO</span>
-            </button>
-          </Link>
-
-        </form>
+          </Row>
+        </Container>
       </div>
-
-      {/* Coluna da imagem */}
-      <div className="col-md-6 d-flex justify-content-center align-items-center">
-        <img
-          src={logotipo}
-          alt="Logotipo da ConfiaMais"
-          className="img-fluid w-50"
-          style={{ maxWidth: "400px" }}
-        />
-      </div>
-    </div>
+    </>
   );
 }
-
-export default Login;
