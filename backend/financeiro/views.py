@@ -8,32 +8,56 @@ from .serializers import TransacaoSerializer, PagamentoSerializer, DespesaSerial
 
 class TransacaoViewSet(viewsets.ModelViewSet):
     serializer_class = TransacaoSerializer
-    permission_classes = [permissions.IsAdminUser] # Só Admin mexe no dinheiro
-    queryset = Transacao.objects.all().order_by('-data_criacao')
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        
+        # Se for ADMIN, vê transações dos serviços que ELE criou
+        if user.tipo_usuario == 'ADMIN':
+            return Transacao.objects.filter(
+                agendamento__servicos__criado_por=user
+            ).distinct().order_by('-data_criacao')
+            
+        # Se for CLIENTE, vê transações dos agendamentos DELE
+        return Transacao.objects.filter(
+            agendamento__cliente=user
+        ).distinct().order_by('-data_criacao')
+
+    # Removi o perform_create pois Transacao não tem campo 'usuario' direto.
+    # Ela já nasce vinculada a um Agendamento.
 
     @action(detail=False, methods=['get'])
     def dashboard(self, request):
         """
-        Endpoint especial para o Dashboard: Retorna totais do mês atual.
-        URL: /api/financeiro/transacoes/dashboard/
+        Retorna totais do mês atual APENAS para o usuário logado (Admin).
         """
+        user = request.user
         hoje = timezone.now()
         mes_atual = hoje.month
         ano_atual = hoje.year
 
-        # 1. Total Recebido no Mês (Soma dos Pagamentos)
+        # 1. Identificar minhas transações (Caminho: Transacao -> Agendamento -> Servico -> Dono)
+        # Usamos distinct() para não duplicar IDs se houver múltiplos serviços
+        minhas_transacoes_ids = Transacao.objects.filter(
+            agendamento__servicos__criado_por=user
+        ).values_list('id', flat=True).distinct()
+        
+        # 2. Somar os pagamentos dessas transações
         total_receita = Pagamento.objects.filter(
+            transacao__id__in=minhas_transacoes_ids,
             data_pagamento__month=mes_atual,
             data_pagamento__year=ano_atual
         ).aggregate(Sum('valor'))['valor__sum'] or 0
 
-        # 2. Total Despesas no Mês
+        # 3. Total Despesas no Mês (Despesa tem campo usuario direto)
         total_despesas = Despesa.objects.filter(
+            usuario=user,
             data_despesa__month=mes_atual,
             data_despesa__year=ano_atual
         ).aggregate(Sum('valor'))['valor__sum'] or 0
 
-        # 3. Lucro
+        # 4. Lucro
         lucro = total_receita - total_despesas
 
         return Response({
@@ -45,22 +69,34 @@ class TransacaoViewSet(viewsets.ModelViewSet):
 
 class DespesaViewSet(viewsets.ModelViewSet):
     serializer_class = DespesaSerializer
-    permission_classes = [permissions.IsAdminUser]
-    queryset = Despesa.objects.all().order_by('-data_despesa')
+    permission_classes = [permissions.IsAuthenticated]
 
-# <--- ADICIONE ISSO: Preenche o campo 'usuario' automaticamente ao salvar
+    def get_queryset(self):
+        # Despesa tem dono direto, então filtro simples funciona
+        return Despesa.objects.filter(usuario=self.request.user).order_by('-data_despesa')
+
     def perform_create(self, serializer):
         serializer.save(usuario=self.request.user)
         
 class CalculadoraViewSet(viewsets.ModelViewSet):
     serializer_class = CalculadoraSerializer
-    permission_classes = [permissions.IsAdminUser]
+    permission_classes = [permissions.IsAuthenticated]
     
     def get_queryset(self):
-        # Retorna apenas a calculadora do usuário logado
         return CalculadoraPrecificacao.objects.filter(usuario=self.request.user)
+
+    def perform_create(self, serializer):
+        serializer.save(usuario=self.request.user)
 
 class PagamentoViewSet(viewsets.ModelViewSet):
     serializer_class = PagamentoSerializer
-    permission_classes = [permissions.IsAdminUser]
-    queryset = Pagamento.objects.all().order_by('-data_pagamento')
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_queryset(self):
+        user = self.request.user
+        # Filtra pagamentos onde o dono do serviço do agendamento sou EU
+        return Pagamento.objects.filter(
+            transacao__agendamento__servicos__criado_por=user
+        ).distinct().order_by('-data_pagamento')
+
+    # Removi perform_create pois Pagamento herda dono da Transação

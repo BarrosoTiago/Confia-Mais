@@ -1,10 +1,19 @@
 from pathlib import Path
+import os
 from datetime import timedelta
+from dotenv import load_dotenv 
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = 'django-insecure-0)^=tg@i*c0z(=(2o%8x$3pg2md6%^^s47q#j*q3%xaljivfnm'
+load_dotenv()
+
+# Substitua a linha antiga por esta:
+SECRET_KEY = os.getenv('SECRET_KEY')
+
+# Dica de segurança: Se por acaso o .env falhar, o Django não inicia (o que é bom)
+if not SECRET_KEY:
+    raise ValueError("Faltou configurar a SECRET_KEY no arquivo .env!")
 
 DEBUG = True
 
@@ -27,6 +36,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django_rest_passwordreset',
 ]
 
 MIDDLEWARE = [
@@ -82,14 +92,15 @@ DATABASES = {
     }
 }
 
-
-
 AUTH_PASSWORD_VALIDATORS = [
     {
         'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
     },
     {
         'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
+        'OPTIONS': {
+            'min_length': 8, # Exige no mínimo 8 caracteres
+        }
     },
     {
         'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
@@ -98,8 +109,6 @@ AUTH_PASSWORD_VALIDATORS = [
         'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
     },
 ]
-
-
 
 # Configuração do Django REST Framework
 REST_FRAMEWORK = {
@@ -134,17 +143,36 @@ SIMPLE_JWT = {
 
 LANGUAGE_CODE = 'pt-br'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'America/Sao_Paulo'
 
 USE_I18N = True
 
-USE_TZ = True
+USE_TZ = False
 
 # Substituindo o model de usuário padrão
 AUTH_USER_MODEL = 'usuarios.Usuario'
 
 STATIC_URL = 'static/'
 
+# CONFIGURAÇÃO DE E-MAIL (PROTEGIDA)
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
 
+# O getenv busca o valor lá no arquivo .env. Se não achar, retorna None.
+EMAIL_HOST_USER = os.getenv('EMAIL_USER')
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_PASSWORD')
+DEFAULT_FROM_EMAIL = f'Equipe Confia + <{EMAIL_HOST_USER}>'
+
+# SECURITY WARNING: keep the secret key used in production secret!
+SECRET_KEY = os.getenv('SECRET_KEY', 'chave-padrao-caso-falhe')
+
+# SECURITY WARNING: don't run with debug turned on in production!
+DEBUG = os.getenv('DEBUG') == 'True'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Configuração de Mídia (Uploads)
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')

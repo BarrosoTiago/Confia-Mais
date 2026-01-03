@@ -6,3 +6,9 @@ class Tarefa(models.Model):
 
     def __str__(self):
         return self.titulo
+
+# Importa os sinais para funcionar o envio de email de senha
+try:
+    from api import signals
+except ImportError:
+    pass

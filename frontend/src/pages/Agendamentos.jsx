@@ -1,32 +1,40 @@
 import { useState, useEffect } from 'react';
-import { Container, Table, Button, Modal, Form, Badge, Row, Col, Spinner } from 'react-bootstrap';
+import { Container, Row, Col, Card, Button, Modal, Form, Badge, Spinner, InputGroup } from 'react-bootstrap';
 import api from '../services/api';
 import { useNavigate } from 'react-router-dom';
-
-// Ícone do WhatsApp (opcional, pode usar texto se preferir)
-// Se não tiver ícone, pode usar emoji 📱 ou importar de uma lib
-const WhatsAppIcon = () => <span style={{fontSize: '1.2em'}}>📱</span>;
+import { 
+  FaArrowLeft, FaCalendarAlt, FaPlus, FaWhatsapp, FaEdit, FaTrash, 
+  FaUserCircle, FaClock, FaFilter, FaSearch, FaCheck, FaTimes, 
+  FaChevronLeft, FaChevronRight, FaMapMarkerAlt
+} from 'react-icons/fa';
 
 export default function Agendamentos() {
   const navigate = useNavigate();
   
-  // Dados
+  // --- ESTADOS DE DADOS ---
   const [agendamentos, setAgendamentos] = useState([]);
   const [servicos, setServicos] = useState([]);
   const [clientes, setClientes] = useState([]);
-  
-  // Controles
-  const [showModal, setShowModal] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  // --- NOVOS ESTADOS PARA FILTRO ---
-  const [filtroData, setFiltroData] = useState(''); // Data no formato YYYY-MM-DD
-  const [filtroStatus, setFiltroStatus] = useState('TODOS');
+  // --- FILTROS ---
+  const [filtro, setFiltro] = useState('todos'); 
+  const [busca, setBusca] = useState('');
 
-  // Formulário
-  const [formData, setFormData] = useState({
-    id: null, cliente: '', servicos: [], data_hora_inicio: '', status: 'PENDENTE'
-  });
+  // --- ESTADOS DO MODAL ---
+  const [showModal, setShowModal] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [clienteSelecionado, setClienteSelecionado] = useState('');
+  const [servicosSelecionados, setServicosSelecionados] = useState([]);
+  const [dataSelecionada, setDataSelecionada] = useState(new Date());
+  const [mesAtual, setMesAtual] = useState(new Date());
+  const [horaSelecionada, setHoraSelecionada] = useState('');
+  const [statusAgendamento, setStatusAgendamento] = useState('PENDENTE');
+
+  const HORARIOS = [
+      "08:00", "08:30", "09:00", "09:30", "10:00", "10:30", "11:00", "11:30",
+      "13:00", "13:30", "14:00", "14:30", "15:00", "15:30", "16:00", "16:30", "17:00", "17:30", "18:00"
+  ];
 
   useEffect(() => {
     loadData();
@@ -40,7 +48,6 @@ export default function Agendamentos() {
         api.get('/auth/clientes/')
       ]);
       
-      // Ordena: Mais recentes primeiro
       const listaOrdenada = respAgenda.data.sort((a, b) => 
         new Date(b.data_hora_inicio) - new Date(a.data_hora_inicio)
       );
@@ -49,247 +56,371 @@ export default function Agendamentos() {
       setServicos(respServicos.data);
       setClientes(respClientes.data);
     } catch (error) {
-      alert("Erro ao carregar dados.");
+      console.error("Erro ao carregar dados", error);
     } finally {
       setLoading(false);
     }
   }
 
-  // --- NOVA FUNÇÃO: WHATSAPP ---
   const handleWhatsApp = (agenda) => {
-    // 1. Limpa o número (deixa só dígitos)
-    const telefone = agenda.cliente_telefone?.replace(/\D/g, '');
-    
-    if (!telefone) {
-        alert("Este cliente não tem telefone cadastrado.");
-        return;
-    }
+    if (!agenda.cliente_telefone) return alert("Cliente sem telefone cadastrado.");
+    const tel = agenda.cliente_telefone.replace(/\D/g, '');
+    const nome = agenda.cliente_nome || "Cliente";
+    const servico = agenda.servicos_detalhes?.[0]?.nome || "serviço";
+    const d = new Date(agenda.data_hora_inicio);
+    const data = d.toLocaleDateString('pt-BR');
+    const hora = d.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
 
-    // 2. Monta a mensagem amigável
-    const data = new Date(agenda.data_hora_inicio).toLocaleDateString();
-    const hora = new Date(agenda.data_hora_inicio).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-    const servicoNome = agenda.servicos_detalhes?.[0]?.nome || "serviço";
+    let msg = agenda.status === 'PENDENTE' 
+        ? `Olá *${nome}*! 👋\nAqui é do *Confia+*. Recebemos seu agendamento de *${servico}* para o dia *${data}* às *${hora}*.\nPodemos confirmar o horário?`
+        : `Olá *${nome}*! 👋\nPassando para lembrar do seu horário de *${servico}* agendado para *${data}* às *${hora}*.\nEstamos te aguardando! 😉`;
 
-    const msg = `Olá ${agenda.cliente_nome}! Tudo bem? Passando para lembrar do seu agendamento de *${servicoNome}* dia *${data} às ${hora}*.`;
-
-    // 3. Abre o link
-    // Nota: Adicione o código do país se não tiver (ex: 55 para Brasil)
-    const numeroFinal = telefone.length <= 11 ? `55${telefone}` : telefone;
-    window.open(`https://wa.me/${numeroFinal}?text=${encodeURIComponent(msg)}`, '_blank');
+    window.open(`https://wa.me/55${tel}?text=${encodeURIComponent(msg)}`, '_blank');
   };
 
-  // --- LÓGICA DE FILTRAGEM ---
-  // Isso acontece em tempo real, sem chamar o backend de novo
-  const agendamentosFiltrados = agendamentos.filter(a => {
-    // Filtro de Data
-    let dataMatch = true;
-    if (filtroData) {
-        // Pega só a parte YYYY-MM-DD da data do agendamento
-        const dataAgenda = new Date(a.data_hora_inicio).toISOString().slice(0, 10);
-        dataMatch = dataAgenda === filtroData;
-    }
+  const handleDelete = async (id) => {
+      if(window.confirm("Tem certeza que deseja excluir este agendamento?")) {
+          try { await api.delete(`/agendamentos/${id}/`); loadData(); } catch (error) { alert("Erro ao excluir."); }
+      }
+  };
 
-    // Filtro de Status
-    let statusMatch = true;
-    if (filtroStatus !== 'TODOS') {
-        statusMatch = a.status === filtroStatus;
-    }
+  const handleStatusChange = async (id, novoStatus) => {
+      if(!window.confirm(`Mudar status para ${novoStatus}?`)) return;
+      try { await api.patch(`/agendamentos/${id}/`, { status: novoStatus }); loadData(); } catch (error) { alert("Erro ao atualizar status."); }
+  };
 
-    return dataMatch && statusMatch;
-  });
-
-
-  // --- FUNÇÕES DO MODAL (IGUAIS AO ANTERIOR) ---
   const handleShowAdd = () => {
-    setFormData({ id: null, cliente: '', servicos: [], data_hora_inicio: '', status: 'PENDENTE' });
-    setShowModal(true);
+    setEditingId(null); setClienteSelecionado(''); setServicosSelecionados([]); setDataSelecionada(new Date()); setHoraSelecionada(''); setStatusAgendamento('PENDENTE'); setShowModal(true);
   };
 
   const handleShowEdit = (item) => {
-    let dataFormatada = '';
-    if (item.data_hora_inicio) {
-        dataFormatada = new Date(item.data_hora_inicio).toISOString().slice(0, 16);
-    }
-    setFormData({
-        id: item.id,
-        cliente: item.cliente,
-        servicos: item.servicos,
-        data_hora_inicio: dataFormatada,
-        status: item.status
-    });
-    setShowModal(true);
+    setEditingId(item.id); setClienteSelecionado(item.cliente); setServicosSelecionados(item.servicos);
+    const d = new Date(item.data_hora_inicio); setDataSelecionada(d); setMesAtual(d);
+    setHoraSelecionada(d.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'}));
+    setStatusAgendamento(item.status); setShowModal(true);
   };
 
-  async function handleSubmit(e) {
-    e.preventDefault();
-    if (formData.servicos.length === 0) { alert("Selecione um serviço."); return; }
+  const handleSubmit = async () => {
+    if (!clienteSelecionado || servicosSelecionados.length === 0 || !dataSelecionada || !horaSelecionada) { return alert("Preencha todos os campos obrigatórios."); }
+    const ano = dataSelecionada.getFullYear();
+    const mes = String(dataSelecionada.getMonth() + 1).padStart(2, '0');
+    const dia = String(dataSelecionada.getDate()).padStart(2, '0');
+    const dataHoraFinal = `${ano}-${mes}-${dia}T${horaSelecionada}:00`;
+    const payload = { cliente: clienteSelecionado, servicos: servicosSelecionados, data_hora_inicio: dataHoraFinal, status: statusAgendamento };
 
     try {
-      const payload = { ...formData, servicos: Array.isArray(formData.servicos) ? formData.servicos : [formData.servicos] };
-      
-      if (formData.id) await api.patch(`/agendamentos/${formData.id}/`, payload);
-      else await api.post('/agendamentos/', payload);
-      
-      setShowModal(false);
-      loadData();
-      alert("Salvo com sucesso!");
-    } catch (error) {
-        const msg = error.response?.data?.data_hora_inicio?.[0] || "Erro ao salvar.";
-        alert(msg);
-    }
-  }
-
-  async function handleDelete(id) {
-    if (!window.confirm("Tem certeza?")) return;
-    try {
-      await api.delete(`/agendamentos/${id}/`);
-      loadData();
-    } catch (error) { alert("Erro ao excluir."); }
-  }
-
-  const handleServiceChange = (e) => {
-    const options = e.target.options;
-    const value = [];
-    for (let i = 0, l = options.length; i < l; i++) {
-      if (options[i].selected) value.push(parseInt(options[i].value));
-    }
-    setFormData({...formData, servicos: value});
+        if (editingId) await api.patch(`/agendamentos/${editingId}/`, payload);
+        else await api.post('/agendamentos/', payload);
+        setShowModal(false); loadData();
+    } catch (error) { alert("Erro ao salvar."); }
   };
 
-  if (loading) return <Container className="vh-100 d-flex justify-content-center align-items-center"><Spinner animation="border"/></Container>;
+  const getDiasNoMes = (d) => new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+  const getDiaSemanaInicio = (d) => new Date(d.getFullYear(), d.getMonth(), 1).getDay();
+  const mudarMes = (offset) => setMesAtual(new Date(mesAtual.setMonth(mesAtual.getMonth() + offset)));
+  const isSameDay = (d1, d2) => d1.getDate()===d2.getDate() && d1.getMonth()===d2.getMonth() && d1.getFullYear()===d2.getFullYear();
+
+  const verificarOcupado = (horario) => {
+      const diaStr = dataSelecionada.toDateString();
+      return agendamentos.some(ag => {
+          if (ag.status === 'CANCELADO' || (editingId && ag.id === editingId)) return false;
+          const dAg = new Date(ag.data_hora_inicio);
+          const horaAg = dAg.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
+          return dAg.toDateString() === diaStr && horaAg === horario;
+      });
+  };
+
+  const toggleServico = (id) => { setServicosSelecionados(prev => prev.includes(id) ? prev.filter(s => s !== id) : [...prev, id]); };
+
+  const agendamentosFiltrados = agendamentos.filter(a => {
+      const termo = busca.toLowerCase();
+      const matchTexto = a.cliente_nome?.toLowerCase().includes(termo) || a.servicos_detalhes?.[0]?.nome?.toLowerCase().includes(termo);
+      if(!matchTexto) return false;
+      if (filtro === 'hoje') return new Date(a.data_hora_inicio).toDateString() === new Date().toDateString();
+      if (filtro === 'pendentes') return a.status === 'PENDENTE';
+      if (filtro === 'confirmados') return a.status === 'CONFIRMADO';
+      return true;
+  });
+
+  const diasVazios = Array.from({ length: getDiaSemanaInicio(mesAtual) }, (_, i) => i);
+  const diasDoMes = Array.from({ length: getDiasNoMes(mesAtual) }, (_, i) => i + 1);
+
+  if (loading) return <div style={{height:'100vh', display:'flex', justifyContent:'center', alignItems:'center', background:'#F8F9FA'}}><Spinner animation="border" style={{color:'#002B55'}} /></div>;
 
   return (
-    <Container className="py-4">
-      <div className="d-flex justify-content-between align-items-center mb-4">
-        <h2 className="text-primary">📅 Agenda</h2>
-        <div>
-            <Button variant="secondary" className="me-2" onClick={() => navigate('/admin-dashboard')}>Voltar</Button>
-            <Button variant="success" onClick={handleShowAdd}>+ Novo</Button>
-        </div>
+    <div className="page-wrapper">
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+        .page-wrapper { min-height: 100vh; background-color: #F8F9FA; font-family: 'Inter', sans-serif; padding-bottom: 60px; }
+        .header-bg { background: #002B55; padding: 40px 20px 80px 20px; border-radius: 0 0 30px 30px; color: white; margin-bottom: -40px; }
+        .container-limit { max-width: 1000px; margin: 0 auto; }
+        
+        .btn-back { width: 40px; height: 40px; border-radius: 50%; background: rgba(255,255,255,0.1); border: none; color: white; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; transition: 0.2s; }
+        .btn-back:hover { background: white; color: #002B55; }
+
+        .search-card { background: white; padding: 15px; border-radius: 15px; box-shadow: 0 10px 20px rgba(0,0,0,0.05); display: flex; gap: 10px; margin-bottom: 20px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+        .custom-input { border: none; background: #F1F3F5; padding: 10px 15px; border-radius: 10px; flex-grow: 1; outline: none; min-width: 200px; }
+        
+        .filter-pill { padding: 8px 16px; border-radius: 20px; font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: 0.2s; border: 1px solid transparent; white-space: nowrap; }
+        .filter-pill.active { background: #002B55; color: white; }
+        .filter-pill.inactive { background: white; color: #555; border-color: #E9ECEF; }
+        .filter-pill:hover:not(.active) { background: #E9ECEF; }
+
+        .agenda-card { background: white; border-radius: 16px; padding: 20px; margin-bottom: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.03); border-left: 5px solid #ccc; transition: 0.2s; position: relative; }
+        .agenda-card:hover { transform: translateY(-3px); box-shadow: 0 8px 20px rgba(0,0,0,0.08); }
+        .status-PENDENTE { border-left-color: #FFC107; } .status-CONFIRMADO { border-left-color: #2DCE89; }
+        .status-CONCLUIDO { border-left-color: #11CDEF; } .status-CANCELADO { border-left-color: #F5365C; opacity: 0.7; }
+
+        .client-avatar { width: 50px; height: 50px; border-radius: 50%; background: #E3F2FD; color: #002B55; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 1.2rem; }
+        
+        .btn-whatsapp { background: #25D366; color: white; border: none; border-radius: 50px; padding: 6px 15px; font-weight: 600; font-size: 0.85rem; display: flex; align-items: center; gap: 6px; transition: 0.2s; }
+        .btn-whatsapp:hover { background: #128C7E; transform: scale(1.05); }
+
+        /* --- BOTÕES DE AÇÃO GRANDES (NOVO) --- */
+        .btn-action-large {
+            width: 45px; height: 45px; border-radius: 12px; border: none; 
+            display: flex; align-items: center; justify-content: center; 
+            cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; 
+            font-size: 1.2rem;
+        }
+        .btn-action-large:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.15); }
+        
+        .btn-check-lg { background-color: #E8F5E9; color: #2E7D32; }
+        .btn-edit-lg  { background-color: #E3F2FD; color: #1565C0; }
+        .btn-del-lg   { background-color: #FFEBEE; color: #C62828; }
+        .btn-done-lg  { background-color: #E0F7FA; color: #006064; border: 1px solid #00ACC1; width: auto; padding: 0 15px; font-weight: bold; font-size: 0.9rem;}
+
+        /* MODAL STYLES */
+        .modal-visual-header { background: #002B55; color: white; border: none; padding: 20px; }
+        .modal-visual-header .btn-close { filter: invert(1); opacity: 1; }
+        .section-title { font-size: 0.95rem; font-weight: 700; color: #002B55; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+        
+        .service-card { border: 1px solid #E9ECEF; border-radius: 8px; padding: 10px; margin-bottom: 8px; cursor: pointer; transition: 0.2s; display: flex; justify-content: space-between; }
+        .service-card:hover { background: #F8F9FA; }
+        .service-card.selected { background: #E3F2FD; border-color: #002B55; color: #002B55; }
+        
+        .calendar-wrapper { border: 1px solid #E9ECEF; border-radius: 12px; padding: 15px; background: white; }
+        .calendar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; font-weight: 700; color: #002B55; }
+        .week-days { display: grid; grid-template-columns: repeat(7, 1fr); text-align: center; font-size: 0.75rem; color: #8898AA; margin-bottom: 5px; }
+        .days-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
+        .day-cell { height: 35px; display: flex; align-items: center; justify-content: center; border-radius: 50%; font-size: 0.9rem; cursor: pointer; transition: 0.2s; }
+        .day-cell:hover { background: #F1F3F5; }
+        .day-cell.selected { background: #002B55; color: white; font-weight: 700; }
+        .day-cell.empty { cursor: default; background: transparent; }
+        
+        .time-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; max-height: 350px; overflow-y: auto; }
+        .time-btn { border: 1px solid #E9ECEF; background: white; padding: 8px; border-radius: 8px; text-align: center; font-size: 0.9rem; cursor: pointer; transition: 0.2s; }
+        .time-btn:hover { border-color: #002B55; color: #002B55; }
+        .time-btn.selected { background: #002B55; color: white; border-color: #002B55; }
+        .time-btn.disabled { background: #F1F3F5; color: #CCC; cursor: not-allowed; text-decoration: line-through; }
+      `}</style>
+
+      {/* HEADER */}
+      <div className="header-bg">
+          <div className="container-limit">
+              <div className="d-flex align-items-center gap-3 mb-4">
+                  <button className="btn-back" onClick={() => navigate('/admin-dashboard')}>
+                      <FaArrowLeft />
+                  </button>
+                  <div>
+                      <h2 style={{fontFamily: 'Libre Baskerville', margin: 0}}>Agenda</h2>
+                      <span style={{opacity: 0.8}}>Gerencie horários e confirmações</span>
+                  </div>
+              </div>
+          </div>
       </div>
 
-      {/* --- BARRA DE FILTROS --- */}
-      <div className="bg-light p-3 rounded shadow-sm mb-3 d-flex flex-wrap gap-3 align-items-end">
-        <div>
-            <label className="form-label small fw-bold text-muted">Filtrar por Data:</label>
-            <input 
-                type="date" 
-                className="form-control" 
-                value={filtroData} 
-                onChange={e => setFiltroData(e.target.value)} 
-            />
-        </div>
-        <div>
-            <label className="form-label small fw-bold text-muted">Filtrar por Status:</label>
-            <select 
-                className="form-select" 
-                value={filtroStatus} 
-                onChange={e => setFiltroStatus(e.target.value)}
-            >
-                <option value="TODOS">Todos</option>
-                <option value="PENDENTE">Pendentes</option>
-                <option value="CONFIRMADO">Confirmados</option>
-                <option value="CONCLUIDO">Concluídos</option>
-                <option value="CANCELADO">Cancelados</option>
-            </select>
-        </div>
-        {/* Botão limpar filtros */}
-        {(filtroData || filtroStatus !== 'TODOS') && (
-            <Button variant="outline-secondary" onClick={() => {setFiltroData(''); setFiltroStatus('TODOS')}}>
-                Limpar Filtros
-            </Button>
-        )}
+      <div className="container-limit px-3">
+          
+          {/* BUSCA E NOVO */}
+          <div className="search-card">
+              <div className="d-flex align-items-center flex-grow-1 gap-2">
+                  <FaSearch className="text-muted"/>
+                  <input type="text" className="custom-input" placeholder="Buscar cliente ou serviço..." value={busca} onChange={(e) => setBusca(e.target.value)}/>
+              </div>
+              <Button onClick={handleShowAdd} style={{background:'#002B55', border:'none', borderRadius:'10px', fontWeight:'600'}}>
+                  <FaPlus className="me-2"/> Novo
+              </Button>
+          </div>
+
+          {/* FILTROS RÁPIDOS */}
+          <div className="d-flex gap-2 mb-4 overflow-auto pb-2">
+              <div className={`filter-pill ${filtro === 'todos' ? 'active' : 'inactive'}`} onClick={() => setFiltro('todos')}>Todos</div>
+              <div className={`filter-pill ${filtro === 'hoje' ? 'active' : 'inactive'}`} onClick={() => setFiltro('hoje')}>📅 Hoje</div>
+              <div className={`filter-pill ${filtro === 'pendentes' ? 'active' : 'inactive'}`} onClick={() => setFiltro('pendentes')}>⏳ Pendentes</div>
+              <div className={`filter-pill ${filtro === 'confirmados' ? 'active' : 'inactive'}`} onClick={() => setFiltro('confirmados')}>✅ Confirmados</div>
+          </div>
+
+          {/* LISTA DE CARDS */}
+          {agendamentosFiltrados.length === 0 ? (
+              <div className="text-center py-5 text-muted">
+                  <FaCalendarAlt size={40} className="mb-3 opacity-25" />
+                  <h5>Nenhum agendamento encontrado.</h5>
+              </div>
+          ) : agendamentosFiltrados.map(agenda => {
+              const d = new Date(agenda.data_hora_inicio);
+              return (
+                  <div key={agenda.id} className={`agenda-card status-${agenda.status}`}>
+                      <Row className="align-items-center g-3">
+                          {/* Data/Hora */}
+                          <Col xs={3} sm={2} className="text-center border-end">
+                              <div className="fw-bold fs-5 text-dark">{d.getDate()}</div>
+                              <div className="text-uppercase small text-muted fw-bold">{d.toLocaleDateString('pt-BR', {month: 'short'})}</div>
+                              <div className="mt-2 badge bg-light text-dark border">
+                                  {d.toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'})}
+                              </div>
+                          </Col>
+
+                          {/* Info Cliente */}
+                          <Col xs={9} sm={6}>
+                              <div className="d-flex align-items-center gap-3">
+                                  <div className="client-avatar">
+                                      {agenda.cliente_nome ? agenda.cliente_nome.charAt(0).toUpperCase() : <FaUserCircle/>}
+                                  </div>
+                                  <div>
+                                      <h5 className="m-0 fw-bold text-dark">{agenda.cliente_nome || 'Cliente'}</h5>
+                                      <div className="text-muted small mb-1">
+                                          {agenda.servicos_detalhes?.map(s => s.nome).join(', ')} • R$ {agenda.servicos_detalhes?.reduce((acc, s) => acc + parseFloat(s.preco), 0).toFixed(2)}
+                                      </div>
+                                      <div className="d-flex flex-wrap gap-2 mt-2">
+                                          <Badge bg={
+                                              agenda.status === 'CONFIRMADO' ? 'success' : 
+                                              agenda.status === 'PENDENTE' ? 'warning' : 
+                                              agenda.status === 'CONCLUIDO' ? 'info' : 'secondary'
+                                          }>
+                                              {agenda.status}
+                                          </Badge>
+                                          
+                                          {agenda.cliente_telefone && agenda.status !== 'CANCELADO' && (
+                                              <button className="btn-whatsapp" onClick={() => handleWhatsApp(agenda)}>
+                                                  <FaWhatsapp size={16}/> 
+                                                  <span className="ms-1 d-none d-md-inline">{agenda.status === 'PENDENTE' ? 'Confirmar' : 'Lembrar'}</span>
+                                              </button>
+                                          )}
+                                      </div>
+                                  </div>
+                              </div>
+                          </Col>
+
+                          {/* AÇÕES COM BOTÕES GRANDES */}
+                          <Col xs={12} sm={4} className="d-flex justify-content-end align-items-center gap-2 border-top pt-3 pt-sm-0 border-sm-0">
+                              
+                              {/* Botão de Confirmar (Só aparece se pendente) */}
+                              {agenda.status === 'PENDENTE' && (
+                                  <button className="btn-action-large btn-check-lg" title="Confirmar" onClick={() => handleStatusChange(agenda.id, 'CONFIRMADO')}>
+                                      <FaCheck />
+                                  </button>
+                              )}
+
+                              {/* Botão de Concluir (Só aparece se confirmado) */}
+                              {agenda.status === 'CONFIRMADO' && (
+                                  <button className="btn-action-large btn-done-lg" onClick={() => handleStatusChange(agenda.id, 'CONCLUIDO')}>
+                                      <FaCheck className="me-2"/> Concluir
+                                  </button>
+                              )}
+
+                              {/* Editar */}
+                              <button className="btn-action-large btn-edit-lg" title="Editar" onClick={() => handleShowEdit(agenda)}>
+                                  <FaEdit />
+                              </button>
+
+                              {/* Excluir/Cancelar */}
+                              <button className="btn-action-large btn-del-lg" title="Excluir/Cancelar" onClick={() => handleDelete(agenda.id)}>
+                                  {agenda.status === 'CANCELADO' ? <FaTrash /> : <FaTimes />}
+                              </button>
+                          </Col>
+                      </Row>
+                  </div>
+              );
+          })}
       </div>
 
-      <Table striped hover bordered responsive className="bg-white shadow-sm align-middle">
-        <thead className="bg-light">
-            <tr>
-                <th>Data/Hora</th>
-                <th>Cliente</th>
-                <th>Serviços</th>
-                <th>Status</th>
-                <th>Ações</th>
-            </tr>
-        </thead>
-        <tbody>
-            {/* USAMOS A LISTA FILTRADA AQUI */}
-            {agendamentosFiltrados.map(a => (
-                <tr key={a.id}>
-                    <td>
-                        <strong>{new Date(a.data_hora_inicio).toLocaleDateString()}</strong> <br/>
-                        {new Date(a.data_hora_inicio).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}
-                    </td>
-                    <td>
-                        {a.cliente_nome} <br/>
-                        <small className="text-muted">{a.cliente_telefone || 'Sem tel'}</small>
-                    </td>
-                    <td>{a.servicos_detalhes?.map(s => <Badge key={s.id} bg="light" text="dark" className="me-1 border">{s.nome}</Badge>)}</td>
-                    <td>
-                        <Badge bg={
-                            a.status === 'CONFIRMADO' ? 'success' :
-                            a.status === 'PENDENTE' ? 'warning' :
-                            a.status === 'CANCELADO' ? 'danger' : 'secondary'
-                        }>{a.status}</Badge>
-                    </td>
-                    <td>
-                        {/* BOTÃO WHATSAPP */}
-                        <Button 
-                            variant="outline-success" 
-                            size="sm" 
-                            className="me-2" 
-                            title="Enviar WhatsApp"
-                            onClick={() => handleWhatsApp(a)}
-                        >
-                            <WhatsAppIcon />
-                        </Button>
-
-                        <Button variant="outline-primary" size="sm" className="me-2" onClick={() => handleShowEdit(a)}>✎</Button>
-                        <Button variant="outline-danger" size="sm" onClick={() => handleDelete(a.id)}>🗑</Button>
-                    </td>
-                </tr>
-            ))}
-            {agendamentosFiltrados.length === 0 && (
-                <tr><td colSpan="5" className="text-center py-4">Nenhum agendamento encontrado com estes filtros.</td></tr>
-            )}
-        </tbody>
-      </Table>
-
-      {/* --- MODAL (MANTIDO IGUAL) --- */}
-      <Modal show={showModal} onHide={() => setShowModal(false)} backdrop="static">
-        <Modal.Header closeButton><Modal.Title>{formData.id ? 'Editar' : 'Novo'}</Modal.Title></Modal.Header>
-        <Form onSubmit={handleSubmit}>
-            <Modal.Body>
-                <Form.Group className="mb-3">
-                    <Form.Label>Cliente</Form.Label>
-                    <Form.Select value={formData.cliente} onChange={e => setFormData({...formData, cliente: e.target.value})} required>
-                        <option value="">Selecione...</option>
-                        {clientes.map(c => <option key={c.id} value={c.id}>{c.nome_completo || c.username}</option>)}
-                    </Form.Select>
-                </Form.Group>
-                <Form.Group className="mb-3">
-                    <Form.Label>Início</Form.Label>
-                    <Form.Control type="datetime-local" value={formData.data_hora_inicio} onChange={e => setFormData({...formData, data_hora_inicio: e.target.value})} required />
-                </Form.Group>
-                <Form.Group className="mb-3">
-                    <Form.Label>Serviços</Form.Label>
-                    <Form.Select multiple value={formData.servicos} onChange={handleServiceChange} required style={{height: '100px'}}>
-                        {servicos.map(s => <option key={s.id} value={s.id}>{s.nome} - R$ {s.preco}</option>)}
-                    </Form.Select>
-                </Form.Group>
-                {formData.id && (
-                    <Form.Group className="mb-3"><Form.Label>Status</Form.Label>
-                        <Form.Select value={formData.status} onChange={e => setFormData({...formData, status: e.target.value})}>
-                            <option value="PENDENTE">Pendente</option><option value="CONFIRMADO">Confirmado</option><option value="CONCLUIDO">Concluído</option><option value="CANCELADO">Cancelado</option>
+      {/* MODAL DE EDIÇÃO/CRIAÇÃO (MANTIDO) */}
+      <Modal show={showModal} onHide={() => setShowModal(false)} size="xl" centered>
+        <Modal.Header closeButton className="modal-visual-header">
+            <Modal.Title style={{fontFamily: 'Libre Baskerville'}}>
+                {editingId ? 'Editar Agendamento' : 'Novo Agendamento'}
+            </Modal.Title>
+        </Modal.Header>
+        <Modal.Body className="p-0">
+            <Row className="g-0">
+                <Col md={7} className="p-4 border-end">
+                    <div className="mb-4">
+                        <h6 className="section-title"><FaUserCircle /> Cliente</h6>
+                        <Form.Select value={clienteSelecionado} onChange={e => setClienteSelecionado(e.target.value)} className="custom-input" style={{width:'100%'}}>
+                            <option value="">Selecione o Cliente...</option>
+                            {clientes.map(c => <option key={c.id} value={c.id}>{c.nome_completo || c.username}</option>)}
                         </Form.Select>
-                    </Form.Group>
-                )}
-            </Modal.Body>
-            <Modal.Footer>
-                <Button variant="secondary" onClick={() => setShowModal(false)}>Cancelar</Button>
-                <Button variant="primary" type="submit">Salvar</Button>
-            </Modal.Footer>
-        </Form>
+                    </div>
+
+                    <div className="mb-4">
+                        <h6 className="section-title"><FaCheck /> Serviços</h6>
+                        <div style={{maxHeight: '150px', overflowY: 'auto'}}>
+                            {servicos.map(s => (
+                                <div key={s.id} className={`service-card ${servicosSelecionados.includes(s.id) ? 'selected' : ''}`} onClick={() => toggleServico(s.id)}>
+                                    <span>{s.nome}</span>
+                                    <span className="fw-bold">R$ {s.preco}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div>
+                        <h6 className="section-title"><FaCalendarAlt /> Data</h6>
+                        <div className="calendar-wrapper">
+                            <div className="calendar-header">
+                                <span style={{cursor:'pointer'}} onClick={() => mudarMes(-1)}><FaChevronLeft /></span>
+                                <span>{mesAtual.toLocaleDateString('pt-BR', {month: 'long', year: 'numeric'})}</span>
+                                <span style={{cursor:'pointer'}} onClick={() => mudarMes(1)}><FaChevronRight /></span>
+                            </div>
+                            <div className="week-days"><div>D</div><div>S</div><div>T</div><div>Q</div><div>Q</div><div>S</div><div>S</div></div>
+                            <div className="days-grid">
+                                {diasVazios.map(v => <div key={`v-${v}`} className="day-cell empty"></div>)}
+                                {diasDoMes.map(dia => {
+                                    const d = new Date(mesAtual); d.setDate(dia);
+                                    const isSelected = isSameDay(d, dataSelecionada);
+                                    return <div key={dia} className={`day-cell ${isSelected ? 'selected' : ''}`} onClick={() => { setDataSelecionada(d); setHoraSelecionada(''); }}>{dia}</div>
+                                })}
+                            </div>
+                        </div>
+                    </div>
+                </Col>
+
+                <Col md={5} className="p-4 bg-light d-flex flex-column">
+                    <div className="mb-3">
+                        <h6 className="section-title"><FaClock /> Horários Disponíveis</h6>
+                        <div className="time-grid">
+                            {HORARIOS.map(hora => {
+                                const ocupado = verificarOcupado(hora);
+                                return <div key={hora} className={`time-btn ${ocupado ? 'disabled' : ''} ${horaSelecionada === hora ? 'selected' : ''}`} onClick={() => !ocupado && setHoraSelecionada(hora)}>{hora}</div>
+                            })}
+                        </div>
+                    </div>
+
+                    {editingId && (
+                        <div className="mb-3">
+                            <h6 className="section-title">Status</h6>
+                            <Form.Select value={statusAgendamento} onChange={e => setStatusAgendamento(e.target.value)}>
+                                <option value="PENDENTE">Pendente</option>
+                                <option value="CONFIRMADO">Confirmado</option>
+                                <option value="CONCLUIDO">Concluído</option>
+                                <option value="CANCELADO">Cancelado</option>
+                            </Form.Select>
+                        </div>
+                    )}
+
+                    <div className="mt-auto">
+                        <Button className="w-100 py-2 fw-bold" style={{background: '#002B55', border: 'none'}} onClick={handleSubmit}>
+                            {editingId ? 'Salvar Alterações' : 'Agendar'}
+                        </Button>
+                    </div>
+                </Col>
+            </Row>
+        </Modal.Body>
       </Modal>
-    </Container>
+
+    </div>
   );
 }

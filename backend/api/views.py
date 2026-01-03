@@ -1,41 +1,47 @@
-from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from .serializers import UserRegistrationSerializer, CustomTokenObtainPairSerializer
-from rest_framework.generics import CreateAPIView, ListAPIView 
+from rest_framework_simplejwt.views import TokenObtainPairView
 from django.contrib.auth import get_user_model
+
+# Import obrigatório para upload de arquivos
+from rest_framework.parsers import MultiPartParser, FormParser 
+
+from .serializers import (
+    UserRegistrationSerializer, 
+    CustomTokenObtainPairSerializer,
+    UserUpdateSerializer # <--- IMPORT NOVO AQUI
+)
 
 User = get_user_model()
 
+# --- 1. VIEW DE CADASTRO (REGISTRO) ---
 class UserRegistrationView(generics.CreateAPIView):
     """
-    View para registrar um novo usuário.
+    View para registrar um novo usuário (Aberto ao público).
     """
+    queryset = User.objects.all()
     serializer_class = UserRegistrationSerializer
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [permissions.AllowAny] 
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
         
-        return_data = {
+        return Response({
             "user": {
                 "id": user.id,
                 "username": user.username,
-                "email": user.email
+                "email": user.email,
+                "tipo_usuario": getattr(user, 'tipo_usuario', 'CLIENTE'),
+                "nome_completo": getattr(user, 'nome_completo', '')
             },
             "message": "Usuário registrado com sucesso!"
-        }
-        
-        return Response(return_data, status=status.HTTP_201_CREATED)
+        }, status=status.HTTP_201_CREATED)
 
-# --- AQUI ESTAVA O ERRO: Mudei o nome para CustomLoginView ---
+# --- 2. VIEW DE LOGIN CUSTOMIZADO ---
 class CustomLoginView(TokenObtainPairView):
-    """
-    View de login customizada.
-    """
     serializer_class = CustomTokenObtainPairSerializer 
 
     def post(self, request, *args, **kwargs):
@@ -45,8 +51,7 @@ class CustomLoginView(TokenObtainPairView):
             access_token = response.data.get('access')
             refresh_token = response.data.get('refresh')
 
-            if access_token:
-                response.data.pop('refresh', None)
+            if access_token and refresh_token:
                 response.set_cookie(
                     key='refresh_token',
                     value=refresh_token,
@@ -56,20 +61,22 @@ class CustomLoginView(TokenObtainPairView):
                 )
         return response
 
-class UserProfileView(APIView):
+# --- 3. VIEW "QUEM SOU EU" (UserMeView) ---
+class UserMeView(generics.RetrieveUpdateAPIView):
+    """
+    Permite ler (GET) e atualizar (PATCH/PUT) os dados do usuário logado.
+    Usa o UserUpdateSerializer para permitir edição sem senha.
+    """
     permission_classes = [permissions.IsAuthenticated]
+    
+    # --- CORREÇÃO FINAL: USA O SERIALIZER QUE NÃO PEDE SENHA ---
+    serializer_class = UserUpdateSerializer 
+    
+    # Permite upload de arquivos
+    parser_classes = (MultiPartParser, FormParser)
 
-    def get(self, request):
-        user = request.user
-        data = {
-            "id": user.id,
-            "username": user.username,
-            "email": user.email,
-            "nome_completo": getattr(user, 'nome_completo', ''), 
-            "tipo_usuario": getattr(user, 'tipo_usuario', 'CLIENTE'),
-            "telefone": getattr(user, 'telefone', ''),
-        }
-        return Response(data, status=status.HTTP_200_OK)
+    def get_object(self):
+        return self.request.user
 
 class LogoutView(APIView):
     permission_classes = [permissions.IsAuthenticated]
@@ -79,12 +86,16 @@ class LogoutView(APIView):
         response.delete_cookie('refresh_token')
         return response
     
-class ClienteListView(ListAPIView):
-    """
-    Lista apenas usuários do tipo CLIENTE para o Admin selecionar.
-    """
+class ClienteListView(generics.ListAPIView):
     permission_classes = [permissions.IsAdminUser]
-    serializer_class = UserRegistrationSerializer # Retorna id, username, nome, etc.
+    serializer_class = UserRegistrationSerializer
     
     def get_queryset(self):
         return User.objects.filter(tipo_usuario='CLIENTE')
+
+class EmpreendedorListView(generics.ListAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = UserRegistrationSerializer 
+
+    def get_queryset(self):
+        return User.objects.filter(tipo_usuario='ADMIN')
