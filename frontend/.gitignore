@@ -23,3 +23,12 @@ dist-ssr
 *.sln
 *.sw?
 .env
+
+
+# Ignorar arquivos dentro de media/capas
+backend/media/capas/*
+!backend/media/capas/.gitkeep
+
+# Ignorar arquivos dentro de media/perfil
+backend/media/perfil/*
+!backend/media/perfil/.gitkeep

@@ -65,18 +65,31 @@ class CustomLoginView(TokenObtainPairView):
 class UserMeView(generics.RetrieveUpdateAPIView):
     """
     Permite ler (GET) e atualizar (PATCH/PUT) os dados do usuário logado.
-    Usa o UserUpdateSerializer para permitir edição sem senha.
+    Adiciona a flag para redirecionamento de configuração inicial.
     """
     permission_classes = [permissions.IsAuthenticated]
-    
-    # --- CORREÇÃO FINAL: USA O SERIALIZER QUE NÃO PEDE SENHA ---
     serializer_class = UserUpdateSerializer 
-    
-    # Permite upload de arquivos
     parser_classes = (MultiPartParser, FormParser)
 
     def get_object(self):
         return self.request.user
+
+    def get(self, request, *args, **kwargs):
+        # Primeiro, pegamos a resposta padrão do Django Rest Framework
+        response = super().get(request, *args, **kwargs)
+        user = request.user
+        
+        # Lógica de redirecionamento:
+        deve_configurar_horarios = False
+        if user.tipo_usuario == 'ADMIN':
+            # Se não houver nenhum horário cadastrado, marcamos como True
+            if not user.horarios_funcionamento.exists():
+                deve_configurar_horarios = True
+        
+        # Injetamos a flag no JSON de resposta
+        response.data['deve_configurar_horarios'] = deve_configurar_horarios
+        
+        return response
 
 class LogoutView(APIView):
     permission_classes = [permissions.IsAuthenticated]

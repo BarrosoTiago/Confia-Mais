@@ -22,23 +22,39 @@ export default function Login() {
   const [error, setError] = useState('');
 
   async function handleSubmit(e) {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
-    try {
-      const userData = await login(username, password);
-      if (userData && userData.tipo_usuario === 'ADMIN') {
-          navigate('/admin-dashboard');
-      } else {
-          navigate('/vitrine'); 
+      e.preventDefault();
+      setLoading(true);
+      setError('');
+      try {
+        const userData = await login(username, password);
+        
+        console.log("Dados do usuário recebidos:", userData);
+
+        if (userData) {
+          // Verifica se é um empreendedor
+          if (userData.tipo_usuario === 'ADMIN') {
+            
+            // Se o backend indicar que não há horários cadastrados
+            if (userData.deve_configurar_horarios) {
+              // CAMINHO EXATO DA SUA ROTA
+              navigate('/admin/config-horarios'); 
+            } else {
+              // Caminho padrão para quem já configurou
+              navigate('/admin-dashboard');
+            }
+            
+          } else {
+            // Caminho para clientes comuns
+            navigate('/vitrine'); 
+          }
+        }
+      } catch (err) {
+        console.error(err);
+        setError('Credenciais inválidas.');
+      } finally {
+        setLoading(false);
       }
-    } catch (err) {
-      console.error(err);
-      setError('Credenciais inválidas.');
-    } finally {
-      setLoading(false);
     }
-  }
 
   return (
     <>

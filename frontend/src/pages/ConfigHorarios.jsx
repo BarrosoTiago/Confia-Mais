@@ -28,44 +28,47 @@ export default function ConfigHorarios() {
     fetchHorarios();
   }, []);
 
-  async function fetchHorarios() {
-    try {
-      const response = await api.get('/horarios/');
-      const dadosBackend = Array.isArray(response.data) ? response.data : [];
+    async function fetchHorarios() {
+        try {
+        const response = await api.get('/horarios/');
+        const dadosBackend = Array.isArray(response.data) ? response.data : [];
 
-      const diasFormatados = diasSemana.map(dia => {
-        const existente = dadosBackend.find(h => h.dia_semana === dia.id);
-        
-        const base = {
-            dia_semana: dia.id,
-            horario_inicio: '08:00',
-            horario_fim: '18:00',
-            almoco_inicio: '',
-            almoco_fim: '',
-            ativo: dia.id < 5 // Seg-Sex abertos por padrão
-        };
+        const diasFormatados = diasSemana.map(dia => {
+            const existente = dadosBackend.find(h => h.dia_semana === dia.id);
+            
+            const base = {
+                dia_semana: dia.id,
+                horario_inicio: '08:00',
+                horario_fim: '18:00',
+                almoco_inicio: '',
+                almoco_fim: '',
+                ativo: dia.id < 5 
+            };
 
-        if (existente) {
-          return {
-            ...base,
-            ...existente,
-            horario_inicio: existente.horario_inicio?.slice(0, 5) || '08:00',
-            horario_fim: existente.horario_fim?.slice(0, 5) || '18:00',
-            almoco_inicio: existente.almoco_inicio?.slice(0, 5) || '',
-            almoco_fim: existente.almoco_fim?.slice(0, 5) || '',
-            ativo: existente.ativo
-          };
+            if (existente) {
+            return {
+                ...base,      // 1. Pega os valores padrão
+                ...existente, // 2. Pega TUDO do banco (aqui já vem o ID, ativo, etc.)
+                
+                // 3. ABAIXO: Garantimos que os campos de hora e o ID estejam explicitamente corretos
+                id: existente.id, 
+                horario_inicio: existente.horario_inicio?.slice(0, 5) || '08:00',
+                horario_fim: existente.horario_fim?.slice(0, 5) || '18:00',
+                almoco_inicio: existente.almoco_inicio?.slice(0, 5) || '',
+                almoco_fim: existente.almoco_fim?.slice(0, 5) || '',
+                ativo: existente.ativo
+            };
+            }
+            return base;
+        });
+
+        setHorarios(diasFormatados);
+        } catch (error) {
+        setNotification({ type: 'erro', text: "Erro ao carregar dados." });
+        } finally {
+        setLoading(false);
         }
-        return base;
-      });
-
-      setHorarios(diasFormatados);
-    } catch (error) {
-      setNotification({ type: 'erro', text: "Erro ao carregar dados." });
-    } finally {
-      setLoading(false);
     }
-  }
 
   // Atualiza o dia atual
   const handleChange = (campo, valor) => {
@@ -98,7 +101,7 @@ export default function ConfigHorarios() {
       setTimeout(() => setNotification(null), 3000);
   };
 
-  const handleSaveAll = async () => {
+const handleSaveAll = async () => {
     setSaving(true);
     setNotification(null);
     try {
@@ -109,17 +112,25 @@ export default function ConfigHorarios() {
           horario_fim: dia.horario_fim,
           almoco_inicio: dia.almoco_inicio || null,
           almoco_fim: dia.almoco_fim || null,
-          ativo: dia.ativo
+          ativo: dia.ativo // Enviamos o estado real (true ou false)
         };
 
-        if (dia.id) await api.put(`/horarios/${dia.id}/`, payload);
-        else if (dia.ativo) await api.post('/horarios/', payload);
+        // CORREÇÃO: Usamos o 'id' que vem do banco (se existir)
+        // Se não tiver ID, mas o usuário interagiu com ele, criamos o registro
+        if (dia.id) {
+          await api.put(`/horarios/${dia.id}/`, payload);
+        } else {
+          // Criamos o registro no banco mesmo que esteja desativado, 
+          // para que o banco guarde essa preferência.
+          await api.post('/horarios/', payload);
+        }
       }
 
       setNotification({ type: 'sucesso', text: "Horários salvos com sucesso!" });
-      fetchHorarios(); 
+      await fetchHorarios(); // Recarrega para pegar os IDs novos do banco
     } catch (error) {
-      setNotification({ type: 'erro', text: "Erro ao salvar." });
+      console.error(error);
+      setNotification({ type: 'erro', text: "Erro ao salvar as configurações." });
     } finally {
       setSaving(false);
     }
