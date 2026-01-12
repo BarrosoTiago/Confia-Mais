@@ -12,9 +12,7 @@ import {
   FaListOl, FaCalculator, FaPercentage
 } from 'react-icons/fa';
 import { IoMdClose } from 'react-icons/io';
-import { Spinner, Alert, Badge } from 'react-bootstrap';
-
-// Logo do Sistema
+import { Spinner, Alert, Badge, Modal, Button, Form } from 'react-bootstrap';
 import logotipoSystem from "../assets/logotipo1.svg"; 
 
 export default function AdminDashboard() {
@@ -25,6 +23,11 @@ export default function AdminDashboard() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [financeiro, setFinanceiro] = useState({ receita: 0, despesas: 0, lucro: 0 });
   const [agendamentos, setAgendamentos] = useState([]);
+
+
+    const [showPagamentoModal, setShowPagamentoModal] = useState(false);
+    const [agendamentoParaConcluir, setAgendamentoParaConcluir] = useState(null);
+    const [formaPagamento, setFormaPagamento] = useState('DINHEIRO');
 
   useEffect(() => {
     loadDashboardData();
@@ -54,17 +57,33 @@ export default function AdminDashboard() {
     }
   }
 
-  async function handleStatusChange(id, novoStatus) {
-    if (novoStatus === 'CANCELADO' && !window.confirm("Deseja realmente cancelar?")) return;
-    if (novoStatus === 'CONCLUIDO' && !window.confirm("Confirmar que o serviço foi realizado e o pagamento recebido?")) return;
+    async function handleStatusChange(id, novoStatus) {
+        if (novoStatus === 'CANCELADO' && !window.confirm("Deseja realmente cancelar?")) return;
+        
+        // Se for concluir, abrimos o nosso novo Modal em vez do confirm padrão
+        if (novoStatus === 'CONCLUIDO') {
+            const agenda = agendamentos.find(a => a.id === id);
+            setAgendamentoParaConcluir(agenda);
+            setShowPagamentoModal(true);
+            return; 
+        }
 
-    try {
-      await api.patch(`/agendamentos/${id}/`, { status: novoStatus });
-      loadDashboardData();
-    } catch (error) {
-      alert("Erro ao atualizar status.");
+        try {
+            await api.patch(`/agendamentos/${id}/`, { status: novoStatus });
+            loadDashboardData();
+        } catch (error) {
+            alert("Erro ao atualizar status.");
+        }
     }
-  }
+
+    async function confirmarPagamentoEConcluir() {
+        // Apenas fecha o modal e redireciona
+        setShowPagamentoModal(false);
+        
+        // Opcional: Você pode passar o ID do agendamento via state para 
+        // tentar destacar ou filtrar ele na página financeira automaticamente
+        navigate('/admin/financeiro', { state: { agendamentoId: agendamentoParaConcluir.id } });
+    }
 
   const handleLogout = () => {
     logout();
@@ -388,6 +407,29 @@ export default function AdminDashboard() {
       </div>
       <div className="brand-logo-footer">CONFIA +</div>
 
+
+        {/* Modal de Confirmação de Pagamento */}
+        <Modal show={showPagamentoModal} onHide={() => setShowPagamentoModal(false)} centered>
+            <Modal.Header closeButton style={{background: '#002B55', color: 'white'}}>
+                <Modal.Title style={{fontFamily: 'Libre Baskerville'}}>Concluir Atendimento</Modal.Title>
+            </Modal.Header>
+            <Modal.Body className="text-center p-4">
+                <FaMoneyBillWave size={50} color="#2DCE89" className="mb-3" />
+                <h5>O pagamento foi realizado?</h5>
+                <p className="text-muted">
+                    Valor a receber: <strong>{formatMoney(agendamentoParaConcluir?.financeiro?.restante)}</strong>
+                </p>
+                
+            </Modal.Body>
+            <Modal.Footer>
+                <Button variant="link" className="text-muted text-decoration-none" onClick={() => setShowPagamentoModal(false)}>
+                    Ainda não
+                </Button>
+                <Button style={{background: '#002B55', border: 'none', borderRadius: '20px', padding: '10px 30px'}} onClick={confirmarPagamentoEConcluir}>
+                    Sim, ir para os Registros!
+                </Button>
+            </Modal.Footer>
+        </Modal>
     </div>
   );
 }
