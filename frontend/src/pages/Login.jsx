@@ -240,7 +240,7 @@ export default function Login() {
                   {/* USUÁRIO */}
                   <div className="mb-4">
                     <label className="custom-label">
-                      <FaUser className="me-2" size={14} /> EMAIL / USUÁRIO
+                      <FaUser className="me-2" size={14} /> USUÁRIO
                     </label>
                     <InputGroup className="custom-input-group">
                       <Form.Control 
