@@ -49,10 +49,12 @@ export default function Login() {
           }
         }
       } catch (err) {
-        console.error(err);
-        setError('Credenciais inválidas.');
+          console.error(err);
+          // O DRF geralmente envia erro de login na chave 'detail'
+          const mensagem = err.detail || 'Usuário ou senha incorretos.';
+          setError(mensagem);
       } finally {
-        setLoading(false);
+          setLoading(false);
       }
     }
 

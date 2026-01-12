@@ -8,7 +8,7 @@ import {
   FaEye, FaEyeSlash, FaStore 
 } from 'react-icons/fa';
 import { IoMdArrowBack } from 'react-icons/io';
-import { Container, Row, Col, Form, Button, InputGroup, Alert } from 'react-bootstrap';
+import { Container, Row, Col, Form, Button, InputGroup, Alert, Toast, ToastContainer } from 'react-bootstrap';
 
 // Logo
 import logoOficial from "../assets/logotipo.svg";
@@ -30,6 +30,10 @@ function Register() {
   // Estados visuais
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  // Estados de erro e notificação
+  const [errorMsg, setErrorMsg] = useState('');
+  const [showToast, setShowToast] = useState(false);
 
   // Função genérica de input
   const handleChange = (e) => {
@@ -58,11 +62,22 @@ function Register() {
       alert("Cadastro realizado com sucesso!");
       navigate("/");
     } catch (error) {
-      console.error(error);
-      if (error.username) alert(`Usuário: ${error.username[0]}`);
-      else if (error.email) alert(`E-mail: ${error.email[0]}`);
-      else if (error.password) alert(`Senha: ${error.password[0]}`);
-      else alert("Erro ao realizar cadastro. Verifique os dados.");
+        console.error("Erro completo:", error);
+        
+        let mensagemFinal = "Erro ao realizar cadastro. Verifique os dados.";
+
+        if (typeof error === 'object') {
+            const errosListados = Object.keys(error).map(campo => {
+                const mensagem = Array.isArray(error[campo]) ? error[campo][0] : error[campo];
+                // Traduz nomes de campos técnicos para o usuário
+                const nomeCampo = campo.replace('username', 'Usuário').replace('email', 'E-mail').replace('password', 'Senha').replace('telefone', 'Telefone');
+                return `${nomeCampo}: ${mensagem}`;
+            });
+            mensagemFinal = errosListados.join(' | ');
+        }
+
+        setErrorMsg(mensagemFinal);
+        setShowToast(true);
     }
   };
 
@@ -481,6 +496,17 @@ function Register() {
 
           </Row>
         </Container>
+
+        <ToastContainer position="top-end" className="p-3" style={{ zIndex: 9999 }}>
+          <Toast onClose={() => setShowToast(false)} show={showToast} delay={5000} autohide bg="danger" title="Erro no Cadastro">
+            <Toast.Header>
+              <strong className="me-auto text-danger">⚠️ Erro no Cadastro</strong>
+            </Toast.Header>
+            <Toast.Body className="text-white">
+              {errorMsg}
+            </Toast.Body>
+          </Toast>
+        </ToastContainer>
       </div>
     </>
   );

@@ -49,7 +49,11 @@ export const AuthProvider = ({ children }) => {
 
         } catch (error) {
             console.error("Erro no login:", error);
-            throw error; 
+            // Repassa o erro detalhado do Django (ex: { detail: "No active account found..." })
+            if (error.response && error.response.data) {
+                throw error.response.data;
+            }
+            throw new Error("Erro de conexão com o servidor.");
         }
     };
 

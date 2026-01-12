@@ -53,7 +53,8 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         extra_kwargs = {
             'username': {
                 'validators': [UniqueValidator(queryset=User.objects.all(), message="Este nome de usuário já está em uso.")]
-            }
+            },
+            'telefone': {'validators': []},
         }
 
     # Calcula a média das notas
