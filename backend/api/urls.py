@@ -46,6 +46,9 @@ urlpatterns = [
     path('auth/clientes/', ClienteListView.as_view(), name='clientes_list'),
     path('auth/empreendedores/', EmpreendedorListView.as_view(), name='empreendedores_list'),
 
+    # --- ROTA PARA ALTERAR SENHA---
+    path('auth/password_reset/', include('django_rest_passwordreset.urls', namespace='password_reset')),
+    
     # --- ROTAS PADRÃO (CRUD) ---
     path('', include(router.urls)),
 ]
