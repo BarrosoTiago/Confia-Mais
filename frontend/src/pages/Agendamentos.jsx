@@ -31,10 +31,7 @@ export default function Agendamentos() {
   const [horaSelecionada, setHoraSelecionada] = useState('');
   const [statusAgendamento, setStatusAgendamento] = useState('PENDENTE');
 
-  const HORARIOS = [
-      "08:00", "08:30", "09:00", "09:30", "10:00", "10:30", "11:00", "11:30",
-      "13:00", "13:30", "14:00", "14:30", "15:00", "15:30", "16:00", "16:30", "17:00", "17:30", "18:00"
-  ];
+  const [horariosDisponiveis, setHorariosDisponiveis] = useState([]);
 
   useEffect(() => {
     loadData();
@@ -61,6 +58,42 @@ export default function Agendamentos() {
       setLoading(false);
     }
   }
+
+async function carregarHorariosDinâmicos() {
+    // Se não houver serviço ou data, limpa a lista e para a execução
+    if (!servicosSelecionados.length || !dataSelecionada) {
+      setHorariosDisponiveis([]);
+      return;
+    }
+
+    try {
+      const servicoId = servicosSelecionados[0];
+      
+      // FORMA CORRETA DE PEGAR A DATA LOCAL (YYYY-MM-DD)
+      const ano = dataSelecionada.getFullYear();
+      const mes = String(dataSelecionada.getMonth() + 1).padStart(2, '0');
+      const dia = String(dataSelecionada.getDate()).padStart(2, '0');
+      const dataFormatada = `${ano}-${mes}-${dia}`;
+
+      const response = await api.get(`/agendamentos/horarios-disponiveis/`, {
+        params: {
+          servico_id: servicoId,
+          data: dataFormatada
+        }
+      });
+      
+      // Atualiza o estado com o que veio do banco (Backend)
+      setHorariosDisponiveis(response.data);
+    } catch (error) {
+      console.error("Erro ao buscar horários dinâmicos", error);
+      setHorariosDisponiveis([]);
+    }
+  }
+
+    useEffect(() => {
+        carregarHorariosDinâmicos();
+    }, [dataSelecionada, JSON.stringify(servicosSelecionados)]); 
+    // O JSON.stringify garante que o React perceba mudanças dentro do Array de serviços
 
   const handleWhatsApp = (agenda) => {
     if (!agenda.cliente_telefone) return alert("Cliente sem telefone cadastrado.");
@@ -392,10 +425,19 @@ export default function Agendamentos() {
                     <div className="mb-3">
                         <h6 className="section-title"><FaClock /> Horários Disponíveis</h6>
                         <div className="time-grid">
-                            {HORARIOS.map(hora => {
-                                const ocupado = verificarOcupado(hora);
-                                return <div key={hora} className={`time-btn ${ocupado ? 'disabled' : ''} ${horaSelecionada === hora ? 'selected' : ''}`} onClick={() => !ocupado && setHoraSelecionada(hora)}>{hora}</div>
-                            })}
+                            {horariosDisponiveis.length > 0 ? (
+                                horariosDisponiveis.map(hora => (
+                                    <div 
+                                        key={hora} 
+                                        className={`time-btn ${horaSelecionada === hora ? 'selected' : ''}`} 
+                                        onClick={() => setHoraSelecionada(hora)}
+                                    >
+                                        {hora}
+                                    </div>
+                                ))
+                            ) : (
+                                <div className="text-muted small">Nenhum horário disponível para esta data.</div>
+                            )}
                         </div>
                     </div>
 

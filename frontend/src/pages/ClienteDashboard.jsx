@@ -25,15 +25,8 @@ export default function ClienteDashboard() {
   const [agendando, setAgendando] = useState(false);
 
   // Lista de Horários
-  const HORARIOS_BASE = [
-    "08:00", "08:30", "09:00", "09:30", "10:00", "10:30", "11:00", 
-    "13:00", "13:30", "14:00", "14:30", "15:00", "15:30", "16:00", "17:00", "17:30", "18:00"
-  ];
+  const [horariosDisponiveis, setHorariosDisponiveis] = useState([]);
 
-  const periodos = {
-      manha: HORARIOS_BASE.filter(h => parseInt(h.split(':')[0]) < 12),
-      tarde: HORARIOS_BASE.filter(h => parseInt(h.split(':')[0]) >= 12)
-  };
 
   useEffect(() => {
     if (!lojaRecebida || !lojaRecebida.id) {
@@ -42,6 +35,36 @@ export default function ClienteDashboard() {
     }
     loadServicos();
   }, [lojaRecebida]);
+
+    async function carregarHorariosDinâmicos() {
+
+        console.log("Buscando horários para:", servicoSelecionado?.id, "na data:", dataSelecionada);
+        if (!servicoSelecionado || !dataSelecionada) return;
+
+        try {
+        const ano = dataSelecionada.getFullYear();
+        const mes = String(dataSelecionada.getMonth() + 1).padStart(2, '0');
+        const dia = String(dataSelecionada.getDate()).padStart(2, '0');
+        const dataFormatada = `${ano}-${mes}-${dia}`;
+
+        const response = await api.get('/horarios/disponiveis/', {
+            params: {
+            servico_id: servicoSelecionado.id,
+            data: dataFormatada
+            }
+        });
+        setHorariosDisponiveis(response.data);
+        } catch (error) {
+        console.error("Erro ao carregar horários:", error);
+        setHorariosDisponiveis([]);
+        }
+    }
+
+    // Monitora quando o usuário muda o dia ou o serviço no Modal
+    useEffect(() => {
+        if (showModal) carregarHorariosDinâmicos();
+    }, [dataSelecionada, servicoSelecionado, showModal]);
+
 
   async function loadServicos() {
     try {
@@ -301,41 +324,28 @@ export default function ClienteDashboard() {
                               </div>
                           </div>
                           
-                          <div className="time-section">
-                              {periodos.manha.length > 0 && (
-                                  <>
-                                      <div className="period-label"><FaSun /> Manhã</div>
-                                      <div className="chips-grid">
-                                          {periodos.manha.map(hora => (
-                                              <div 
-                                                  key={hora} 
-                                                  className={`time-chip ${horaSelecionada === hora ? 'selected' : ''}`}
-                                                  onClick={() => setHoraSelecionada(hora)}
-                                              >
-                                                  {hora}
-                                              </div>
-                                          ))}
-                                      </div>
-                                  </>
-                              )}
-
-                              {periodos.tarde.length > 0 && (
-                                  <>
-                                      <div className="period-label mt-4"><FaMoon /> Tarde</div>
-                                      <div className="chips-grid">
-                                          {periodos.tarde.map(hora => (
-                                              <div 
-                                                  key={hora} 
-                                                  className={`time-chip ${horaSelecionada === hora ? 'selected' : ''}`}
-                                                  onClick={() => setHoraSelecionada(hora)}
-                                              >
-                                                  {hora}
-                                              </div>
-                                          ))}
-                                      </div>
-                                  </>
-                              )}
-                          </div>
+                            <div className="time-section">
+                                {horariosDisponiveis.length > 0 ? (
+                                    <>
+                                        <div className="period-label"><FaClock /> Horários Disponíveis</div>
+                                        <div className="chips-grid">
+                                            {horariosDisponiveis.map(hora => (
+                                                <div 
+                                                    key={hora} 
+                                                    className={`time-chip ${horaSelecionada === hora ? 'selected' : ''}`}
+                                                    onClick={() => setHoraSelecionada(hora)}
+                                                >
+                                                    {hora}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </>
+                                ) : (
+                                    <div className="text-center py-4 text-muted">
+                                        <p>Nenhum horário disponível para este dia.</p>
+                                    </div>
+                                )}
+                            </div>
                       </Col>
                   </Row>
               </Modal.Body>

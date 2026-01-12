@@ -170,15 +170,27 @@ class HorarioDisponivelView(APIView):
 
         while atual + delta <= fim:
             hora_str = atual.strftime('%H:%M')
+            slot_fim = atual + delta # Horário que o serviço terminaria
             
+            # 1. Verifica se o período do serviço invade o almoço
             eh_almoco = False
             if almoco_ini and almoco_fim:
-                if (atual >= almoco_ini and atual < almoco_fim):
+                # Se o início do serviço OU o fim dele estiverem dentro do intervalo de almoço
+                if (atual >= almoco_ini and atual < almoco_fim) or (slot_fim > almoco_ini and slot_fim <= almoco_fim):
                     eh_almoco = True
 
-            if not eh_almoco and hora_str not in lista_ocupados:
+            # 2. Verifica conflito com outros agendamentos (lógica mais precisa)
+            conflito = Agendamento.objects.filter(
+                servicos__criado_por=dono,
+                data_hora_inicio__lt=slot_fim, # Começa antes do serviço atual terminar
+                data_hora_fim__gt=atual,       # Termina depois do serviço atual começar
+                status__in=['PENDENTE', 'CONFIRMADO']
+            ).exists()
+
+            if not eh_almoco and not conflito:
                 slots.append(hora_str)
 
+            # Pula para o próximo slot (ex: de 30 em 30 min)
             atual += delta
         
         return Response(slots)
