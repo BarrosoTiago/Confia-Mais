@@ -268,3 +268,14 @@ Após enviar sua branch para o **seu fork** (`origin`), vá até a página do **
 Clique nele, escreva uma boa descrição e envie seu PR. O repositório principal será notificado da sua contribuição e a equipe poderá revisar e testar sua branch.
 
 Clique nele, escreva uma boa descrição e envie seu PR. O mantenedor será notificado para revisar seu código.
+
+
+
+
+
+
+---
+
+# OBSERVAÇÕES DE DESENVOLVIMENTO
+> Para testar recuperação de senha localmente sem configurar e-mail, descomente a linha de (config/settings.py): EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend' e comente EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'. Para rodar com a chave, faça o contrário disto. No primeiro caso, o token de acesso será disponibilizado através do terminal do backend Django.
+
