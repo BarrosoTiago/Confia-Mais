@@ -67,6 +67,26 @@ export default function HistoricoGeral() {
     }
   };
 
+
+  // Função para Cancelar Agendamento
+  const handleCancelarAgendamento = async (id) => {
+    if (!window.confirm("Tem certeza que deseja cancelar este agendamento?")) return;
+    
+    try {
+        // Opção A: Deletar do banco
+        // await api.delete(`/agendamentos/${id}/`);
+        
+        // Opção B: Apenas mudar status (Recomendado para manter histórico)
+        await api.patch(`/agendamentos/${id}/`, { status: 'CANCELADO' });
+        
+        alert("Agendamento cancelado com sucesso.");
+        loadAll(); // Recarrega a lista
+    } catch (error) {
+        console.error(error);
+        alert("Não foi possível cancelar o agendamento.");
+    }
+  };
+
   // Renderiza Estrelas
   const renderStars = (currentRating, interactive = false) => {
       return [...Array(5)].map((_, index) => {
@@ -225,20 +245,29 @@ export default function HistoricoGeral() {
                           <span className={`status-pill ${statusClass}`}>{agenda.status}</span>
                       </div>
 
-                      {/* 4. Ação (Avaliar) */}
-                      <div className="col-action">
-                          {agenda.avaliacao ? (
-                              <div title="Sua avaliação enviada">
-                                  {renderStars(agenda.avaliacao.nota, false)}
-                              </div>
-                          ) : agenda.status === 'CONCLUIDO' ? (
-                              <button className="btn-rate" onClick={() => handleOpenAvaliar(agenda)}>
-                                  <FaStar /> Avaliar
-                              </button>
-                          ) : (
-                              <span className="text-muted small">--</span>
-                          )}
-                      </div>
+                      {/* 4. Ações */}
+                        <div className="col-action">
+                            {/* Botão de Avaliar (Já existe) */}
+                            {agenda.status === 'CONCLUIDO' && !agenda.avaliacao && (
+                                <button className="btn-rate" onClick={() => handleOpenAvaliar(agenda)}>
+                                    <FaStar /> Avaliar
+                                </button>
+                            )}
+
+                            {/* NOVO: Botão de Cancelar (Apenas se pendente ou confirmado) */}
+                            {(agenda.status === 'PENDENTE' || agenda.status === 'CONFIRMADO') && (
+                                <Button 
+                                    variant="outline-danger" 
+                                    size="sm" 
+                                    style={{ borderRadius: '20px', fontWeight: 'bold' }}
+                                    onClick={() => handleCancelarAgendamento(agenda.id)}
+                                >
+                                    Cancelar
+                                </Button>
+                            )}
+                            
+                            {/* ... restante da lógica ... */}
+                        </div>
                   </div>
               );
           })}
