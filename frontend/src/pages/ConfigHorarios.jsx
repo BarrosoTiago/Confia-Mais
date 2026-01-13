@@ -77,29 +77,29 @@ export default function ConfigHorarios() {
     setHorarios(novos);
   };
 
-  // Botão Mágico: Réplica o dia atual para Seg-Sex
-  const replicarHorario = () => {
-      const diaAtual = horarios[diaSelecionado];
-      
-      const novos = horarios.map(d => {
-          // Copia apenas para Segunda a Sexta (IDs 0 a 4)
-          if (d.dia_semana >= 0 && d.dia_semana <= 4) {
-              return {
-                  ...d,
-                  horario_inicio: diaAtual.horario_inicio,
-                  horario_fim: diaAtual.horario_fim,
-                  almoco_inicio: diaAtual.almoco_inicio,
-                  almoco_fim: diaAtual.almoco_fim,
-                  ativo: diaAtual.ativo
-              };
-          }
-          return d; // Sábado e Domingo não altera
-      });
-      
-      setHorarios(novos);
-      setNotification({ type: 'sucesso', text: "Horário copiado para Segunda a Sexta!" });
-      setTimeout(() => setNotification(null), 3000);
-  };
+  // Replicar Horário para outros dias ativos
+    const replicarHorario = () => {
+        const diaAtual = horarios[diaSelecionado];
+        
+        const novos = horarios.map(d => {
+            // Só aplica se o dia estiver ATIVO (exceto o próprio dia selecionado, que já é a origem)
+            if (d.ativo && d.dia_semana !== diaAtual.dia_semana) {
+                return {
+                    ...d,
+                    horario_inicio: diaAtual.horario_inicio,
+                    horario_fim: diaAtual.horario_fim,
+                    almoco_inicio: diaAtual.almoco_inicio,
+                    almoco_fim: diaAtual.almoco_fim,
+                    // Mantemos o d.ativo como true, pois é o filtro inicial
+                };
+            }
+            return d; 
+        });
+        
+        setHorarios(novos);
+        setNotification({ type: 'sucesso', text: "Horário aplicado a todos os dias ativos!" });
+        setTimeout(() => setNotification(null), 3000);
+    };
 
 const handleSaveAll = async () => {
     setSaving(true);
@@ -368,9 +368,9 @@ const handleSaveAll = async () => {
                           </div>
 
                           {/* Botão Copiar para outros dias */}
-                          <button className="btn-copy" onClick={replicarHorario}>
-                              <FaCopy /> Aplicar este horário de Seg a Sex
-                          </button>
+                        <button className="btn-copy" onClick={replicarHorario}>
+                            <FaCopy /> Aplicar este horário a todos os dias ativos
+                        </button>
                       </>
                   ) : (
                       <div className="text-center py-4 text-muted">
