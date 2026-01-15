@@ -8,51 +8,23 @@ import {
 } from 'react-icons/fa';
 import logotipoSystem from "../assets/logotipo1.svg"; 
 
-export default function Register() {
-  const { register } = useAuth();
-  const navigate = useNavigate();
-  const location = useLocation();
-
-  const queryParams = new URLSearchParams(location.search);
-  const initialRole = queryParams.get('type') === 'client' ? 'client' : 'entrepreneur';
-
-  const [role, setRole] = useState(initialRole); 
-  const [formData, setFormData] = useState({
-    name: '', username: '', email: '', phone: '', password: '', confirmPassword: ''
-  });
-  
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
-
-  const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-    if(error) setError('');
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (formData.password !== formData.confirmPassword) return setError('As senhas não coincidem.');
-    setLoading(true);
-    setError('');
-    try {
-      await register(formData.username, formData.password, role, formData.email);
-      navigate('/login'); 
-    } catch (err) {
-      setError('Erro ao criar conta. Tente novamente.');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   // Campos do Formulário
-  const FormFields = ({ colorTheme }) => (
+// 1. Definição FORA do componente principal (Recebendo todas as props necessárias)
+const FormFields = ({ 
+  colorTheme, 
+  formData, 
+  handleChange, 
+  showPassword, 
+  setShowPassword, 
+  showConfirmPassword, 
+  setShowConfirmPassword 
+}) => (
     <>
         <div className="modern-input-group">
             <label className="input-label" style={{color: colorTheme}}>Nome Completo</label>
             <div className="input-wrapper">
-                <input type="text" className="modern-input" placeholder="Ex: Ana Souza" name="name" value={formData.name} onChange={handleChange} required />
+                <input type="text" className="modern-input" placeholder="Ex: Ana Souza" name="nome_completo" value={formData.nome_completo} onChange={handleChange} required />
                 <FaIdCard className="input-icon-left" />
             </div>
         </div>
@@ -73,7 +45,7 @@ export default function Register() {
         <div className="modern-input-group">
             <label className="input-label" style={{color: colorTheme}}>Telefone</label>
             <div className="input-wrapper">
-                <input type="tel" className="modern-input" placeholder="(xx) 9xxxx-xxxx" name="phone" value={formData.phone} onChange={handleChange} required />
+                <input type="tel" className="modern-input" placeholder="(xx) 9xxxx-xxxx" name="telefone" value={formData.telefone} onChange={handleChange} required />
                 <FaPhone className="input-icon-left" />
             </div>
         </div>
@@ -83,7 +55,9 @@ export default function Register() {
                     <label className="input-label" style={{color: colorTheme}}>Senha</label>
                     <div className="input-wrapper">
                         <input type={showPassword ? "text" : "password"} className="modern-input" placeholder="******" name="password" value={formData.password} onChange={handleChange} required />
-                        <div className="password-toggle" onClick={() => setShowPassword(!showPassword)}>{showPassword ? <FaEyeSlash /> : <FaEye />}</div>
+                        <div className="password-toggle" onClick={() => setShowPassword(!showPassword)}>
+                            {showPassword ? <FaEyeSlash /> : <FaEye />}
+                        </div>
                         <FaLock className="input-icon-left" />
                     </div>
                 </div>
@@ -92,15 +66,75 @@ export default function Register() {
                 <div className="modern-input-group">
                     <label className="input-label" style={{color: colorTheme}}>Confirmar</label>
                     <div className="input-wrapper">
-                        <input type={showConfirmPassword ? "text" : "password"} className="modern-input" placeholder="******" name="confirmPassword" value={formData.confirmPassword} onChange={handleChange} required />
-                        <div className="password-toggle" onClick={() => setShowConfirmPassword(!showConfirmPassword)}>{showConfirmPassword ? <FaEyeSlash /> : <FaEye />}</div>
+                        <input type={showConfirmPassword ? "text" : "password"} className="modern-input" placeholder="******" name="password_confirm" value={formData.password_confirm} onChange={handleChange} required />
+                        <div className="password-toggle" onClick={() => setShowConfirmPassword(!showConfirmPassword)}>
+                            {showConfirmPassword ? <FaEyeSlash /> : <FaEye />}
+                        </div>
                         <FaLock className="input-icon-left" />
                     </div>
                 </div>
             </Col>
         </Row>
     </>
-  );
+);
+
+
+export default function Register() {
+  const { register } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const queryParams = new URLSearchParams(location.search);
+  const initialRole = queryParams.get('type') === 'client' ? 'client' : 'entrepreneur';
+
+  const [role, setRole] = useState(initialRole); 
+  const [formData, setFormData] = useState({
+    nome_completo: '',   
+    username: '', 
+    email: '', 
+    telefone: '',        
+    password: '', 
+    password_confirm: '' 
+  });
+  
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleChange = (e) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+    if(error) setError('');
+  };
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        
+        if (formData.password !== formData.password_confirm) {
+            return setError('As senhas não coincidem.');
+        }
+
+        setLoading(true);
+        setError('');
+
+        try {
+        const dadosCompletos = {
+            ...formData,
+            tipo_usuario: role === 'client' ? 'CLIENTE' : 'ADMIN'
+        };
+
+        await register(dadosCompletos); 
+        alert("Cadastro realizado com sucesso!");
+        navigate('/login'); 
+        } catch (err) {
+        // Trata o erro vindo do backend (que configuramos no AuthContext)
+        const msg = typeof err === 'object' ? Object.values(err).flat()[0] : 'Erro ao criar conta.';
+        setError(msg);
+        } finally {
+        setLoading(false);
+        }
+    };
+
 
   return (
     <div className="register-wrapper">
@@ -272,7 +306,14 @@ export default function Register() {
                   </div>
                   {error && role === 'entrepreneur' && <Alert variant="danger" className="text-center py-2 mb-3">{error}</Alert>}
                   <Form onSubmit={handleSubmit}>
-                      <FormFields colorTheme="var(--col-navy)" />
+                <FormFields 
+                    colorTheme="var(--col-navy)" 
+                    formData={formData}
+                    handleChange={handleChange}
+                    showPassword={showPassword}
+                    setShowPassword={setShowPassword}
+                    showConfirmPassword={showConfirmPassword}
+                    setShowConfirmPassword={setShowConfirmPassword}/>
                       <button type="submit" className="btn-register btn-entrep" disabled={loading}>
                           {loading ? <Spinner animation="border" size="sm" /> : "CADASTRAR EMPRESA"}
                       </button>
@@ -295,8 +336,16 @@ export default function Register() {
                   </div>
                   {error && role === 'client' && <Alert variant="danger" className="text-center py-2 mb-3">{error}</Alert>}
                   <Form onSubmit={handleSubmit}>
-                      <FormFields colorTheme="var(--col-client)" />
-                      <button type="submit" className="btn-register btn-client" disabled={loading}>
+                    <FormFields 
+                        colorTheme="var(--col-client)" 
+                        formData={formData}
+                        handleChange={handleChange}
+                        showPassword={showPassword}
+                        setShowPassword={setShowPassword}
+                        showConfirmPassword={showConfirmPassword}
+                        setShowConfirmPassword={setShowConfirmPassword}
+                    />
+                        <button type="submit" className="btn-register btn-client" disabled={loading}>
                           {loading ? <Spinner animation="border" size="sm" /> : "CADASTRAR MEU PERFIL"}
                       </button>
                   </Form>
