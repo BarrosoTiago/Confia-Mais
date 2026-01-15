@@ -1,515 +1,323 @@
-import { useState } from "react";
-import { useAuth } from "../context/AuthContext";
-import { useNavigate } from "react-router-dom";
-
-// Ícones
+import { useState, useEffect } from 'react';
+import { useAuth } from '../context/AuthContext';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { Form, Alert, Spinner, Row, Col } from 'react-bootstrap';
 import { 
-  FaUser, FaEnvelope, FaKey, FaIdCard, FaPhone, 
-  FaEye, FaEyeSlash, FaStore 
+    FaUser, FaEnvelope, FaLock, FaPhone, FaStore, FaIdCard, 
+    FaEye, FaEyeSlash, FaArrowLeft, FaShoppingBag 
 } from 'react-icons/fa';
-import { IoMdArrowBack } from 'react-icons/io';
-import { Container, Row, Col, Form, Button, InputGroup, Alert, Toast, ToastContainer } from 'react-bootstrap';
+import logotipoSystem from "../assets/logotipo1.svg"; 
 
-// Logo
-import logoOficial from "../assets/logotipo.svg";
-
-function Register() {
-  const [formData, setFormData] = useState({
-    username: "",
-    email: "",
-    password: "",
-    password_confirm: "",
-    nome_completo: "",
-    telefone: "",
-    tipo_usuario: "CLIENTE",
-  });
-
-  const { register, setNotification } = useAuth();
+export default function Register() {
+  const { register } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
-  // Estados visuais
+  const queryParams = new URLSearchParams(location.search);
+  const initialRole = queryParams.get('type') === 'client' ? 'client' : 'entrepreneur';
+
+  const [role, setRole] = useState(initialRole); 
+  const [formData, setFormData] = useState({
+    name: '', username: '', email: '', phone: '', password: '', confirmPassword: ''
+  });
+  
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  // Estados de erro e notificação
-  const [errorMsg, setErrorMsg] = useState('');
-  const [showToast, setShowToast] = useState(false);
-
-  // Função genérica de input
   const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
-  };
-
-  // Função específica para o seletor moderno
-  const handleTypeChange = (type) => {
-    setFormData({ ...formData, tipo_usuario: type });
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+    if(error) setError('');
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setNotification(null);
-
-    if (formData.password !== formData.password_confirm) {
-      alert("As senhas não correspondem.");
-      return;
-    }
-
+    if (formData.password !== formData.confirmPassword) return setError('As senhas não coincidem.');
+    setLoading(true);
+    setError('');
     try {
-      await register(formData);
-      alert("Cadastro realizado com sucesso!");
-      navigate("/");
-    } catch (error) {
-        console.error("Erro completo:", error);
-        
-        let mensagemFinal = "Erro ao realizar cadastro. Verifique os dados.";
-
-        if (typeof error === 'object') {
-            const errosListados = Object.keys(error).map(campo => {
-                const mensagem = Array.isArray(error[campo]) ? error[campo][0] : error[campo];
-                // Traduz nomes de campos técnicos para o usuário
-                const nomeCampo = campo.replace('username', 'Usuário').replace('email', 'E-mail').replace('password', 'Senha').replace('telefone', 'Telefone');
-                return `${nomeCampo}: ${mensagem}`;
-            });
-            mensagemFinal = errosListados.join(' | ');
-        }
-
-        setErrorMsg(mensagemFinal);
-        setShowToast(true);
+      await register(formData.username, formData.password, role, formData.email);
+      navigate('/login'); 
+    } catch (err) {
+      setError('Erro ao criar conta. Tente novamente.');
+    } finally {
+      setLoading(false);
     }
   };
 
-  return (
+  // Campos do Formulário
+  const FormFields = ({ colorTheme }) => (
     <>
+        <div className="modern-input-group">
+            <label className="input-label" style={{color: colorTheme}}>Nome Completo</label>
+            <div className="input-wrapper">
+                <input type="text" className="modern-input" placeholder="Ex: Ana Souza" name="name" value={formData.name} onChange={handleChange} required />
+                <FaIdCard className="input-icon-left" />
+            </div>
+        </div>
+        <div className="modern-input-group">
+            <label className="input-label" style={{color: colorTheme}}>Usuário</label>
+            <div className="input-wrapper">
+                <input type="text" className="modern-input" placeholder="Seu login" name="username" value={formData.username} onChange={handleChange} required />
+                <FaUser className="input-icon-left" />
+            </div>
+        </div>
+        <div className="modern-input-group">
+            <label className="input-label" style={{color: colorTheme}}>E-mail</label>
+            <div className="input-wrapper">
+                <input type="email" className="modern-input" placeholder="nome@email.com" name="email" value={formData.email} onChange={handleChange} required />
+                <FaEnvelope className="input-icon-left" />
+            </div>
+        </div>
+        <div className="modern-input-group">
+            <label className="input-label" style={{color: colorTheme}}>Telefone</label>
+            <div className="input-wrapper">
+                <input type="tel" className="modern-input" placeholder="(xx) 9xxxx-xxxx" name="phone" value={formData.phone} onChange={handleChange} required />
+                <FaPhone className="input-icon-left" />
+            </div>
+        </div>
+        <Row>
+            <Col md={6}>
+                <div className="modern-input-group">
+                    <label className="input-label" style={{color: colorTheme}}>Senha</label>
+                    <div className="input-wrapper">
+                        <input type={showPassword ? "text" : "password"} className="modern-input" placeholder="******" name="password" value={formData.password} onChange={handleChange} required />
+                        <div className="password-toggle" onClick={() => setShowPassword(!showPassword)}>{showPassword ? <FaEyeSlash /> : <FaEye />}</div>
+                        <FaLock className="input-icon-left" />
+                    </div>
+                </div>
+            </Col>
+            <Col md={6}>
+                <div className="modern-input-group">
+                    <label className="input-label" style={{color: colorTheme}}>Confirmar</label>
+                    <div className="input-wrapper">
+                        <input type={showConfirmPassword ? "text" : "password"} className="modern-input" placeholder="******" name="confirmPassword" value={formData.confirmPassword} onChange={handleChange} required />
+                        <div className="password-toggle" onClick={() => setShowConfirmPassword(!showConfirmPassword)}>{showConfirmPassword ? <FaEyeSlash /> : <FaEye />}</div>
+                        <FaLock className="input-icon-left" />
+                    </div>
+                </div>
+            </Col>
+        </Row>
+    </>
+  );
+
+  return (
+    <div className="register-wrapper">
       <style>{`
-        /* FONTE ÚNICA: Libre Baskerville (Igual ao Login) */
-        @import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+
+        :root {
+            --col-navy: #002B55;
+            --col-client: #0284C7;
+            --col-bg-client: #F0F9FF;
+            --col-neon: #FFFFFF;
+            --col-neon-glow: rgba(255, 255, 255, 0.6);
+            --col-teal-light: #A9D6E5;
+            --bg-input: #F8FAFC;
+            --text-main: #334155;
+            --text-muted: #94A3B8;
+        }
+
+        body { margin: 0; font-family: 'Plus Jakarta Sans', sans-serif; overflow: hidden; background: var(--col-navy); }
+        .register-wrapper { display: flex; height: 100vh; width: 100vw; }
+
+        .form-section {
+            flex: 1; background-color: var(--col-navy);
+            display: flex; justify-content: center; position: relative; padding: 40px 20px; 
+            overflow-y: auto; perspective: 1500px;
+        }
+        .form-section::-webkit-scrollbar { width: 6px; }
+        .form-section::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 10px; }
+
+        .bg-glow-effect {
+            position: absolute; width: 100%; height: 100%; top: 0; left: 0;
+            background: radial-gradient(circle at 50% 50%, rgba(255,255,255,0.05) 0%, transparent 60%);
+            pointer-events: none;
+        }
+
+        .flip-card-wrapper {
+            position: relative; width: 100%; max-width: 500px; min-height: 780px; margin-top: 20px;
+            transform-style: preserve-3d; transition: transform 0.8s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+        }
+        .flip-card-wrapper.flipped { transform: rotateY(180deg); }
+
+        .card-face {
+            position: absolute; width: 100%; height: 100%; top: 0; left: 0;
+            backface-visibility: hidden; border-radius: 24px; padding: 40px;
+            display: flex; flex-direction: column;
+            border: 2px solid var(--col-neon);
+            box-shadow: 0 0 30px var(--col-neon-glow), 0 20px 60px rgba(0,0,0,0.5);
+        }
+
+        .card-face.front { 
+            background: white; transform: rotateY(0deg); border-top: 8px solid var(--col-navy);
+        }
+        .card-face.back { 
+            background: linear-gradient(135deg, #ffffff 0%, var(--col-bg-client) 100%);
+            transform: rotateY(180deg); border-top: 8px solid var(--col-client);
+        }
+
+        /* CABEÇALHO DO FORMULÁRIO COM LOGO */
+        .form-header-row {
+            display: flex; align-items: center; justify-content: center; gap: 15px; margin-bottom: 25px;
+        }
+        .header-logo-small { height: 50px; width: auto; filter: drop-shadow(0 2px 5px rgba(0,0,0,0.1)); }
         
-        .register-page-wrapper {
-          background: linear-gradient(90deg, #002B55 35%, #A8DADC 35%);
-          min-height: 100vh;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          /* Aplica a fonte em todo o container */
-          font-family: 'Libre Baskerville', serif; 
-          overflow-x: hidden;
-          padding: 20px;
+        .form-title { 
+            font-family: 'Libre Baskerville', serif; font-size: 1.8rem; 
+            font-weight: 700; margin: 0; line-height: 1;
         }
 
-        .card-register {
-          background-color: #FFFFFF;
-          border-radius: 16px;
-          padding: 3rem 2.5rem;
-          box-shadow: 0 30px 60px rgba(0,0,0,0.15);
-          width: 100%;
-          max-width: 580px;
-          display: flex;
-          flex-direction: column;
-          margin-right: -60px; 
-          position: relative;
-          z-index: 10;
-          max-height: 90vh;
-          overflow-y: auto;
+        .role-toggle {
+            display: flex; background: rgba(0,0,0,0.04); border-radius: 50px; padding: 5px; margin-bottom: 30px; border: 1px solid rgba(0,0,0,0.05);
         }
+        .toggle-item {
+            flex: 1; text-align: center; padding: 12px; cursor: pointer;
+            border-radius: 50px; font-weight: 700; font-size: 0.85rem; color: var(--text-muted);
+            transition: 0.3s; display: flex; align-items: center; justify-content: center; gap: 8px;
+        }
+        .toggle-item:hover { background: rgba(0,0,0,0.05); }
+        .active-entrepreneur { background: var(--col-navy) !important; color: white !important; box-shadow: 0 4px 10px rgba(0, 43, 85, 0.25); }
+        .active-client { background: var(--col-client) !important; color: white !important; box-shadow: 0 4px 10px rgba(2, 132, 199, 0.25); }
 
-        .card-register::-webkit-scrollbar { width: 6px; }
-        .card-register::-webkit-scrollbar-thumb { background-color: #ccc; border-radius: 4px; }
+        .modern-input-group { margin-bottom: 18px; }
+        .input-label { display: block; font-size: 0.75rem; font-weight: 700; margin-bottom: 6px; letter-spacing: 0.5px; text-transform: uppercase; }
+        .input-wrapper { position: relative; width: 100%; }
+        .modern-input {
+            width: 100%; padding: 12px 12px 12px 40px; background: white; 
+            border: 1px solid #E2E8F0; border-radius: 10px; font-size: 0.95rem; color: var(--text-main); transition: 0.3s;
+        }
+        .modern-input:focus { outline: none; box-shadow: 0 0 0 3px rgba(0,0,0,0.05); }
+        .front .modern-input { background: var(--bg-input); }
+        .front .modern-input:focus { border-color: var(--col-navy); background: white; }
+        .back .modern-input { background: white; border-color: #BAE6FD; }
+        .back .modern-input:focus { border-color: var(--col-client); }
 
-        .register-title {
-          color: #002B55;
-          font-weight: 700;
-          font-size: 1.5rem;
-          letter-spacing: 1px;
-          margin-bottom: 2rem;
-          text-align: center;
-          text-transform: uppercase;
-        }
-
-        /* --- SELETOR MODERNO (Agora com a mesma fonte) --- */
-        .user-type-selector {
-          display: flex;
-          background-color: #F1F3F5;
-          border-radius: 50px;
-          padding: 5px;
-          margin-bottom: 2rem;
-          position: relative;
-          border: 1px solid #E9ECEF;
-        }
-
-        .type-option {
-          flex: 1;
-          text-align: center;
-          padding: 12px 10px;
-          border-radius: 50px;
-          cursor: pointer;
-          font-family: 'Libre Baskerville', serif; /* Fonte Corrigida */
-          font-weight: 700;
-          font-size: 0.8rem; /* Levemente menor para caber bem */
-          color: #6C757D;
-          transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 8px;
-        }
-
-        .type-option:hover {
-          color: #002B55;
-          background-color: rgba(0,0,0,0.03);
-        }
-
-        .type-option.active {
-          background-color: #002B55;
-          color: #FFFFFF;
-          box-shadow: 0 4px 10px rgba(0,43,85,0.3);
-        }
-        /* --------------------------- */
-
-        .custom-label {
-          color: #002B55;
-          font-weight: 700;
-          font-size: 0.75rem;
-          letter-spacing: 1.2px;
-          margin-bottom: 4px;
-          text-transform: uppercase;
-          display: flex;
-          align-items: center;
-        }
-        
-        .custom-input-group {
-          border-bottom: 2px solid #DEE2E6;
-          margin-bottom: 1.2rem;
-          transition: border-color 0.3s ease;
-        }
-        .custom-input-group:focus-within {
-           border-color: #002B55;
-        }
-
-        .custom-input {
-          border: none;
-          background: transparent;
-          border-radius: 0;
-          padding: 8px 0 8px 10px;
-          color: #002B55;
-          font-weight: 400;
-          font-size: 1rem;
-          font-family: 'Libre Baskerville', serif; /* Fonte Corrigida */
-        }
-        .custom-input:focus {
-          background: transparent;
-          box-shadow: none;
-        }
-        .custom-input::placeholder {
-            color: #ADB5BD; 
-            font-size: 0.9rem;
-            font-style: italic;
-        }
-
-        .password-toggle {
-            cursor: pointer;
-            color: #ADB5BD;
-            transition: color 0.2s;
-        }
-        .password-toggle:hover {
-            color: #002B55 !important;
-        }
+        .input-icon-left { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-muted); pointer-events: none; }
+        .password-toggle { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); color: var(--text-muted); cursor: pointer; }
 
         .btn-register {
-            background-color: #002B55;
-            border: none;
-            padding: 15px;
-            font-weight: 700;
-            letter-spacing: 1.5px;
-            width: 100%;
-            border-radius: 8px;
-            font-size: 0.9rem;
-            text-transform: uppercase;
-            transition: all 0.3s ease;
-            box-shadow: 0 4px 10px rgba(0,43,85,0.2);
-            margin-top: 10px;
+            width: 100%; padding: 15px; border-radius: 12px; border: none;
+            color: white; font-weight: 700; font-size: 1rem; letter-spacing: 1px;
+            transition: 0.3s; margin-top: 20px; box-shadow: 0 10px 20px rgba(0,0,0,0.1);
         }
-        .btn-register:hover {
-            background-color: #001a33;
-            transform: translateY(-2px);
-            box-shadow: 0 6px 15px rgba(0,43,85,0.3);
-        }
+        .btn-entrep { background: var(--col-navy); }
+        .btn-entrep:hover { background: #004080; transform: translateY(-2px); }
+        .btn-client { background: var(--col-client); }
+        .btn-client:hover { background: #0369A1; transform: translateY(-2px); }
 
-        .btn-back-login {
-          background-color: transparent;
-          color: #6C757D;
-          border: 1px solid transparent; /* Remove borda visível inicial para ficar mais limpo */
-          padding: 10px;
-          font-weight: 700;
-          letter-spacing: 0.5px;
-          width: 100%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          border-radius: 8px;
-          font-size: 0.8rem;
-          text-transform: uppercase;
-          transition: all 0.3s ease;
-          font-family: 'Libre Baskerville', serif; /* Fonte Corrigida */
+        .back-link {
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+            margin-top: 25px; color: var(--text-muted); text-decoration: none; font-size: 0.9rem; font-weight: 600; cursor: pointer;
         }
-        .btn-back-login:hover {
-          color: #002B55;
-          background-color: #F8F9FA;
-        }
+        .back-link:hover { color: var(--col-navy); }
 
-        .brand-container {
-          padding-left: 80px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          height: 100%;
-          position: sticky; 
-          top: 0;
+        .brand-section {
+            flex: 1.2; background: linear-gradient(135deg, #F0F9FF 0%, var(--col-teal-light) 100%);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            position: relative; overflow: hidden; text-align: center; padding: 40px;
         }
-        .brand-logo-img {
-          width: 100%;
-          max-width: 600px;
-          height: auto;
-          filter: drop-shadow(0px 15px 25px rgba(0,43,85,0.2));
-          transform: scale(1.05);
+        .tech-grid {
+            position: absolute; width: 200%; height: 200%; top: -50%; left: -50%;
+            background-image: linear-gradient(rgba(0, 43, 85, 0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(0, 43, 85, 0.05) 1px, transparent 1px);
+            background-size: 60px 60px; transform: perspective(500px) rotateX(45deg); opacity: 0.8;
+            animation: gridMove 25s linear infinite;
         }
+        @keyframes gridMove {
+            0% { transform: perspective(500px) rotateX(45deg) translateY(0); }
+            100% { transform: perspective(500px) rotateX(45deg) translateY(60px); }
+        }
+        .floating-square {
+            position: absolute; background: rgba(0, 43, 85, 0.05);
+            border: 1px solid rgba(0, 43, 85, 0.1); transform: rotate(45deg);
+            animation: floatSquare 12s infinite ease-in-out;
+        }
+        .sq1 { width: 100px; height: 100px; top: 15%; right: 15%; }
+        .sq2 { width: 60px; height: 60px; bottom: 25%; left: 15%; animation-delay: -3s; }
+        .sq3 { width: 150px; height: 150px; top: 45%; left: 45%; opacity: 0.08; animation-duration: 18s; }
+        @keyframes floatSquare {
+            0%, 100% { transform: rotate(45deg) translate(0, 0); }
+            50% { transform: rotate(45deg) translate(20px, -30px); }
+        }
+        .logo-giant { height: 220px; margin-bottom: 25px; filter: drop-shadow(0 5px 15px rgba(0, 43, 85, 0.15)); }
+        .brand-title { font-family: 'Libre Baskerville', serif; font-size: 4rem; color: var(--col-navy); margin: 0; }
+        .brand-tagline { font-size: 1.3rem; color: var(--col-navy); margin-top: 15px; font-weight: 500; }
 
-        @media (max-width: 992px) {
-           .register-page-wrapper {
-              background: #A8DADC;
-              flex-direction: column;
-              height: auto;
-           }
-           .card-register {
-              margin-right: 0;
-              margin-bottom: 50px;
-              max-width: 100%;
-              padding: 2rem;
-              max-height: none;
-           }
-           .brand-container {
-              padding-left: 0;
-              margin-bottom: 40px;
-              position: relative;
-           }
-           .brand-logo-img {
-              max-width: 300px;
-           }
+        @media (max-width: 900px) {
+            .register-wrapper { flex-direction: column; }
+            .brand-section { display: none; }
+            .form-section { padding: 40px 20px; }
         }
       `}</style>
 
-      <div className="register-page-wrapper">
-        <Container fluid>
-          <Row className="justify-content-center align-items-center">
-            
-            {/* COLUNA ESQUERDA - FORMULÁRIO */}
-            <Col md={10} lg={5} xl={5} className="d-flex justify-content-center justify-content-lg-end">
-              <div className="card-register">
-                <h3 className="register-title">Criar Conta</h3>
+      {/* LADO ESQUERDO: FORMULÁRIO 3D */}
+      <div className="form-section">
+          <div className="bg-glow-effect"></div>
 
-                <Form onSubmit={handleSubmit}>
+          <div className={`flip-card-wrapper ${role === 'client' ? 'flipped' : ''}`}>
+              
+              {/* --- FRENTE: EMPREENDEDOR --- */}
+              <div className="card-face front">
                   
-                  {/* --- SELETOR MODERNO (Fonte Corrigida) --- */}
-                  <div className="user-type-selector">
-                    <div 
-                      className={`type-option ${formData.tipo_usuario === 'CLIENTE' ? 'active' : ''}`}
-                      onClick={() => handleTypeChange('CLIENTE')}
-                    >
-                      <FaUser size={14} /> SOU CLIENTE
-                    </div>
-                    <div 
-                      className={`type-option ${formData.tipo_usuario === 'ADMIN' ? 'active' : ''}`}
-                      onClick={() => handleTypeChange('ADMIN')}
-                    >
-                      <FaStore size={14} /> SOU EMPREENDEDOR
-                    </div>
-                  </div>
-                  {/* ------------------------------------------- */}
-
-                  {/* NOME COMPLETO */}
-                  <div className="mb-1">
-                    <label className="custom-label">
-                       NOME COMPLETO
-                    </label>
-                    <InputGroup className="custom-input-group">
-                      <InputGroup.Text className="bg-transparent border-0 ps-0 pe-2">
-                         <FaIdCard color="#002B55" size={16} />
-                      </InputGroup.Text>
-                      <Form.Control 
-                        type="text" 
-                        name="nome_completo"
-                        placeholder="Ex: Ana Souza" 
-                        className="custom-input"
-                        value={formData.nome_completo}
-                        onChange={handleChange}
-                        required
-                      />
-                    </InputGroup>
+                  {/* Cabeçalho com Logo */}
+                  <div className="form-header-row">
+                      <img src={logotipoSystem} alt="Logo" className="header-logo-small" />
+                      <h2 className="form-title" style={{color: 'var(--col-navy)'}}>Nova Empresa</h2>
                   </div>
 
-                  {/* USUÁRIO */}
-                  <div className="mb-1">
-                    <label className="custom-label">
-                       USUÁRIO (LOGIN)
-                    </label>
-                    <InputGroup className="custom-input-group">
-                      <InputGroup.Text className="bg-transparent border-0 ps-0 pe-2">
-                         <FaUser color="#002B55" size={16} />
-                      </InputGroup.Text>
-                      <Form.Control 
-                        type="text" 
-                        name="username"
-                        placeholder="Nome de usuário" 
-                        className="custom-input"
-                        value={formData.username}
-                        onChange={handleChange}
-                        required
-                      />
-                    </InputGroup>
+                  <div className="role-toggle">
+                      <div className="toggle-item" onClick={() => setRole('client')}><FaShoppingBag /> SOU CLIENTE</div>
+                      <div className="toggle-item active-entrepreneur"><FaStore /> SOU EMPREENDEDOR</div>
                   </div>
-
-                  {/* EMAIL */}
-                  <div className="mb-1">
-                    <label className="custom-label">
-                       E-MAIL
-                    </label>
-                    <InputGroup className="custom-input-group">
-                       <InputGroup.Text className="bg-transparent border-0 ps-0 pe-2">
-                         <FaEnvelope color="#002B55" size={16} />
-                      </InputGroup.Text>
-                      <Form.Control 
-                        type="email" 
-                        name="email"
-                        placeholder="nome@email.com" 
-                        className="custom-input"
-                        value={formData.email}
-                        onChange={handleChange}
-                        required
-                      />
-                    </InputGroup>
-                  </div>
-
-                  {/* TELEFONE */}
-                  <div className="mb-1">
-                    <label className="custom-label">
-                       TELEFONE
-                    </label>
-                    <InputGroup className="custom-input-group">
-                      <InputGroup.Text className="bg-transparent border-0 ps-0 pe-2">
-                         <FaPhone color="#002B55" size={16} />
-                      </InputGroup.Text>
-                      <Form.Control 
-                        type="text" 
-                        name="telefone"
-                        placeholder="(xx) 9xxxx-xxxx" 
-                        className="custom-input"
-                        value={formData.telefone}
-                        onChange={handleChange}
-                      />
-                    </InputGroup>
-                  </div>
-
-                  {/* SENHA */}
-                  <div className="mb-1">
-                    <label className="custom-label">
-                       SENHA
-                    </label>
-                    <InputGroup className="custom-input-group">
-                      <InputGroup.Text className="bg-transparent border-0 ps-0 pe-2">
-                         <FaKey color="#002B55" size={16} />
-                      </InputGroup.Text>
-                      <Form.Control 
-                        type={showPassword ? "text" : "password"}
-                        name="password"
-                        placeholder="Sua senha secreta" 
-                        className="custom-input"
-                        value={formData.password}
-                        onChange={handleChange}
-                        required
-                      />
-                      <InputGroup.Text 
-                        className="bg-transparent border-0 pe-0 password-toggle"
-                        onClick={() => setShowPassword(!showPassword)}
-                      >
-                        {showPassword ? <FaEyeSlash size={18}/> : <FaEye size={18}/>}
-                      </InputGroup.Text>
-                    </InputGroup>
-                  </div>
-
-                  {/* CONFIRMAR SENHA */}
-                  <div className="mb-4">
-                    <label className="custom-label">
-                       CONFIRMAR SENHA
-                    </label>
-                    <InputGroup className="custom-input-group">
-                      <InputGroup.Text className="bg-transparent border-0 ps-0 pe-2">
-                         <FaKey color="#002B55" size={16} />
-                      </InputGroup.Text>
-                      <Form.Control 
-                        type={showConfirmPassword ? "text" : "password"}
-                        name="password_confirm"
-                        placeholder="Repita a senha" 
-                        className="custom-input"
-                        value={formData.password_confirm}
-                        onChange={handleChange}
-                        required
-                      />
-                      <InputGroup.Text 
-                        className="bg-transparent border-0 pe-0 password-toggle"
-                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                      >
-                        {showConfirmPassword ? <FaEyeSlash size={18}/> : <FaEye size={18}/>}
-                      </InputGroup.Text>
-                    </InputGroup>
-                  </div>
-
-                  {/* BOTÃO CADASTRAR */}
-                  <Button type="submit" className="btn-register">
-                    CADASTRAR
-                  </Button>
-
-                  {/* Divisor Visual */}
-                  <div className="d-flex align-items-center my-3">
-                    <hr className="flex-grow-1 border-secondary opacity-25" />
-                    <span className="mx-3 fw-bold small text-muted" style={{fontFamily: 'Libre Baskerville'}}>ou</span>
-                    <hr className="flex-grow-1 border-secondary opacity-25" />
-                  </div>
-
-                  {/* BOTÃO VOLTAR (Fonte Corrigida) */}
-                  <Button className="btn-back-login" onClick={() => navigate('/')}>
-                    <IoMdArrowBack className="me-2" size={18} />
-                    VOLTAR PARA O LOGIN
-                  </Button>
-
-                </Form>
+                  {error && role === 'entrepreneur' && <Alert variant="danger" className="text-center py-2 mb-3">{error}</Alert>}
+                  <Form onSubmit={handleSubmit}>
+                      <FormFields colorTheme="var(--col-navy)" />
+                      <button type="submit" className="btn-register btn-entrep" disabled={loading}>
+                          {loading ? <Spinner animation="border" size="sm" /> : "CADASTRAR EMPRESA"}
+                      </button>
+                  </Form>
+                  <div className="back-link" onClick={() => navigate('/login')}><FaArrowLeft /> Já possuo conta</div>
               </div>
-            </Col>
 
-            {/* COLUNA DIREITA - LOGO */}
-            <Col md={10} lg={6} xl={6}>
-              <div className="brand-container">
-                <img src={logoOficial} alt="Logo Confia+" className="brand-logo-img" />
+              {/* --- VERSO: CLIENTE --- */}
+              <div className="card-face back">
+                  
+                  {/* Cabeçalho com Logo */}
+                  <div className="form-header-row">
+                      <img src={logotipoSystem} alt="Logo" className="header-logo-small" />
+                      <h2 className="form-title" style={{color: 'var(--col-client)'}}>Novo Cliente</h2>
+                  </div>
+
+                  <div className="role-toggle">
+                      <div className="toggle-item active-client"><FaShoppingBag /> SOU CLIENTE</div>
+                      <div className="toggle-item" onClick={() => setRole('entrepreneur')}><FaStore /> SOU EMPREENDEDOR</div>
+                  </div>
+                  {error && role === 'client' && <Alert variant="danger" className="text-center py-2 mb-3">{error}</Alert>}
+                  <Form onSubmit={handleSubmit}>
+                      <FormFields colorTheme="var(--col-client)" />
+                      <button type="submit" className="btn-register btn-client" disabled={loading}>
+                          {loading ? <Spinner animation="border" size="sm" /> : "CADASTRAR MEU PERFIL"}
+                      </button>
+                  </Form>
+                  <div className="back-link" onClick={() => navigate('/login')}><FaArrowLeft /> Já possuo conta</div>
               </div>
-            </Col>
-
-          </Row>
-        </Container>
-
-        <ToastContainer position="top-end" className="p-3" style={{ zIndex: 9999 }}>
-          <Toast onClose={() => setShowToast(false)} show={showToast} delay={5000} autohide bg="danger" title="Erro no Cadastro">
-            <Toast.Header>
-              <strong className="me-auto text-danger">⚠️ Erro no Cadastro</strong>
-            </Toast.Header>
-            <Toast.Body className="text-white">
-              {errorMsg}
-            </Toast.Body>
-          </Toast>
-        </ToastContainer>
+          </div>
       </div>
-    </>
+
+      {/* LADO DIREITO: MARCA */}
+      <div className="brand-section">
+          <div className="tech-grid"></div>
+          <div className="floating-square sq1"></div>
+          <div className="floating-square sq2"></div>
+          <div className="floating-square sq3"></div>
+          
+          <div className="brand-content" style={{animation: 'fadeInRight 1s ease-out', position: 'relative', zIndex: 10}}>
+              <img src={logotipoSystem} alt="Confia+" className="logo-giant" />
+              <h1 className="brand-title">CONFIA +</h1>
+              <p className="brand-tagline">Feito para o microempreendedor brasileiro.</p>
+          </div>
+      </div>
+    </div>
   );
 }
-
-export default Register;

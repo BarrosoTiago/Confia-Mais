@@ -112,3 +112,13 @@ class Pagamento(models.Model):
 
     def __str__(self):
         return f"R$ {self.valor} ({self.forma})"
+
+class Anotacao(models.Model):
+    titulo = models.CharField(max_length=100, blank=True, default="Lembrete")
+    conteudo = models.TextField()
+    cor = models.CharField(max_length=20, default="#FEF3C7") # Amarelo post-it padrão
+    data_criacao = models.DateTimeField(auto_now_add=True)
+    concluido = models.BooleanField(default=False)
+
+    def __str__(self):
+        return self.titulo

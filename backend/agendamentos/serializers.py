@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Agendamento, HorarioFuncionamento, Avaliacao, Despesa, Pagamento
+from .models import Agendamento, HorarioFuncionamento, Avaliacao, Despesa, Pagamento, Anotacao
 from servicos.models import Servico
 from datetime import timedelta
 from django.utils import timezone
@@ -194,3 +194,8 @@ class HorarioSerializer(serializers.ModelSerializer):
         if not self.instance and HorarioFuncionamento.objects.filter(usuario=user, dia_semana=dia).exists():
             raise serializers.ValidationError({"dia_semana": "Dia já configurado."})
         return attrs
+
+class AnotacaoSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Anotacao
+        fields = '__all__'

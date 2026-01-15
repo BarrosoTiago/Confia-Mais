@@ -3,6 +3,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.views import TokenObtainPairView
 from django.contrib.auth import get_user_model
+from django.db.models import Count, Q 
 
 # Import obrigatório para upload de arquivos
 from rest_framework.parsers import MultiPartParser, FormParser 
@@ -10,16 +11,16 @@ from rest_framework.parsers import MultiPartParser, FormParser
 from .serializers import (
     UserRegistrationSerializer, 
     CustomTokenObtainPairSerializer,
-    UserUpdateSerializer # <--- IMPORT NOVO AQUI
+    UserUpdateSerializer
 )
+
+# Importar Agendamento para fazer a contagem de fidelidade
+from agendamentos.models import Agendamento
 
 User = get_user_model()
 
 # --- 1. VIEW DE CADASTRO (REGISTRO) ---
 class UserRegistrationView(generics.CreateAPIView):
-    """
-    View para registrar um novo usuário (Aberto ao público).
-    """
     queryset = User.objects.all()
     serializer_class = UserRegistrationSerializer
     permission_classes = [permissions.AllowAny] 
@@ -63,10 +64,6 @@ class CustomLoginView(TokenObtainPairView):
 
 # --- 3. VIEW "QUEM SOU EU" (UserMeView) ---
 class UserMeView(generics.RetrieveUpdateAPIView):
-    """
-    Permite ler (GET) e atualizar (PATCH/PUT) os dados do usuário logado.
-    Adiciona a flag para redirecionamento de configuração inicial.
-    """
     permission_classes = [permissions.IsAuthenticated]
     serializer_class = UserUpdateSerializer 
     parser_classes = (MultiPartParser, FormParser)
@@ -75,18 +72,14 @@ class UserMeView(generics.RetrieveUpdateAPIView):
         return self.request.user
 
     def get(self, request, *args, **kwargs):
-        # Primeiro, pegamos a resposta padrão do Django Rest Framework
         response = super().get(request, *args, **kwargs)
         user = request.user
         
-        # Lógica de redirecionamento:
         deve_configurar_horarios = False
         if user.tipo_usuario == 'ADMIN':
-            # Se não houver nenhum horário cadastrado, marcamos como True
             if not user.horarios_funcionamento.exists():
                 deve_configurar_horarios = True
         
-        # Injetamos a flag no JSON de resposta
         response.data['deve_configurar_horarios'] = deve_configurar_horarios
         
         return response
@@ -99,12 +92,41 @@ class LogoutView(APIView):
         response.delete_cookie('refresh_token')
         return response
     
+# --- 4. LISTA DE CLIENTES COM FIDELIDADE (CORRIGIDO) ---
 class ClienteListView(generics.ListAPIView):
-    permission_classes = [permissions.IsAdminUser]
-    serializer_class = UserRegistrationSerializer
+    permission_classes = [permissions.IsAuthenticated]
     
-    def get_queryset(self):
-        return User.objects.filter(tipo_usuario='CLIENTE')
+    def list(self, request, *args, **kwargs):
+        # Usuário logado (Empreendedor)
+        user_admin = self.request.user
+        
+        # LÓGICA DE FIDELIDADE CORRIGIDA:
+        # Usamos 'meus_agendamentos' em vez de 'agendamentos_cliente'
+        
+        clientes = User.objects.filter(
+            meus_agendamentos__servicos__criado_por=user_admin
+        ).distinct().annotate(
+            visitas_concluidas=Count(
+                'meus_agendamentos', 
+                filter=Q(
+                    meus_agendamentos__status='CONCLUIDO', 
+                    meus_agendamentos__servicos__criado_por=user_admin
+                )
+            )
+        )
+
+        data = []
+        for cliente in clientes:
+            data.append({
+                "id": cliente.id,
+                "nome": cliente.nome_completo or cliente.username,
+                "email": cliente.email,
+                "telefone": getattr(cliente, 'telefone', 'Não informado'),
+                "visitas": cliente.visitas_concluidas,
+                "foto": cliente.foto.url if cliente.foto else None
+            })
+            
+        return Response(data)
 
 class EmpreendedorListView(generics.ListAPIView):
     permission_classes = [permissions.IsAuthenticated]

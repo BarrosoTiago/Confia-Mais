@@ -4,22 +4,30 @@ from rest_framework.response import Response
 from django.core.mail import send_mail
 from django.conf import settings
 from datetime import datetime, timedelta
-from django.db.models import Sum # <--- Necessário para somar despesas
+from django.db.models import Sum 
 from .models import Pagamento
 from .serializers import PagamentoSerializer
 
 # --- IMPORTS DE MODELOS E SERIALIZERS ---
-from .models import Agendamento, HorarioFuncionamento, Avaliacao, Despesa
+# ADICIONADO: Anotacao
+from .models import Agendamento, HorarioFuncionamento, Avaliacao, Despesa, Anotacao
 from .serializers import (
     AgendamentoSerializer, 
     HorarioSerializer, 
     AvaliacaoSerializer, 
     AvaliacaoPublicaSerializer, 
-    DespesaSerializer # <--- Adicionado
+    DespesaSerializer,
+    AnotacaoSerializer # <--- ADICIONADO
 )
 from servicos.models import Servico
 
-# --- CRUD DE DESPESAS (NOVO) 💸 ---
+# --- CRUD DE ANOTAÇÕES (NOVO) 📝 ---
+class AnotacaoViewSet(viewsets.ModelViewSet):
+    queryset = Anotacao.objects.all().order_by('-data_criacao')
+    serializer_class = AnotacaoSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+# --- CRUD DE DESPESAS 💸 ---
 class DespesaViewSet(viewsets.ModelViewSet):
     serializer_class = DespesaSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -160,6 +168,7 @@ class HorarioDisponivelView(APIView):
         atual = inicio
         delta = timedelta(minutes=duracao)
 
+        # Ocupados agora filtra apenas do dono do serviço
         ocupados = Agendamento.objects.filter(
             servicos__criado_por=dono,
             data_hora_inicio__date=data_obj,
@@ -170,27 +179,23 @@ class HorarioDisponivelView(APIView):
 
         while atual + delta <= fim:
             hora_str = atual.strftime('%H:%M')
-            slot_fim = atual + delta # Horário que o serviço terminaria
+            slot_fim = atual + delta 
             
-            # 1. Verifica se o período do serviço invade o almoço
             eh_almoco = False
             if almoco_ini and almoco_fim:
-                # Se o início do serviço OU o fim dele estiverem dentro do intervalo de almoço
                 if (atual >= almoco_ini and atual < almoco_fim) or (slot_fim > almoco_ini and slot_fim <= almoco_fim):
                     eh_almoco = True
 
-            # 2. Verifica conflito com outros agendamentos (lógica mais precisa)
             conflito = Agendamento.objects.filter(
                 servicos__criado_por=dono,
-                data_hora_inicio__lt=slot_fim, # Começa antes do serviço atual terminar
-                data_hora_fim__gt=atual,       # Termina depois do serviço atual começar
+                data_hora_inicio__lt=slot_fim, 
+                data_hora_fim__gt=atual,       
                 status__in=['PENDENTE', 'CONFIRMADO']
             ).exists()
 
             if not eh_almoco and not conflito:
                 slots.append(hora_str)
 
-            # Pula para o próximo slot (ex: de 30 em 30 min)
             atual += delta
         
         return Response(slots)
@@ -241,7 +246,7 @@ class FinanceiroDashboardView(APIView):
     def get(self, request):
         user = request.user
         
-        # 1. Receita: Soma dos serviços agendados (Confirmados ou Concluídos)
+        # 1. Receita
         agendamentos = Agendamento.objects.filter(
             servicos__criado_por=user,
             status__in=['CONFIRMADO', 'CONCLUIDO']
@@ -252,7 +257,7 @@ class FinanceiroDashboardView(APIView):
             for servico in ag.servicos.all():
                 total_receita += servico.preco
 
-        # 2. Despesas: Soma de todas as despesas lançadas
+        # 2. Despesas
         total_despesas = Despesa.objects.filter(usuario=user).aggregate(Sum('valor'))['valor__sum'] or 0
 
         # 3. Lucro Líquido
@@ -271,11 +276,8 @@ class PagamentoViewSet(viewsets.ModelViewSet):
     queryset = Pagamento.objects.all()
 
     def perform_create(self, serializer):
-        # Salva o pagamento
         pagamento = serializer.save()
         
-        # LÓGICA AUTOMÁTICA: 
-        # Se o cliente pagou tudo, muda o status do agendamento para CONCLUIDO
         agendamento = pagamento.agendamento
         total_servico = sum([s.preco for s in agendamento.servicos.all()])
         total_pago = sum([p.valor for p in agendamento.pagamentos.all()])

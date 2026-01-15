@@ -9,8 +9,9 @@ from agendamentos.views import (
     AvaliarAgendamentoView,
     AvaliacoesLojaView,
     FinanceiroDashboardView,
-    DespesaViewSet, # <--- IMPORTANTE: Importar a View de Despesas
-    PagamentoViewSet
+    DespesaViewSet, 
+    PagamentoViewSet,
+    AnotacaoViewSet # <--- ADICIONADO: Import da View de Anotações
 )
 
 from servicos.views import ServicoViewSet, CategoriaViewSet
@@ -28,8 +29,9 @@ router.register(r'agendamentos', AgendamentoViewSet, basename='agendamento')
 router.register(r'horarios', HorarioViewSet, basename='horario')
 router.register(r'servicos', ServicoViewSet, basename='servico')
 router.register(r'categorias', CategoriaViewSet, basename='categoria')
-router.register(r'despesas', DespesaViewSet, basename='despesa') # <--- Rota /api/despesas/
+router.register(r'despesas', DespesaViewSet, basename='despesa')
 router.register(r'pagamentos', PagamentoViewSet, basename='pagamento')
+router.register(r'anotacoes', AnotacaoViewSet, basename='anotacao') # <--- ADICIONADO: Rota /api/anotacoes/
 
 urlpatterns = [
     # --- ROTAS ESPECÍFICAS ---
