@@ -3,24 +3,25 @@ import { Container, Table, Button, Modal, Form, Badge, ProgressBar, Row, Col, Sp
 import api from '../services/api';
 import { useNavigate } from 'react-router-dom';
 import { 
-  FaArrowLeft, FaWallet, FaCheckCircle, FaHistory, 
-  FaUserCircle, FaMoneyBillWave, FaClock, FaChartPie, FaSearch 
+  FaArrowLeft, FaCheckCircle, FaHistory, 
+  FaMoneyBillWave, FaClock, FaChartPie, FaSearch, 
+  FaEdit, FaTrash, FaTimes
 } from 'react-icons/fa';
 
 export default function Financeiro() {
   const navigate = useNavigate();
   
-  // Estados
   const [agendamentos, setAgendamentos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [resumo, setResumo] = useState({ aReceber: 0, recebido: 0, total: 0 });
 
-  // Modal
   const [showModal, setShowModal] = useState(false);
   const [selectedAgenda, setSelectedAgenda] = useState(null);
   const [historicoPagamentos, setHistoricoPagamentos] = useState([]);
-  const [novoPagamento, setNovoPagamento] = useState({ valor: '', forma: 'PIX', observacao: '' });
+  
+  const [pagamentoForm, setPagamentoForm] = useState({ valor: '', forma: 'PIX', observacao: '' });
+  const [editingId, setEditingId] = useState(null);
 
   useEffect(() => {
     loadData();
@@ -65,7 +66,12 @@ export default function Financeiro() {
         const dados = Array.isArray(response.data) ? response.data : [];
         const filtrados = dados
             .filter(p => p.agendamento === agendamentoId)
-            .sort((a, b) => new Date(b.data_pagamento || b.created_at) - new Date(a.data_pagamento || a.created_at));
+            // Ordena usando qualquer campo de data que existir
+            .sort((a, b) => {
+                const dataA = new Date(a.data || a.data_pagamento || a.created_at || a.criado_em);
+                const dataB = new Date(b.data || b.data_pagamento || b.created_at || b.criado_em);
+                return dataB - dataA;
+            });
         setHistoricoPagamentos(filtrados);
     } catch (error) {
         setHistoricoPagamentos([]);
@@ -81,7 +87,7 @@ export default function Financeiro() {
       if (!isoString) return '--/--';
       try {
           const date = new Date(isoString);
-          if (isNaN(date.getTime())) return 'Inválido';
+          if (isNaN(date.getTime())) return 'Data Inválida';
           return date.toLocaleString('pt-BR', {
               day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'
           }).replace(',', ' às');
@@ -93,28 +99,69 @@ export default function Financeiro() {
   const handleOpenPay = async (agenda) => {
     if(!agenda) return;
     setSelectedAgenda(agenda);
+    setEditingId(null);
     const restante = agenda.financeiro?.restante || 0;
-    // Reseta o formulário
-    setNovoPagamento({ valor: restante, forma: 'PIX', observacao: '' });
+    setPagamentoForm({ valor: restante, forma: 'PIX', observacao: '' });
     await loadHistorico(agenda.id);
     setShowModal(true);
   };
 
-  async function handleConfirmPayment(e) {
+  const handleEditClick = (pagamento) => {
+      setEditingId(pagamento.id);
+      setPagamentoForm({
+          valor: pagamento.valor,
+          forma: pagamento.forma,
+          observacao: pagamento.observacao || ''
+      });
+  };
+
+  const handleCancelEdit = () => {
+      setEditingId(null);
+      const restante = selectedAgenda?.financeiro?.restante || 0;
+      setPagamentoForm({ valor: restante, forma: 'PIX', observacao: '' });
+  };
+
+  const handleDeleteClick = async (id) => {
+      if(!window.confirm("Tem certeza que deseja excluir este pagamento?")) return;
+      try {
+          await api.delete(`/pagamentos/${id}/`);
+          await loadHistorico(selectedAgenda.id);
+          loadData(); 
+          alert("Pagamento removido.");
+      } catch (error) {
+          alert("Erro ao excluir.");
+      }
+  };
+
+  async function handleSavePayment(e) {
     e.preventDefault();
     if(!selectedAgenda) return;
+
     try {
-        await api.post('/pagamentos/', {
-            agendamento: selectedAgenda.id,
-            valor: novoPagamento.valor,
-            forma: novoPagamento.forma,
-            observacao: novoPagamento.observacao
-        });
-        alert("Pagamento registrado!");
-        setShowModal(false);
+        const payload = {
+            agendamento: selectedAgenda.id, // Envia o ID mesmo na edição por segurança
+            valor: pagamentoForm.valor,
+            forma: pagamentoForm.forma,
+            observacao: pagamentoForm.observacao
+        };
+
+        if (editingId) {
+            await api.patch(`/pagamentos/${editingId}/`, payload);
+            alert("Pagamento atualizado!");
+            setEditingId(null);
+        } else {
+            await api.post('/pagamentos/', payload);
+            alert("Pagamento registrado!");
+        }
+        
+        await loadHistorico(selectedAgenda.id);
         loadData(); 
+        
+        if (!editingId) {
+            setPagamentoForm(prev => ({ ...prev, valor: '', observacao: '' }));
+        }
     } catch (error) {
-        alert("Erro ao registrar.");
+        alert("Erro ao salvar registro.");
     }
   }
 
@@ -126,23 +173,18 @@ export default function Financeiro() {
         @import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&display=swap');
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
-        .financeiro-wrapper { min-height: 100vh; background-color: #A8DADC; font-family: 'Inter', sans-serif; padding: 40px 20px; overflow-x: hidden; }
+        .financeiro-wrapper { min-height: 100vh; background: linear-gradient(135deg, #A8DADC 0%, #E6F4F1 100%); font-family: 'Inter', sans-serif; padding: 40px 20px; overflow-x: hidden; }
         .container-limit { max-width: 1150px; margin: 0 auto; }
-
-        /* HEADER */
         .finance-header { background: white; border-radius: 20px; padding: 20px 30px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 10px 30px rgba(0,43,85,0.05); margin-bottom: 30px; gap: 20px; flex-wrap: wrap; }
         .header-left { display: flex; align-items: center; gap: 20px; }
         .btn-back-circle { width: 45px; height: 45px; border-radius: 50%; background: #F8F9FA; border: 1px solid #E9ECEF; color: #002B55; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; cursor: pointer; transition: 0.2s; }
         .btn-back-circle:hover { background: #002B55; color: white; }
         .title-group h1 { font-family: 'Libre Baskerville', serif; font-weight: 700; font-size: 1.6rem; color: #002B55; margin: 0; }
         .title-group span { font-size: 0.85rem; color: #8898AA; }
-
         .search-wrapper { position: relative; min-width: 300px; }
         .search-field { width: 100%; padding: 12px 20px 12px 45px; border-radius: 50px; border: 2px solid #F1F3F5; background: #F8F9FA; color: #002B55; font-weight: 500; font-size: 0.95rem; }
         .search-field:focus { border-color: #002B55; background: white; outline: none; }
         .search-icon-pos { position: absolute; left: 18px; top: 50%; transform: translateY(-50%); color: #adb5bd; }
-
-        /* STATS */
         .stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 25px; margin-bottom: 30px; }
         .stat-card { background: white; border-radius: 16px; padding: 25px; display: flex; align-items: center; gap: 20px; box-shadow: 0 4px 15px rgba(0,43,85,0.03); }
         .icon-circle { width: 50px; height: 50px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; }
@@ -151,42 +193,39 @@ export default function Financeiro() {
         .green-theme .icon-circle { background: #E8F5E9; color: #2E7D32; }
         .yellow-theme .icon-circle { background: #FFF8E1; color: #F9A825; }
         .blue-theme .icon-circle { background: #E3F2FD; color: #1565C0; }
-
-        /* TABELA */
         .unified-panel { background: white; border-radius: 16px; box-shadow: 0 5px 30px rgba(0,0,0,0.05); overflow: hidden; }
         .clean-table { width: 100%; border-collapse: collapse; }
         .clean-table thead th { background: #F8F9FA; color: #525F7F; font-family: 'Inter', sans-serif; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; padding: 20px 25px; border-bottom: 1px solid #E9ECEF; }
         .clean-table tbody tr { border-bottom: 1px solid #F1F3F5; transition: background 0.2s; }
         .clean-table tbody tr:hover { background: #FAFBFC; }
         .clean-table td { padding: 20px 25px; vertical-align: middle; }
-
         .cell-client { display: flex; align-items: center; gap: 15px; }
         .client-avatar { width: 40px; height: 40px; border-radius: 50%; background: #E3F2FD; color: #1565C0; display: flex; align-items: center; justify-content: center; font-size: 1rem; fontWeight: 700; }
         .client-meta div { font-weight: 700; color: #32325D; font-size: 0.95rem; }
         .client-meta small { color: #8898AA; font-size: 0.85rem; display: flex; align-items: center; gap: 5px; margin-top: 3px; font-weight: 500; }
-
         .service-pill { background: #F6F9FC; color: #525F7F; padding: 6px 12px; border-radius: 20px; font-size: 0.85rem; font-weight: 600; display: inline-block; }
         .status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; }
         .st-paid { color: #2DCE89; font-weight: 600; font-size: 0.9rem; } .st-paid .status-dot { background: #2DCE89; }
         .st-part { color: #FB6340; font-weight: 600; font-size: 0.9rem; } .st-part .status-dot { background: #FB6340; }
         .st-pend { color: #F5365C; font-weight: 600; font-size: 0.9rem; } .st-pend .status-dot { background: #F5365C; }
-
         .btn-icon-soft { width: 35px; height: 35px; border-radius: 10px; border: 1px solid #E9ECEF; background: white; color: #6c757d; display: flex; align-items: center; justify-content: center; transition: 0.2s; cursor: pointer; }
         .btn-icon-soft:hover { background: #F8F9FA; color: #002B55; border-color: #002B55; }
         .btn-receber { background: #002B55; color: white; border: none; border-radius: 20px; padding: 6px 18px; font-size: 0.8rem; font-weight: 600; display: flex; align-items: center; gap: 6px; transition: 0.2s; }
         .btn-receber:hover { background: #004080; }
         .btn-quitado { background: #E8F5E9; color: #2DCE89; border: none; border-radius: 20px; padding: 6px 15px; font-size: 0.8rem; font-weight: 700; cursor: default; }
-
-        /* MODAL */
         .modal-clean-header { background: #002B55; color: white; padding: 25px; border: none; }
-        /* CORREÇÃO DO ÍCONE FECHAR DO MODAL */
         .modal-clean-header .btn-close { filter: invert(1) grayscale(100%) brightness(200%); opacity: 1; }
-        
-        .history-item { display: flex; justify-content: space-between; align-items: center; padding: 12px; background: white; border-radius: 10px; margin-bottom: 8px; border: 1px solid #F1F3F5; }
+        .history-item { display: flex; justify-content: space-between; align-items: center; padding: 12px; background: white; border-radius: 10px; margin-bottom: 8px; border: 1px solid #F1F3F5; transition: 0.2s; }
+        .history-item:hover { border-color: #002B55; }
         .history-meta { display: flex; flex-direction: column; }
         .history-date { font-size: 0.8rem; color: #888; display: flex; align-items: center; gap: 5px; }
         .history-method { font-size: 0.9rem; font-weight: 600; color: #32325D; }
         .history-value { font-weight: 700; color: #2DCE89; font-size: 1rem; }
+        .history-actions { display: flex; gap: 5px; opacity: 0.5; transition: 0.2s; }
+        .history-item:hover .history-actions { opacity: 1; }
+        .btn-action-mini { border: none; background: #F1F3F5; width: 28px; height: 28px; border-radius: 6px; display: flex; align-items: center; justify-content: center; color: #525F7F; transition: 0.2s; }
+        .btn-action-mini:hover { background: #002B55; color: white; }
+        .btn-action-mini.delete:hover { background: #D32F2F; color: white; }
       `}</style>
 
       <div className="container-limit">
@@ -203,7 +242,7 @@ export default function Financeiro() {
               </div>
               <div className="search-wrapper">
                   <FaSearch className="search-icon-pos" />
-                  <input type="text" className="search-field" placeholder="Buscar cliente ou serviço..." 
+                  <input type="text" className="search-field" placeholder="Buscar cliente..." 
                          value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
               </div>
           </div>
@@ -240,8 +279,7 @@ export default function Financeiro() {
                       ) : filteredAgendamentos.map(ag => {
                           const fin = ag.financeiro || { total: 0, pago: 0, restante: 0, status_pagamento: 'PENDENTE' };
                           const percent = fin.total > 0 ? (fin.pago / fin.total) * 100 : 0;
-                          
-                          const dataF = formatDateTime(ag.data_hora_inicio || ag.data || ag.start_time || ag.created_at);
+                          const dataF = formatDateTime(ag.data_hora_inicio || ag.data);
                           
                           let stClass = 'st-pend';
                           let stLabel = 'Pendente';
@@ -294,46 +332,64 @@ export default function Financeiro() {
           <Modal show={showModal} onHide={() => setShowModal(false)} centered>
             <Modal.Header closeButton className="modal-clean-header">
                 <Modal.Title style={{fontFamily: 'Libre Baskerville', fontSize:'1.2rem'}}>
-                    {selectedAgenda?.financeiro?.restante > 0 ? "Registrar Pagamento" : "Detalhes Financeiros"}
+                    {editingId ? "Editar Pagamento" : "Gestão de Pagamentos"}
                 </Modal.Title>
             </Modal.Header>
             <Modal.Body className="p-4" style={{background: '#F8F9FA'}}>
                 {selectedAgenda && (
                     <>
-                        {selectedAgenda.financeiro?.restante > 0 && (
-                            <Form onSubmit={handleConfirmPayment} className="mb-4 bg-white p-3 rounded shadow-sm">
-                                <h6 className="text-muted small fw-bold mb-3 text-uppercase">Novo Pagamento</h6>
-                                <Row className="g-3">
-                                    <Col md={6}>
-                                        <Form.Label className="small fw-bold text-muted">Valor (R$)</Form.Label>
-                                        <Form.Control type="number" step="0.01" value={novoPagamento.valor} onChange={e=>setNovoPagamento({...novoPagamento, valor:e.target.value})} style={{fontWeight:'bold', color:'#002B55'}} />
-                                    </Col>
-                                    <Col md={6}>
-                                        <Form.Label className="small fw-bold text-muted">Forma</Form.Label>
-                                        <Form.Select value={novoPagamento.forma} onChange={e=>setNovoPagamento({...novoPagamento, forma:e.target.value})}>
-                                            <option value="PIX">Pix</option>
-                                            <option value="DINHEIRO">Dinheiro</option>
-                                            <option value="CARTAO_CREDITO">Crédito</option>
-                                            <option value="CARTAO_DEBITO">Débito</option>
-                                        </Form.Select>
-                                    </Col>
-                                </Row>
-                                {/* CAMPO DE OBSERVAÇÃO ADICIONADO */}
-                                <Form.Group className="mt-3">
-                                    <Form.Label className="small fw-bold text-muted">Observação (Opcional)</Form.Label>
-                                    <Form.Control 
-                                        type="text" 
-                                        placeholder="Ex: Pagou entrada..."
-                                        value={novoPagamento.observacao} 
-                                        onChange={e=>setNovoPagamento({...novoPagamento, observacao:e.target.value})} 
-                                    />
-                                </Form.Group>
+                        <Form onSubmit={handleSavePayment} className="mb-4 bg-white p-3 rounded shadow-sm" style={{borderLeft: editingId ? '4px solid #FB6340' : '4px solid #002B55'}}>
+                            <div className="d-flex justify-content-between align-items-center mb-3">
+                                <h6 className="text-muted small fw-bold m-0 text-uppercase">
+                                    {editingId ? "Editando Registro" : "Novo Pagamento"}
+                                </h6>
+                                {editingId && (
+                                    <Badge bg="warning" text="dark" style={{cursor:'pointer'}} onClick={handleCancelEdit}>
+                                        <FaTimes /> Cancelar Edição
+                                    </Badge>
+                                )}
+                            </div>
 
-                                <div className="d-flex justify-content-end mt-3">
-                                    <Button type="submit" size="sm" style={{background:'#002B55', border:'none', borderRadius:'20px', padding:'8px 20px'}}>Confirmar Pagamento</Button>
-                                </div>
-                            </Form>
-                        )}
+                            <Row className="g-3">
+                                <Col md={6}>
+                                    <Form.Label className="small fw-bold text-muted">Valor (R$)</Form.Label>
+                                    <Form.Control type="number" step="0.01" 
+                                        value={pagamentoForm.valor} 
+                                        onChange={e=>setPagamentoForm({...pagamentoForm, valor:e.target.value})} 
+                                        style={{fontWeight:'bold', color: editingId ? '#FB6340' : '#002B55'}} 
+                                    />
+                                </Col>
+                                <Col md={6}>
+                                    <Form.Label className="small fw-bold text-muted">Forma</Form.Label>
+                                    <Form.Select value={pagamentoForm.forma} onChange={e=>setPagamentoForm({...pagamentoForm, forma:e.target.value})}>
+                                        <option value="PIX">Pix</option>
+                                        <option value="DINHEIRO">Dinheiro</option>
+                                        <option value="CARTAO_CREDITO">Crédito</option>
+                                        <option value="CARTAO_DEBITO">Débito</option>
+                                    </Form.Select>
+                                </Col>
+                            </Row>
+                            <Form.Group className="mt-3">
+                                <Form.Label className="small fw-bold text-muted">Observação</Form.Label>
+                                <Form.Control 
+                                    type="text" 
+                                    placeholder="Ex: Sinal, parcela 1..."
+                                    value={pagamentoForm.observacao} 
+                                    onChange={e=>setPagamentoForm({...pagamentoForm, observacao:e.target.value})} 
+                                />
+                            </Form.Group>
+
+                            <div className="d-flex justify-content-end mt-3">
+                                <Button type="submit" size="sm" 
+                                    style={{
+                                        background: editingId ? '#FB6340' : '#002B55', 
+                                        border:'none', borderRadius:'20px', padding:'8px 20px'
+                                    }}
+                                >
+                                    {editingId ? "Salvar Alteração" : "Confirmar Pagamento"}
+                                </Button>
+                            </div>
+                        </Form>
 
                         <div>
                             <h6 className="text-muted small fw-bold mb-3 text-uppercase d-flex align-items-center gap-2">
@@ -342,19 +398,30 @@ export default function Financeiro() {
                             {historicoPagamentos.length === 0 ? (
                                 <p className="text-center text-muted small py-3">Nenhum pagamento registrado.</p>
                             ) : historicoPagamentos.map(h => (
-                                <div key={h.id} className="history-item">
+                                <div key={h.id} className="history-item" style={{opacity: editingId === h.id ? 0.5 : 1}}>
                                     <div className="history-meta">
                                         <div className="history-method">
                                             {h.forma} 
-                                            {/* Mostra observação se existir */}
                                             {h.observacao && <span className="text-muted fw-normal ms-2" style={{fontSize:'0.8em'}}>- {h.observacao}</span>}
                                         </div>
                                         <div className="history-date">
                                             <FaClock size={10} /> 
-                                            {formatDateTime(h.data_pagamento || h.created_at || h.data)}
+                                            {/* CORREÇÃO AQUI: Tenta vários campos de data possíveis */}
+                                            {formatDateTime(h.data_pagamento || h.data || h.created_at || h.criado_em)}
                                         </div>
                                     </div>
-                                    <div className="history-value">+{money(h.valor)}</div>
+                                    
+                                    <div className="d-flex align-items-center gap-3">
+                                        <div className="history-value">+{money(h.valor)}</div>
+                                        <div className="history-actions">
+                                            <button className="btn-action-mini" onClick={() => handleEditClick(h)} title="Editar" disabled={editingId !== null}>
+                                                <FaEdit size={12} />
+                                            </button>
+                                            <button className="btn-action-mini delete" onClick={() => handleDeleteClick(h.id)} title="Excluir" disabled={editingId !== null}>
+                                                <FaTrash size={12} />
+                                            </button>
+                                        </div>
+                                    </div>
                                 </div>
                             ))}
                         </div>

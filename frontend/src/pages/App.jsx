@@ -3,7 +3,7 @@ import { AuthProvider, useAuth } from "../context/AuthContext";
 import { Toast, ToastContainer } from 'react-bootstrap';
 
 // Importação das Telas
-// Como o App.jsx está na pasta 'pages', não precisamos do prefixo "./pages/"
+import Landing from "./Landing"; // <--- 1. IMPORT DA LANDING PAGE
 import Login from "./Login";
 import Register from "./Register";
 import AdminDashboard from "./AdminDashboard";
@@ -17,7 +17,10 @@ import RecuperarSenha from "./RecuperarSenha";
 import Vitrine from "./Vitrine";
 import PerfilLoja from "./PerfilLoja";
 import HistoricoGeral from "./HistoricoGeral";
-import CalculadoraPreco from "./CalculadoraPreco"; // <--- CAMINHO CORRIGIDO
+import CalculadoraPreco from "./CalculadoraPreco";
+import Anotacoes from "./Anotacoes"; 
+import Clientes from "./Clientes";
+import Ajuda from "./Ajuda"; // <--- 2. IMPORT DA PÁGINA DE AJUDA
 
 // --- Componente que Protege as Rotas ---
 const PrivateRoute = ({ children, role }) => {
@@ -78,7 +81,10 @@ export default function App() {
         <GlobalNotification />
 
         <Routes>
-          {/* --- Rotas Públicas --- */}
+          {/* --- Rota Inicial (Landing Page Pública) --- */}
+          <Route path="/" element={<Landing />} />
+
+          {/* --- Rotas Públicas de Acesso --- */}
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/recuperar-senha" element={<RecuperarSenha />} />
@@ -105,10 +111,19 @@ export default function App() {
           <Route path="/admin/perfil" element={
             <PrivateRoute role="ADMIN"><PerfilLoja /></PrivateRoute>
           } />
-          
-          {/* ROTA DA CALCULADORA */}
           <Route path="/admin/calculadora" element={
             <PrivateRoute role="ADMIN"><CalculadoraPreco /></PrivateRoute>
+          } />
+          <Route path="/admin/clientes" element={
+             <PrivateRoute role="ADMIN"><Clientes /></PrivateRoute>
+          } />
+          <Route path="/admin/anotacoes" element={
+            <PrivateRoute role="ADMIN"><Anotacoes /></PrivateRoute>
+          } />
+          
+          {/* Rota Nova: Central de Ajuda */}
+          <Route path="/admin/ajuda" element={
+            <PrivateRoute role="ADMIN"><Ajuda /></PrivateRoute>
           } />
 
           {/* --- Rotas do CLIENTE --- */}
@@ -124,7 +139,8 @@ export default function App() {
             <PrivateRoute role="CLIENTE"><ClienteDashboard /></PrivateRoute>
           } />
 
-          <Route path="*" element={<Navigate to="/login" />} />
+          {/* Qualquer rota desconhecida vai para o Login (ou poderia ir para Landing) */}
+          <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </AuthProvider>
     </BrowserRouter>
