@@ -2,8 +2,6 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
-
-// IMPORTANTE: Importe o componente de fundo
 import AnimatedBackground from '../components/AnimatedBackground';
 
 // Bibliotecas de arrastar
