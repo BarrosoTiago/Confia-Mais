@@ -521,7 +521,7 @@ export default function AdminDashboard() {
             border: 2px solid #fc1717; display: flex; align-items: center; justify-content: center; 
             color: var(--col-danger); transition: 0.2s; 
         }
-        .btn-logout-circle:hover { background: var(--col-danger); color: white; transform: rotate(90deg); }
+        .btn-logout-circle:hover { background: #fc1717; color: white; transform: rotate(90deg); }
 
         /* SIDEBAR RESTAURADA */
         .sidebar-overlay { position: fixed; top: 0; left: 0; height: 100vh; width: 300px; background: transparent; z-index: 2000; display: flex; transform: translateX(-100%); transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
@@ -551,7 +551,7 @@ export default function AdminDashboard() {
         .menu-separator { height: 2px; background-color: #BBB; width: 50px; margin: 20px 0 30px 0; }
 
         .entrepreneur-section { margin-top: auto; display: flex; flex-direction: column; align-items: center; gap: 5px; padding-top: 30px; border-top: 1px solid #CCC; cursor: pointer; }
-        .logo-circle { width: 70px; height: 70px; border-radius: 50%; background: white; border: 3px solid var(--col-navy); display: flex; align-items: center; justify-content: center; overflow: hidden; margin-bottom: 5px; }
+        .logo-circle { width: 65px; height: 65px; border-radius: 50%; background: white; border: 1px solid var(--col-navy); display: flex; align-items: center; justify-content: center; overflow: hidden; margin-bottom: 8px; }
         .logo-initials { font-weight: 700; color: var(--col-navy); font-size: 2rem; font-family: 'Libre Baskerville', serif; }
 
         .fixed-footer-container { position: fixed; bottom: 0; left: 0; width: 100%; display: flex; justify-content: center; padding: 15px; z-index: 50; pointer-events: none; }
@@ -664,8 +664,8 @@ export default function AdminDashboard() {
                       {userLogo ? <img src={userLogo} alt="Logo" style={{width:'100%', height:'100%', objectFit:'cover'}} /> : <span className="logo-initials">{iniciais}</span>}
                   </div>
                   {/* Nome do Usuário Centralizado */}
-                  <span style={{fontWeight:700, color:'#002B55', fontSize:'1.2rem', fontFamily: 'Libre Baskerville, serif'}}>{nomeEmpresa}</span>
-                  <small style={{display:'block', color:'#666', fontSize:'0.75rem', fontWeight:600, letterSpacing:'1px'}}>MEU PERFIL</small>
+                  <span style={{fontWeight:700, color:'#002B55', fontSize:'0.9rem', fontFamily: 'Libre Baskerville, serif'}}>{nomeEmpresa}</span>
+                  <small style={{display:'block', color:'#666', fontSize:'0.75rem', fontWeight:600, letterSpacing:'1px', textDecoration:'underline',}}>MEU PERFIL</small>
               </div>
           </div>
       </div>
