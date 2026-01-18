@@ -22,7 +22,8 @@ import {
 } from 'react-icons/fa';
 import { IoMdClose } from 'react-icons/io';
 import { Spinner, Alert, Badge, Modal, Button } from 'react-bootstrap';
-import logotipoSystem from "../assets/logotipo1.svg"; 
+import logotipoSystem from "../assets/logotipo1.svg";
+import lightLogotipoSystem from "../assets/logotipo-light.svg"; 
 
 // --- COMPONENTE DO CARD ARRASTÁVEL ---
 function SortableCard({ id, children, editMode }) {
@@ -227,7 +228,7 @@ export default function AdminDashboard() {
           case 'receita_hoje':
               return (
                 <div onClick={() => !editMode && navigate('/admin/financeiro')} className="h-100 d-flex flex-column justify-content-between p-1">
-                    <div className="d-flex justify-content-between align-items-center mb-2">
+                    <div className="d-flex justify-content-between align-items-center mb-1">
                          <div className="icon-box-finance icon-green"><FaArrowUp /></div>
                          <FaExpandArrowsAlt className="card-action-icon" />
                     </div>
@@ -253,7 +254,7 @@ export default function AdminDashboard() {
           case 'fiado':
               return (
                   <div onClick={() => !editMode && navigate('/admin/agendamentos')} className="h-100 d-flex flex-column justify-content-between p-1">
-                    <div className="d-flex justify-content-between align-items-center mb-3">
+                    <div className="d-flex justify-content-between align-items-center mb-2">
                         <div className="d-flex align-items-center gap-2">
                              {/* Ícone de Fatura/Dinheiro Laranja */}
                              <div className="icon-box-finance" style={{backgroundColor: '#FFEDD5', color: '#F97316'}}>
@@ -303,7 +304,7 @@ export default function AdminDashboard() {
           case 'balanco':
               return (
                   <div onClick={() => !editMode && navigate('/admin/financeiro')} className="h-100 d-flex flex-column justify-content-between p-1">
-                    <div className="d-flex justify-content-between align-items-center mb-3">
+                    <div className="d-flex justify-content-between align-items-center mb-2">
                         <div className="d-flex align-items-center gap-2">
                              <div className="icon-box-sm"><FaChartLine /></div>
                              <span className="card-label-bold">Balanço</span>
@@ -386,8 +387,8 @@ export default function AdminDashboard() {
             --col-sky: #0284C7;
             --col-teal: #0D9488;
             --col-orange: #F97316;
-            --col-danger: #EF4444;
-            --col-success: #10B981;
+            --col-danger: #f37b7b;
+            --col-success: #48b994;
         }
 
         .dashboard-wrapper { 
@@ -420,21 +421,21 @@ export default function AdminDashboard() {
 
         /* CARDS */
         .dashboard-card { 
-            background-color: rgba(255, 255, 255, 0.9);
-            backdrop-filter: blur(12px);
+            background-color: rgba(246, 246, 246, 0.9);
+            backdrop-filter: blur(6px);
             border-radius: 16px; 
             padding: 24px; 
-            box-shadow: 0 8px 32px 0 rgba(0, 43, 85, 0.1);
+            box-shadow: 0 8px 32px 0 rgba(37, 144, 250, 0.1);
             border: 1px solid rgba(255, 255, 255, 0.6);
             position: relative; 
             height: 100%; 
             display: flex; flex-direction: column; justify-content: center; 
-            transition: all 0.2s ease; 
+            transition: all 0.45s ease; 
         }
         .dashboard-card.interactive:hover { 
             transform: translateY(-4px); 
             background-color: rgba(255, 255, 255, 1);
-            box-shadow: 0 12px 40px 0 rgba(0, 43, 85, 0.15);
+            box-shadow: 0 12px 40px 0 rgba(62, 106, 149, 0.15);
             border-color: #E2E8F0;
         }
         
@@ -467,7 +468,7 @@ export default function AdminDashboard() {
         .fill-success { background-color: var(--col-success); height: 100%; border-radius: 10px; }
         .fill-danger { background-color: var(--col-danger); height: 100%; border-radius: 10px; }
         
-        .recent-section { margin-top: 40px; margin-bottom: 20px; }
+        .recent-section { margin-top: 50px; margin-bottom: 20px; }
         .recent-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
         .recent-title { color: white; text-shadow: 0 2px 4px rgba(0,0,0,0.3); font-size: 1.25rem; font-weight: 700; margin: 0; }
         
@@ -478,7 +479,7 @@ export default function AdminDashboard() {
             box-shadow: 0 4px 15px rgba(0,0,0,0.05); 
             border: 1px solid rgba(255, 255, 255, 0.5);
             display: flex; align-items: center; justify-content: space-between;
-            transition: 0.2s;
+            transition: 0.20s;
         }
         .appointment-card:hover { transform: translateX(5px); background: #FFFFFF; }
         
@@ -505,7 +506,7 @@ export default function AdminDashboard() {
         }
         .btn-action-primary { 
             background-color: #FFFFFF; border: 1px solid #E2E8F0; color: var(--col-navy); 
-            font-weight: 600; padding: 10px 24px; border-radius: 30px; 
+            font-weight: 600; padding: 10px 24px; border-radius: 16px; 
             display: flex; align-items: center; gap: 8px; transition: all 0.2s; 
             box-shadow: 0 4px 10px rgba(0,0,0,0.05);
         }
@@ -517,18 +518,18 @@ export default function AdminDashboard() {
         .btn-action-secondary:hover { opacity: 0.9; transform: translateY(-2px); }
         .btn-logout-circle { 
             width: 42px; height: 42px; border-radius: 50%; background: transparent;
-            border: 2px solid var(--col-danger); display: flex; align-items: center; justify-content: center; 
+            border: 2px solid #fc1717; display: flex; align-items: center; justify-content: center; 
             color: var(--col-danger); transition: 0.2s; 
         }
         .btn-logout-circle:hover { background: var(--col-danger); color: white; transform: rotate(90deg); }
 
         /* SIDEBAR RESTAURADA */
-        .sidebar-overlay { position: fixed; top: 0; left: 0; height: 100vh; width: 340px; background: transparent; z-index: 2000; display: flex; transform: translateX(-100%); transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+        .sidebar-overlay { position: fixed; top: 0; left: 0; height: 100vh; width: 300px; background: transparent; z-index: 2000; display: flex; transform: translateX(-100%); transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
         .sidebar-overlay.open { transform: translateX(0); }
-        .sidebar-dark-strip { width: 80px; background-color: var(--col-navy); height: 100%; display: flex; flex-direction: column; align-items: center; padding-top: 25px; }
+        .sidebar-dark-strip { width: 40px; background-color: var(--col-navy); height: 100%; display: flex; flex-direction: column; align-items: center; padding-top: 25px; }
         
         .sidebar-menu-content { 
-            flex-grow: 1; background-color: #E6E6E6; padding: 40px 30px; 
+            flex-grow: 2; background-color: #E6E6E6; padding: 40px 30px; 
             display: flex; flex-direction: column; box-shadow: 10px 0 30px rgba(0,0,0,0.1); 
         }
         
@@ -549,12 +550,12 @@ export default function AdminDashboard() {
         
         .menu-separator { height: 2px; background-color: #BBB; width: 50px; margin: 20px 0 30px 0; }
 
-        .entrepreneur-section { margin-top: auto; display: flex; flex-direction: column; align-items: center; gap: 5px; padding-top: 20px; border-top: 1px solid #CCC; cursor: pointer; }
-        .logo-circle { width: 80px; height: 80px; border-radius: 50%; background: white; border: 3px solid var(--col-navy); display: flex; align-items: center; justify-content: center; overflow: hidden; margin-bottom: 5px; }
+        .entrepreneur-section { margin-top: auto; display: flex; flex-direction: column; align-items: center; gap: 5px; padding-top: 30px; border-top: 1px solid #CCC; cursor: pointer; }
+        .logo-circle { width: 70px; height: 70px; border-radius: 50%; background: white; border: 3px solid var(--col-navy); display: flex; align-items: center; justify-content: center; overflow: hidden; margin-bottom: 5px; }
         .logo-initials { font-weight: 700; color: var(--col-navy); font-size: 2rem; font-family: 'Libre Baskerville', serif; }
 
         .fixed-footer-container { position: fixed; bottom: 0; left: 0; width: 100%; display: flex; justify-content: center; padding: 15px; z-index: 50; pointer-events: none; }
-        .company-name-footer { font-size: 0.9rem; font-weight: 700; color: #64748B; background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(5px); padding: 6px 16px; border-radius: 20px; pointer-events: auto; border: 1px solid rgba(255, 255, 255, 0.3); }
+        .company-name-footer { font-size: 0.9rem; font-weight: 700; color: #64748B; background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(5px); padding: 6px 16px; border-radius: 6px; pointer-events: auto; border: 1px solid rgba(255, 255, 255, 0.3); border-top: 4.5px solid var(--col-sky); }
         .brand-logo-footer { position: fixed; bottom: 20px; right: 40px; font-weight: 800; color: rgba(255,255,255,0.5); font-size: 1.2rem; }
         .alert-pendentes { background: rgba(255, 247, 237, 0.9) !important; backdrop-filter: blur(5px); border: 1px solid rgba(255, 255, 255, 0.5) !important; color: #C2410C; }
 
@@ -588,24 +589,57 @@ export default function AdminDashboard() {
       {!menuOpen && (
         <div className="menu-trigger" onClick={() => setMenuOpen(true)}>
              {/* Logo colorido original sem filtros */}
-             <img src={logotipoSystem} alt="C+" className="logo-trigger" onError={(e) => {e.target.style.display='none'; e.target.nextSibling.style.display='block'}} />
+             <img src={lightLogotipoSystem} alt="C+" className="logo-trigger" onError={(e) => {e.target.style.display='none'; e.target.nextSibling.style.display='block'}} />
              <span style={{display:'none', fontWeight:'bold', color: 'white'}}>C+</span>
         </div>
       )}
 
-      {/* SIDEBAR */}
-      <div className={`sidebar-overlay ${menuOpen ? 'open' : ''}`}>
-          <div className="sidebar-dark-strip">
-               <FaInfo size={20} color="rgba(255,255,255,0.7)" style={{marginTop: 'auto', marginBottom: '30px', cursor:'pointer'}} onClick={() => navigate('/admin/ajuda')} />
-          </div>
-          <div className="sidebar-menu-content">
-              
-              {/* Botão Fechar */}
-              <div style={{display:'flex', justifyContent:'flex-end', marginBottom: '10px'}}>
-                  <div style={{border:'2px solid #002B55', borderRadius:'8px', padding:'5px', cursor:'pointer'}} onClick={() => setMenuOpen(false)}>
-                      <IoMdClose size={24} color="#002B55" />
-                  </div>
-              </div>
+          {/* SIDEBAR */}
+        <div className={`sidebar-overlay ${menuOpen ? 'open' : ''}`}>
+            {/* Removemos o FaInfo daqui (da faixa azul escura) */}
+        <div className="sidebar-menu-content">
+            <div style={{ 
+                display: 'flex', 
+                justifyContent: 'space-between', // Joga o logo para um lado e os botões para o outro
+                alignItems: 'center', 
+                marginBottom: '20px' 
+            }}>
+                
+                <img 
+                    src={logotipoSystem} 
+                    alt="Logo" 
+                    style={{ height: '35px', width: 'auto' }} 
+                />
+
+                {/* GRUPO DE BOTÕES ALINHADOS À DIREITA */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    {/* ÍCONE DE INFORMAÇÃO */}
+                    <div 
+                        style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '5px' }} 
+                        onClick={() => navigate('/admin/ajuda')}
+                        title="Ajuda e Informações"
+                    >
+                        <FaInfo size={16} color="#002B55" style={{ opacity: 0.6 }} />
+                    </div>
+
+                    {/* BOTÃO FECHAR */}
+                    <div 
+                        style={{ 
+                            border: '2px solid #002B55', 
+                            borderRadius: '8px', 
+                            padding: '4px', 
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                        }} 
+                        onClick={() => setMenuOpen(false)}
+                    >
+                        <IoMdClose size={20} color="#002B55" />
+                    </div>
+                </div>
+            </div>
+        
               
               {/* SEÇÃO ITENS */}
               <div className="menu-section-title">ITENS</div>
@@ -658,8 +692,8 @@ export default function AdminDashboard() {
 
          <div className="recent-section">
              <div className="recent-header">
-                 <h2 className="recent-title">Últimos Agendamentos</h2>
-                 <Button variant="link" className="text-decoration-none fw-bold p-0 text-white" style={{fontSize:'0.9rem'}} onClick={() => navigate('/admin/agendamentos')}>Ver todos</Button>
+                 <h2 className="recent-title ms-2">Últimos Agendamentos</h2>
+                 <Button variant="link" className="text-decoration-none fw-bold p-0 text-white me-3" style={{fontSize:'0.9rem'}} onClick={() => navigate('/admin/agendamentos')}>Ver todos</Button>
              </div>
              
              {safeAgendamentos.slice(0, 5).map((t) => (

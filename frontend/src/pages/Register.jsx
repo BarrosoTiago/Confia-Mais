@@ -158,45 +158,96 @@ export default function Register() {
 
         .form-section {
             flex: 1; background-color: var(--col-navy);
-            display: flex; justify-content: center; position: relative; padding: 40px 20px; 
+            display: flex; justify-content: center; position: relative; padding: 40px 20px 60px 20px; 
             overflow-y: auto; perspective: 1500px;
         }
         .form-section::-webkit-scrollbar { width: 6px; }
         .form-section::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 10px; }
 
-        .bg-glow-effect {
-            position: absolute; width: 100%; height: 100%; top: 0; left: 0;
-            background: radial-gradient(circle at 50% 50%, rgba(255,255,255,0.05) 0%, transparent 60%);
-            pointer-events: none;
-        }
+        
+/* Estilo do Card Único */
+/* Definição de Cores Adicionais */
+:root {
+    --col-navy-card: #003d7a; /* Um azul um pouco mais claro que o fundo navy para contraste */
+}
 
-        .flip-card-wrapper {
-            position: relative; width: 100%; max-width: 500px; min-height: 780px; margin-top: 20px;
-            transform-style: preserve-3d; transition: transform 0.8s cubic-bezier(0.68, -0.55, 0.265, 1.55);
-        }
-        .flip-card-wrapper.flipped { transform: rotateY(180deg); }
+.register-card-switch {
+    width: 100%;
+    max-width: 500px;
+    min-height: 750px;
+    border-radius: 28px;
+    padding: 40px;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    z-index: 10;
+    border: 2px solid rgba(255, 255, 255, 0.1);
+    
+    /* Transição de cores e um leve "deslize" lateral */
+    transition: 
+        background-color 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+        transform 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+        box-shadow 0.5s ease;
+}
 
-        .card-face {
-            position: absolute; width: 100%; height: 100%; top: 0; left: 0;
-            backface-visibility: hidden; border-radius: 24px; padding: 40px;
-            display: flex; flex-direction: column;
-            border: 2px solid var(--col-neon);
-            box-shadow: 0 0 30px var(--col-neon-glow), 0 20px 60px rgba(0,0,0,0.5);
-        }
+/* --- ESTADO EMPREENDEDOR (Azul Escuro com Detalhes Brancos) --- */
+.is-entrepreneur {
+    background-color: var(--col-navy-card);
+    transform: translateX(-10px); /* Desliza para a esquerda */
+    box-shadow: 0 25px 50px rgba(0, 0, 0, 0.4);
+}
 
-        .card-face.front { 
-            background: white; transform: rotateY(0deg); border-top: 8px solid var(--col-navy);
-        }
-        .card-face.back { 
-            background: linear-gradient(135deg, #ffffff 0%, var(--col-bg-client) 100%);
-            transform: rotateY(180deg); border-top: 8px solid var(--col-client);
-        }
+.is-entrepreneur .form-title, 
+.is-entrepreneur .input-label,
+.is-entrepreneur .back-link {
+    color: #FFFFFF !important;
+}
+
+.is-entrepreneur .modern-input {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: white;
+}
+
+.is-entrepreneur .input-icon-left,
+.is-entrepreneur .password-toggle {
+    color: rgba(255, 255, 255, 0.6);
+}
+
+/* --- ESTADO CLIENTE (Branco com Detalhes Azul Claro) --- */
+.is-client {
+    background-color: #FFFFFF;
+    transform: translateX(10px); /* Desliza para a direita */
+    box-shadow: 0 25px 50px rgba(2, 132, 199, 0.2);
+}
+
+.is-client .form-title,
+.is-client .input-label {
+    color: var(--col-client);
+}
+
+.is-client .modern-input {
+    background: #F8FAFC;
+    border: 1px solid #E2E8F0;
+    color: var(--text-main);
+}
+
+/* Botões com efeito de destaque */
+.btn-entrep {
+    background: #FFFFFF;
+    color: var(--col-navy);
+}
+
+.btn-client {
+    background: var(--col-client);
+    color: #FFFFFF;
+}
 
         /* CABEÇALHO DO FORMULÁRIO COM LOGO */
         .form-header-row {
             display: flex; align-items: center; justify-content: center; gap: 15px; margin-bottom: 25px;
         }
-        .header-logo-small { height: 50px; width: auto; filter: drop-shadow(0 2px 5px rgba(0,0,0,0.1)); }
+        .header-logo-small { height: 50px; width: auto; filter: drop-shadow(0 2px 5px rgba(0,0,0,0.1)); align-self: center; margin-right: 8px; }
         
         .form-title { 
             font-family: 'Libre Baskerville', serif; font-size: 1.8rem; 
@@ -212,19 +263,19 @@ export default function Register() {
             transition: 0.3s; display: flex; align-items: center; justify-content: center; gap: 8px;
         }
         .toggle-item:hover { background: rgba(0,0,0,0.05); }
-        .active-entrepreneur { background: var(--col-navy) !important; color: white !important; box-shadow: 0 4px 10px rgba(0, 43, 85, 0.25); }
+        .active-entrepreneur { background: var(--col-neon) !important; color: var(--col-navy) !important; box-shadow: 0 4px 10px rgba(0, 43, 85, 0.25); }
         .active-client { background: var(--col-client) !important; color: white !important; box-shadow: 0 4px 10px rgba(2, 132, 199, 0.25); }
 
-        .modern-input-group { margin-bottom: 18px; }
-        .input-label { display: block; font-size: 0.75rem; font-weight: 700; margin-bottom: 6px; letter-spacing: 0.5px; text-transform: uppercase; }
+        .modern-input-group { margin-bottom: 12px; }
+        .input-label { display: block; font-size: 0.75rem; font-weight: 700; margin-bottom: 2px; letter-spacing: 0.5px; text-transform: uppercase; }
         .input-wrapper { position: relative; width: 100%; }
         .modern-input {
             width: 100%; padding: 12px 12px 12px 40px; background: white; 
-            border: 1px solid #E2E8F0; border-radius: 10px; font-size: 0.95rem; color: var(--text-main); transition: 0.3s;
+            border: 1px solid #E2E8F0; border-radius: 6px; font-size: 0.95rem; color: var(--text-main); transition: 0.3s;
         }
         .modern-input:focus { outline: none; box-shadow: 0 0 0 3px rgba(0,0,0,0.05); }
-        .front .modern-input { background: var(--bg-input); }
-        .front .modern-input:focus { border-color: var(--col-navy); background: white; }
+        .front .modern-input { background: var(--bg-input); color: white; border-color: #0284C7; }
+        .front .modern-input:focus { border-color: var(--col-neon); background: white; }
         .back .modern-input { background: white; border-color: #BAE6FD; }
         .back .modern-input:focus { border-color: var(--col-client); }
 
@@ -236,16 +287,15 @@ export default function Register() {
             color: white; font-weight: 700; font-size: 1rem; letter-spacing: 1px;
             transition: 0.3s; margin-top: 20px; box-shadow: 0 10px 20px rgba(0,0,0,0.1);
         }
-        .btn-entrep { background: var(--col-navy); }
-        .btn-entrep:hover { background: #004080; transform: translateY(-2px); }
+        .btn-entrep { background: var(--col-neon); color: var(--col-navy); }
+        .btn-entrep:hover { background: var(--col-neon-glow); transform: translateY(-2px); }
         .btn-client { background: var(--col-client); }
         .btn-client:hover { background: #0369A1; transform: translateY(-2px); }
 
         .back-link {
             display: flex; align-items: center; justify-content: center; gap: 8px;
-            margin-top: 25px; color: var(--text-muted); text-decoration: none; font-size: 0.9rem; font-weight: 600; cursor: pointer;
+            margin: 25px; color: var(--text-muted); text-decoration: none; font-size: 0.9rem; font-weight: 600; cursor: pointer;
         }
-        .back-link:hover { color: var(--col-navy); }
 
         .brand-section {
             flex: 1.2; background: linear-gradient(135deg, #F0F9FF 0%, var(--col-teal-light) 100%);
@@ -274,7 +324,7 @@ export default function Register() {
             0%, 100% { transform: rotate(45deg) translate(0, 0); }
             50% { transform: rotate(45deg) translate(20px, -30px); }
         }
-        .logo-giant { height: 220px; margin-bottom: 25px; filter: drop-shadow(0 5px 15px rgba(0, 43, 85, 0.15)); }
+        .logo-giant { height: 290px; margin-bottom: 25px; filter: drop-shadow(0 5px 15px rgba(0, 43, 85, 0.15)); }
         .brand-title { font-family: 'Libre Baskerville', serif; font-size: 4rem; color: var(--col-navy); margin: 0; }
         .brand-tagline { font-size: 1.3rem; color: var(--col-navy); margin-top: 15px; font-weight: 500; }
 
@@ -285,74 +335,63 @@ export default function Register() {
         }
       `}</style>
 
-      {/* LADO ESQUERDO: FORMULÁRIO 3D */}
-      <div className="form-section">
-          <div className="bg-glow-effect"></div>
+      {/* LADO ESQUERDO: FORMULÁRIO  */}
+<div className="form-section">
+    <div className="bg-glow-effect"></div>
 
-          <div className={`flip-card-wrapper ${role === 'client' ? 'flipped' : ''}`}>
-              
-              {/* --- FRENTE: EMPREENDEDOR --- */}
-              <div className="card-face front">
-                  
-                  {/* Cabeçalho com Logo */}
-                  <div className="form-header-row">
-                      <img src={logotipoSystem} alt="Logo" className="header-logo-small" />
-                      <h2 className="form-title" style={{color: 'var(--col-navy)'}}>Nova Empresa</h2>
-                  </div>
+    {/* O card desliza levemente e troca de cor conforme o role */}
+    <div className={`register-card-switch ${role === 'client' ? 'is-client' : 'is-entrepreneur'}`}>
+        
+        <div className="form-header-row">
+            <img src={logotipoSystem} alt="Logo" className="header-logo-small" />
+            <h2 className="form-title">
+                {role === 'client' ? 'Novo Cliente' : 'Nova Empresa'}
+            </h2>
+        </div>
 
-                  <div className="role-toggle">
-                      <div className="toggle-item" onClick={() => setRole('client')}><FaShoppingBag /> SOU CLIENTE</div>
-                      <div className="toggle-item active-entrepreneur"><FaStore /> SOU EMPREENDEDOR</div>
-                  </div>
-                  {error && role === 'entrepreneur' && <Alert variant="danger" className="text-center py-2 mb-3">{error}</Alert>}
-                  <Form onSubmit={handleSubmit}>
-                <FormFields 
-                    colorTheme="var(--col-navy)" 
-                    formData={formData}
-                    handleChange={handleChange}
-                    showPassword={showPassword}
-                    setShowPassword={setShowPassword}
-                    showConfirmPassword={showConfirmPassword}
-                    setShowConfirmPassword={setShowConfirmPassword}/>
-                      <button type="submit" className="btn-register btn-entrep" disabled={loading}>
-                          {loading ? <Spinner animation="border" size="sm" /> : "CADASTRAR EMPRESA"}
-                      </button>
-                  </Form>
-                  <div className="back-link" onClick={() => navigate('/login')}><FaArrowLeft /> Já possuo conta</div>
-              </div>
+        <div className="role-toggle">
+            <div 
+                className={`toggle-item ${role === 'client' ? 'active-client' : ''}`} 
+                onClick={() => setRole('client')}
+            >
+                <FaShoppingBag /> SOU CLIENTE
+            </div>
+            <div 
+                className={`toggle-item ${role === 'entrepreneur' ? 'active-entrepreneur' : ''}`} 
+                onClick={() => setRole('entrepreneur')}
+            >
+                <FaStore /> SOU EMPREENDEDOR
+            </div>
+        </div>
 
-              {/* --- VERSO: CLIENTE --- */}
-              <div className="card-face back">
-                  
-                  {/* Cabeçalho com Logo */}
-                  <div className="form-header-row">
-                      <img src={logotipoSystem} alt="Logo" className="header-logo-small" />
-                      <h2 className="form-title" style={{color: 'var(--col-client)'}}>Novo Cliente</h2>
-                  </div>
+        {error && <Alert variant="danger" className="text-center py-2 mb-3">{error}</Alert>}
 
-                  <div className="role-toggle">
-                      <div className="toggle-item active-client"><FaShoppingBag /> SOU CLIENTE</div>
-                      <div className="toggle-item" onClick={() => setRole('entrepreneur')}><FaStore /> SOU EMPREENDEDOR</div>
-                  </div>
-                  {error && role === 'client' && <Alert variant="danger" className="text-center py-2 mb-3">{error}</Alert>}
-                  <Form onSubmit={handleSubmit}>
-                    <FormFields 
-                        colorTheme="var(--col-client)" 
-                        formData={formData}
-                        handleChange={handleChange}
-                        showPassword={showPassword}
-                        setShowPassword={setShowPassword}
-                        showConfirmPassword={showConfirmPassword}
-                        setShowConfirmPassword={setShowConfirmPassword}
-                    />
-                        <button type="submit" className="btn-register btn-client" disabled={loading}>
-                          {loading ? <Spinner animation="border" size="sm" /> : "CADASTRAR MEU PERFIL"}
-                      </button>
-                  </Form>
-                  <div className="back-link" onClick={() => navigate('/login')}><FaArrowLeft /> Já possuo conta</div>
-              </div>
-          </div>
-      </div>
+        <Form onSubmit={handleSubmit}>
+            <FormFields 
+                colorTheme={role === 'client' ? 'var(--col-client)' : '#FFFFFF'} 
+                formData={formData}
+                handleChange={handleChange}
+                showPassword={showPassword}
+                setShowPassword={setShowPassword}
+                showConfirmPassword={showConfirmPassword}
+                setShowConfirmPassword={setShowConfirmPassword}
+            />
+            
+            <button 
+                type="submit" 
+                className={`btn-register ${role === 'client' ? 'btn-client' : 'btn-entrep'}`} 
+                disabled={loading}
+            >
+                {loading ? <Spinner animation="border" size="sm" /> : 
+                 role === 'client' ? "CADASTRAR MEU PERFIL" : "CADASTRAR EMPRESA"}
+            </button>
+        </Form>
+
+        <div className="back-link" onClick={() => navigate('/login')}>
+            <FaArrowLeft /> Já possuo conta
+        </div>
+    </div>
+</div>
 
       {/* LADO DIREITO: MARCA */}
       <div className="brand-section">

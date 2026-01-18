@@ -40,7 +40,7 @@ export default function Landing() {
         
         /* ANIMAÇÕES */
         @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-        .animate-up { animation: fadeInUp 0.8s ease-out forwards; }
+        .animate-up { animation: fadeInUp 0.2s ease-out forwards; }
 
         /* NAVBAR */
         .navbar-custom { 
@@ -85,21 +85,20 @@ export default function Landing() {
         .btn-glow:hover { transform: translateY(-3px); box-shadow: 0 10px 40px rgba(42, 111, 151, 0.6); background: var(--col-ocean); }
         
         .video-frame {
-            background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(10px); padding: 15px; border-radius: 24px;
-            box-shadow: 0 40px 80px rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.1);
-            transform: perspective(1000px) rotateY(-5deg); transition: 0.5s;
+            backdrop-filter: blur(10px); padding: 15px; border-radius: 8px;
+            box-shadow: 0 40px 80px rgba(0, 0, 0, 0.11); border: 0.5px solid rgba(255, 255, 255, 0.17); transition: 0.3s;
         }
-        .video-frame:hover { transform: perspective(1000px) rotateY(0deg); }
+        .video-frame:hover { transform: perspective(1000px) scale(1.08); }
         .video-placeholder {
-            width: 100%; aspect-ratio: 16/9; background: linear-gradient(to bottom, #001220, #012A4A);
-            border-radius: 16px; display: flex; flex-direction: column; align-items: center; justify-content: center;
+            width: 100%; aspect-ratio: 16/9; background: linear-gradient(to bottom, #35a8ff, #012A4A);
+            border-radius: 5px; display: flex; flex-direction: column; align-items: center; justify-content: center;
             color: white; position: relative; overflow: hidden; cursor: pointer;
         }
         .play-btn {
-            width: 80px; height: 80px; background: rgba(255,255,255,0.1); border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            width: 60px; height: 60px; padding: 12px; background: rgba(255, 255, 255, 0.05); border-radius: 50%; display: flex; align-items: center; justify-content: center; 
             border: 2px solid var(--col-light); color: var(--col-light); transition: 0.3s; margin-bottom: 15px;
         }
-        .video-placeholder:hover .play-btn { background: var(--col-mid-blue); border-color: var(--col-mid-blue); color: white; transform: scale(1.1); }
+        .video-placeholder:hover .play-btn { background: var(--col-mid-blue); border-color: var(--col-mid-blue); color: white; transform: scale(1.05); }
 
         /* SEÇÃO "PARA QUEM É" */
         .target-section { padding: 100px 20px; background: var(--gray-bg-main); text-align: center; }
@@ -265,7 +264,7 @@ export default function Landing() {
           <Container>
               <Row className="align-items-center">
                   <Col lg={6} className="text-center text-lg-start animate-up">
-                      <div className="hero-tag">Gestão Inteligente 2026</div>
+                      <div className="hero-tag">Gestão Simples</div>
                       <h1 className="hero-title">
                           O controle que seu <br/>negócio <span style={{color: 'var(--col-light)'}}>precisa.</span>
                       </h1>
@@ -297,11 +296,7 @@ export default function Landing() {
               <div className="target-grid">
                   <div className="target-card tc-barber">
                       <div className="target-icon"><FaCut/></div>
-                      <span className="target-label">Barbearias & Salões</span>
-                  </div>
-                  <div className="target-card tc-store">
-                      <div className="target-icon"><FaStore/></div>
-                      <span className="target-label">Lojistas</span>
+                      <span className="target-label">Negócios</span>
                   </div>
                   <div className="target-card tc-tools">
                       <div className="target-icon"><FaTools/></div>
@@ -336,7 +331,7 @@ export default function Landing() {
                           <ul className="feature-list-eco">
                               <li><FaCheckCircle/> Gestão Financeira Completa.</li>
                               <li><FaCheckCircle/> Agenda sem conflitos.</li>
-                              <li><FaCheckCircle/> Link exclusivo para enviar aos clientes.</li>
+                              <li><FaCheckCircle/> Vitrine exclusiva para os seus clientes.</li>
                           </ul>
                           <button className="btn-eco-primary" onClick={() => navigate('/register')}>
                               Cadastrar Minha Empresa
@@ -422,7 +417,7 @@ export default function Landing() {
               <img src={logotipoSystem} alt="Confia+" style={{height: '60px', marginBottom: '40px'}} />
               
               <div className="quote-box">
-                  "O Confia+ é um sistema de gerenciamento feito pensando em microempresas e microempreendedores que enxergam a necessidade de visualizar, analisar e gerenciar o seu negócio de forma automatizada e prática."
+                  "O Confia+ é um sistema de gerenciamento feito para o microempreendedor que enxerga a necessidade de visualizar, analisar e gerenciar o seu negócio de forma automatizada e prática."
               </div>
 
               <div className="text-uppercase fw-bold mb-5 opacity-75 ls-1 text-muted" style={{letterSpacing:'2px'}}>Iniciativa IFRN - Canguaretama</div>
@@ -442,7 +437,7 @@ export default function Landing() {
                   </div>
                   <div className="team-member">
                       <div className="team-avatar"></div>
-                      <div className="team-name">Giulliano Silva</div>
+                      <div className="team-name">Giseliane da Silva</div>
                   </div>
               </div>
           </Container>
@@ -473,30 +468,21 @@ export default function Landing() {
                           <li><a href="/login">Área do Cliente</a></li>
                       </ul>
                   </Col>
-
-                  <Col lg={3} md={4} xs={12} className="text-center text-lg-start mb-4 mb-md-0">
-                      <h5 className="footer-heading">Legal</h5>
-                      <ul className="footer-links">
-                          <li><a href="#">Termos de Uso</a></li>
-                          <li><a href="#">Política de Privacidade</a></li>
-                          <li><a href="#">Sobre o IFRN</a></li>
-                      </ul>
-                  </Col>
-
+                  
                   <Col lg={3} md={4} xs={12} className="text-center text-lg-start">
                       <h5 className="footer-heading">Contato</h5>
                       <div className="footer-contact-item">
                           <FaWhatsapp className="footer-icon"/>
                           <div>
                               <strong>WhatsApp Suporte</strong><br/>
-                              (84) 99999-9999
+                              (84) *****-****
                           </div>
                       </div>
                       <div className="footer-contact-item">
                           <FaEnvelope className="footer-icon"/>
                           <div>
                               <strong>Email Oficial</strong><br/>
-                              contato@confiamais.com
+                              contato.confiamais@gmail.com
                           </div>
                       </div>
                       <div className="footer-contact-item">

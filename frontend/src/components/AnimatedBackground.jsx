@@ -10,7 +10,7 @@ const AnimatedBackground = () => {
           --bg-glow: #0ea5e9;   /* Azul Céu (Sky 500) */
         }
 
-        .clean-ocean-container {
+.clean-ocean-container {
           position: fixed;
           top: 0;
           left: 0;
@@ -18,62 +18,63 @@ const AnimatedBackground = () => {
           height: 100vh;
           z-index: -1;
           overflow: hidden;
-          background-color: var(--bg-deep);
+          /* Base: Um azul aço ligeiramente mais profundo */
+          background-color: #003583; 
         }
 
-        /* "ORBS" - Esferas de luz difusa */
+        /* Esferas com saturação levemente ajustada */
         .orb {
           position: absolute;
           border-radius: 50%;
-          filter: blur(100px); /* Desfoque máximo para eliminar qualquer textura */
-          opacity: 0.5;
+          filter: blur(140px);
+          opacity: 0.55; /* Aumentado ligeiramente para acompanhar o ganho de cor */
           animation: floatOrb 20s infinite ease-in-out alternate;
         }
 
-        /* Orb 1: A base azul escura que preenche o fundo */
+        /* Orb 1: Azul Médio Sereno */
         .orb-1 {
-          top: -20%;
+          top: -15%;
           left: -10%;
-          width: 80vw;
-          height: 80vw;
-          background: var(--bg-navy);
+          width: 90vw;
+          height: 90vw;
+          background: #3969b6; 
           animation-duration: 25s;
         }
 
-        /* Orb 2: O brilho ciano principal */
+        /* Orb 2: Ciano Glacial */
         .orb-2 {
           bottom: -10%;
-          right: -10%;
-          width: 60vw;
-          height: 60vw;
-          background: radial-gradient(circle, var(--bg-glow) 0%, transparent 70%);
-          opacity: 0.3;
+          right: -5%;
+          width: 75vw;
+          height: 75vw;
+          background: radial-gradient(circle, #3ad2ed 0%, transparent 60%);
+          opacity: 0.45;
           animation-duration: 30s;
-          animation-delay: -5s;
+          animation-delay: -3s;
         }
 
-        /* Orb 3: Um ponto de luz secundário flutuando no meio */
+        /* Orb 3: Lavanda Suave Profundo */
         .orb-3 {
-          top: 30%;
+          top: 20%;
           left: 30%;
-          width: 40vw;
-          height: 40vw;
-          background: radial-gradient(circle, #38bdf8 0%, transparent 60%);
-          opacity: 0.2;
+          width: 50vw;
+          height: 50vw;
+          background: radial-gradient(circle, #6b65b7 0%, transparent 70%);
+          opacity: 0.35;
           animation-duration: 35s;
-          animation-delay: -10s;
+          animation-delay: -7s;
         }
 
         @keyframes floatOrb {
           0% { transform: translate(0, 0) scale(1); }
-          100% { transform: translate(50px, -50px) scale(1.1); }
+          100% { transform: translate(40px, -40px) scale(1.05); }
         }
 
-        /* Vinheta ultra-suave apenas para escurecer cantos levemente */
+        /* Vinheta sutil */
         .vignette {
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
-            background: radial-gradient(circle at center, transparent 40%, rgba(0,0,0,0.6) 100%);
+            background: radial-gradient(circle at center, transparent 40%, rgba(20, 30, 48, 0.25) 100%);
             pointer-events: none;
         }
 

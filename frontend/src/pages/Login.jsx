@@ -66,18 +66,14 @@ export default function Login() {
             display: flex; flex-direction: column; justify-content: center; align-items: center;
             position: relative; padding: 40px; overflow: hidden; z-index: 20;
         }
-        .bg-glow-effect {
-            position: absolute; width: 100%; height: 100%;
-            background: radial-gradient(circle at 50% 50%, rgba(255,255,255,0.05) 0%, transparent 60%);
-            pointer-events: none;
-        }
+
         .close-btn-X {
             position: absolute; top: 30px; right: 30px;
             display: flex; align-items: center; justify-content: center;
             width: 45px; height: 45px; border-radius: 50%;
             background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.8);
             font-size: 1.4rem; text-decoration: none; transition: all 0.3s ease;
-            border: 2px solid transparent; z-index: 20;
+            border: 2px solid transparentO; z-index: 20;
         }
         .close-btn-X:hover { 
             color: var(--col-navy); background: var(--col-neon);
@@ -87,19 +83,20 @@ export default function Login() {
             width: 100%; max-width: 440px;
             background: white; padding: 50px 40px; border-radius: 24px;
             border: 2px solid var(--col-neon);
-            box-shadow: 0 0 30px var(--col-neon-glow), 0 20px 50px rgba(0,0,0,0.5);
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
             position: relative; z-index: 10;
             animation: popIn 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
         @keyframes popIn { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
         .form-header-row { display: flex; align-items: center; gap: 15px; margin-bottom: 35px; }
-        .header-logo-small { height: 55px; width: auto; }
+        .form-header-row div { display: flex; flex-direction:column; align-items: center; text-align: left;}
+        .header-logo-small { height: 55px; width: auto; align-self: center; filter: drop-shadow(0 2px 5px rgba(0,0,0,0.1)); }
         .form-title { font-family: 'Libre Baskerville', serif; font-size: 2rem; color: var(--col-navy); font-weight: 700; margin-bottom: 0; line-height: 1; }
         .form-subtitle { color: var(--text-muted); font-size: 0.9rem; margin-top: 5px; }
-        .modern-input-group { position: relative; margin-bottom: 25px; }
+        .modern-input-group { position: relative; margin-bottom: 12px; }
         .input-label { display: block; font-size: 0.8rem; font-weight: 700; color: var(--col-navy); margin-bottom: 8px; letter-spacing: 0.5px; text-transform: uppercase; }
         .input-wrapper { position: relative; }
-        .modern-input { width: 100%; padding: 14px 14px 14px 45px; background: var(--bg-input); border: 1px solid #E2E8F0; border-radius: 12px; font-size: 1rem; color: var(--text-main); transition: all 0.3s ease; }
+        .modern-input { width: 100%; padding: 14px 14px 14px 45px; background: var(--bg-input); border: 1px solid #E2E8F0; border-radius: 6px; font-size: 1rem; color: var(--text-main); transition: all 0.3s ease; }
         .modern-input:focus { background: white; border-color: var(--col-blue-mid); outline: none; box-shadow: 0 0 0 4px rgba(42, 111, 151, 0.1); }
         .input-icon-left { position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: var(--text-muted); font-size: 1.1rem; transition: 0.2s; }
         .modern-input:focus + .input-icon-left { color: var(--col-blue-mid); }
@@ -168,7 +165,7 @@ export default function Login() {
         @keyframes fadeInRight { from { opacity: 0; transform: translateX(30px); } to { opacity: 1; transform: translateX(0); } }
 
         .logo-giant { 
-            height: 220px; width: auto; margin-bottom: 25px;
+            height: 290px; width: auto; margin-bottom: 25px;
             /* Sombra escura sutil para destacar no fundo claro */
             filter: drop-shadow(0 5px 15px rgba(0, 43, 85, 0.15));
         }
@@ -190,7 +187,8 @@ export default function Login() {
             .brand-section { display: none; }
             .form-section { padding: 80px 20px 40px 20px; }
             .close-btn-X { top: 20px; right: 20px; }
-            .form-header-row { justify-content: center; text-align: center; }
+            .form-header-row { justify-content: center; text-align: left; }
+
         }
       `}</style>
 
