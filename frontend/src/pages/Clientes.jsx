@@ -41,7 +41,7 @@ export default function Clientes() {
         .clientes-wrapper {
           min-height: 100vh;
           /* Fundo do corpo da página (mantendo o gradiente suave que você gostou) */
-          background: linear-gradient(135deg, #A8DADC 0%, #E6F4F1 100%);
+          background: rgba(246, 246, 246, 0.9);
           font-family: 'Inter', sans-serif;
           padding-bottom: 80px;
         }
@@ -145,8 +145,8 @@ export default function Clientes() {
             position: relative; max-width: 500px; width: 100%;
         }
         .search-input {
-            border-radius: 50px; border: none;
-            padding: 12px 25px 12px 50px;
+            border-radius: 80px; border: none;
+            padding: 10px 25px 8px 50px;
             box-shadow: 0 5px 15px rgba(0,0,0,0.2);
             font-size: 1rem;
         }
@@ -170,7 +170,7 @@ export default function Clientes() {
       {/* HEADER ESCURO (NAVY BLUE) */}
       <div className="header-section">
         <Container className="d-flex flex-column flex-md-row justify-content-between align-items-center gap-4">
-            <div className="d-flex align-items-center gap-4 w-100">
+            <div className="d-flex align-items-center gap-5 w-100">
                 <Button className="btn-back-custom" onClick={() => navigate('/admin-dashboard')}>
                     <FaArrowLeft className="me-2"/> Voltar
                 </Button>
@@ -263,7 +263,7 @@ export default function Clientes() {
                 })}
                 
                 {clientesFiltrados.length === 0 && !loading && (
-                    <div className="text-center mt-5 pt-4 w-100" style={{opacity: 0.7}}>
+                    <div className="text-center mt-5 pt-5 w-100" style={{opacity: 0.7}}>
                         <div className="mb-3" style={{fontSize: '3rem', color: '#002B55'}}><FaUser /></div>
                         <h4 style={{fontFamily: 'Libre Baskerville', color: '#002B55'}}>Nenhum cliente encontrado.</h4>
                     </div>
