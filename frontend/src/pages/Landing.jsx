@@ -6,6 +6,10 @@ import {
     FaUsers, FaLock, FaPlay, FaUserTie, FaShoppingBag, FaEnvelope, FaMapMarkerAlt, FaSearchLocation, FaCheckCircle
 } from 'react-icons/fa';
 import logotipoSystem from "../assets/logotipo1.svg"; 
+import imgTiago from "../assets/tiagoimg.jpeg";
+import imgEmily from "../assets/emilyimg.jpeg";
+import imgIasmin from "../assets/iasmimimg.jpeg";
+import imgGiseliane from "../assets/giselianeimg.jpeg";
 
 export default function Landing() {
   const navigate = useNavigate();
@@ -192,10 +196,18 @@ export default function Landing() {
         .team-grid { display: flex; justify-content: center; gap: 40px; flex-wrap: wrap; }
         .team-member { display: flex; flex-direction: column; align-items: center; }
         .team-avatar { 
-            width: 100px; height: 100px; background: white; border-radius: 50%; 
-            border: 3px solid var(--gray-border); margin-bottom: 15px; 
+            width: 100px; 
+            height: 100px; 
+            background: white; 
+            border-radius: 50%; 
+            border: 3px solid var(--gray-border); 
+            margin-bottom: 15px; 
             box-shadow: 0 10px 20px rgba(0,0,0,0.05); 
             transition: all 0.3s ease;
+            /* Adicione estas linhas abaixo: */
+            background-size: cover;
+            background-position: center;
+            overflow: hidden;
         }
         .team-member:hover .team-avatar {
             transform: scale(1.1); border-color: var(--col-mid-blue); box-shadow: 0 15px 30px rgba(42, 111, 151, 0.2);
@@ -422,24 +434,24 @@ export default function Landing() {
 
               <div className="text-uppercase fw-bold mb-5 opacity-75 ls-1 text-muted" style={{letterSpacing:'2px'}}>Iniciativa IFRN - Canguaretama</div>
 
-              <div className="team-grid">
-                  <div className="team-member">
-                      <div className="team-avatar"></div>
-                      <div className="team-name">Tiago Barroso</div>
-                  </div>
-                  <div className="team-member">
-                      <div className="team-avatar"></div>
-                      <div className="team-name">Emily Amorim</div>
-                  </div>
-                  <div className="team-member">
-                      <div className="team-avatar"></div>
-                      <div className="team-name">Iasmin Dias</div>
-                  </div>
-                  <div className="team-member">
-                      <div className="team-avatar"></div>
-                      <div className="team-name">Giseliane da Silva</div>
-                  </div>
-              </div>
+                <div className="team-grid">
+                    <div className="team-member">
+                        <div className="team-avatar" style={{ backgroundImage: `url(${imgTiago})` }}></div>
+                        <div className="team-name">Tiago Barroso</div>
+                    </div>
+                    <div className="team-member">
+                        <div className="team-avatar" style={{ backgroundImage: `url(${imgEmily})` }}></div>
+                        <div className="team-name">Emily Amorim</div>
+                    </div>
+                    <div className="team-member">
+                        <div className="team-avatar" style={{ backgroundImage: `url(${imgIasmin})` }}></div>
+                        <div className="team-name">Iasmin Dias</div>
+                    </div>
+                    <div className="team-member">
+                        <div className="team-avatar" style={{ backgroundImage: `url(${imgGiseliane})` }}></div>
+                        <div className="team-name">Giseliane da Silva</div>
+                    </div>
+                </div>
           </Container>
       </section>
 

@@ -110,12 +110,20 @@ export default function HistoricoGeral() {
       });
   };
 
-  if (loading) return <div style={{height:'100vh', display:'flex', justifyContent:'center', alignItems:'center', background:'#A8DADC'}}><Spinner animation="border" style={{color:'#002B55'}}/></div>;
+  if (loading) {
+    return (
+      <>
+        <AnimatedBackground />
+        <div style={{height: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center', background: 'transparent'}}>
+          <Spinner animation="border" style={{color: 'white'}} />
+        </div>
+      </>
+    );
+  }
 
   return (
     <>
         <AnimatedBackground />
-
         <div className="history-wrapper">
         <style>{`
             @import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&display=swap');
@@ -138,8 +146,8 @@ export default function HistoricoGeral() {
                 cursor: pointer; transition: 0.2s;
             }
             .btn-back-circle:hover { background: #002B55; color: white; }
-            .title-group h1 { font-family: 'Libre Baskerville', serif; font-weight: 700; font-size: 1.8rem; color: #002B55; margin: 0; }
-            .title-group span { font-size: 0.9rem; color: #555; }
+            .title-group h1 { font-family: 'Libre Baskerville', serif; font-weight: 700; font-size: 1.8rem; color: #ffffff; margin: 0; }
+            .title-group span { font-size: 0.9rem; color: #ececec; }
 
             /* LISTA DE CARDS */
             .history-card {

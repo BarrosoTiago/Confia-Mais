@@ -103,7 +103,7 @@ export default function ClienteDashboard() {
       setShowModal(true);
   };
 
-  const handleConfirmarAgendamento = async () => {
+const handleConfirmarAgendamento = async () => {
       if(!horaSelecionada) return;
       setAgendando(true);
       const ano = dataSelecionada.getFullYear();
@@ -121,11 +121,30 @@ export default function ClienteDashboard() {
           setShowModal(false);
           navigate('/meus-agendamentos');
       } catch (error) {
-          alert("Erro ao agendar. Tente novamente.");
+          // --- LÓGICA PARA EXIBIR ERRO DETALHADO ---
+          let mensagemErro = "Erro ao agendar. Tente novamente.";
+
+          if (error.response && error.response.data) {
+              const data = error.response.data;
+
+              // Se o backend enviou um erro de 'detail' (padrão SimpleJWT/DRF)
+              if (data.detail) {
+                  mensagemErro = data.detail;
+              } 
+              // Se o backend enviou erros de validação de campos específicos
+              else if (typeof data === 'object') {
+                  const mensagens = Object.values(data).flat();
+                  mensagemErro = mensagens.join('\n');
+              }
+          }
+
+          alert(`❌ Falha no Agendamento:\n${mensagemErro}`);
       } finally {
           setAgendando(false);
       }
   };
+
+  
 
   const diasVazios = Array.from({ length: getDiaSemanaInicio(mesAtual) }, (_, i) => i);
   const diasDoMes = Array.from({ length: getDiasNoMes(mesAtual) }, (_, i) => i + 1);

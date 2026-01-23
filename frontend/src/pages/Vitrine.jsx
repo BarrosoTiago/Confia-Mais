@@ -68,7 +68,7 @@ export default function Vitrine() {
         .custom-navbar {
             background: white;
             box-shadow: 0 2px 15px rgba(0,0,0,0.03);
-            padding: 12px 0;
+            padding: 16px 0;
         }
         
         .brand-container { display: flex; align-items: center; gap: 12px; text-decoration: none; cursor: pointer; }
@@ -94,7 +94,8 @@ export default function Vitrine() {
             color: white;
             padding: 70px 20px 100px 20px; /* Espaço extra embaixo para a busca flutuar */
             text-align: center;
-            border-radius: 0 0 50px 50px;
+            border-radius: 0 0 70px 70px;
+            border-bottom: 6px solid #c7c5cc;
             margin-bottom: 40px;
             position: relative;
             z-index: 1;
@@ -157,6 +158,11 @@ export default function Vitrine() {
             justify-content: center;
             cursor: default; /* Apenas visual, já filtra ao digitar */
             box-shadow: 0 4px 10px rgba(45, 206, 137, 0.3);
+            transition: 0.6s;
+        }
+
+        .search-btn:hover {
+            background: #28b77f;
         }
 
         /* CARDS PREMIUM */
@@ -235,7 +241,7 @@ export default function Vitrine() {
 
         /* Conteúdo do Card */
         .card-content {
-            padding: 15px 25px 25px 25px;
+            padding: 18px 25px 25px 25px;
             text-align: center;
             flex-grow: 1;
             display: flex;
@@ -290,7 +296,7 @@ export default function Vitrine() {
               </div>
           </Navbar.Brand>
 
-          <Nav className="ms-auto flex-row align-items-center gap-3">
+          <Nav className="ms-auto flex-row align-items-center gap-4">
              <button className="nav-btn-link" onClick={() => navigate('/meus-agendamentos')}>
                 <FaCalendarCheck size={18} /> <span className="d-none d-md-inline">Meus Agendamentos</span>
              </button>
