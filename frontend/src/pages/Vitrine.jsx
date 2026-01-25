@@ -3,7 +3,7 @@ import api from '../services/api';
 import { useNavigate } from 'react-router-dom';
 import { Container, Row, Col, Spinner, Navbar, Nav } from 'react-bootstrap';
 import { useAuth } from '../context/AuthContext';
-import { FaSearch, FaStore, FaMapMarkerAlt, FaStar, FaSignOutAlt, FaCalendarCheck } from 'react-icons/fa';
+import { FaSearch, FaStore, FaMapMarkerAlt, FaStar, FaSignOutAlt, FaCalendarCheck, FaUserCog } from 'react-icons/fa';
 
 // --- IMPORTAÇÃO DO LOGO ---
 // Certifique-se que o arquivo existe em src/assets/logotipo1.svg
@@ -35,6 +35,7 @@ export default function Vitrine() {
 
   const handleEntrarLoja = (loja) => {
     // Passa o objeto completo para o dashboard carregar instantaneamente
+    // O ClienteDashboard deve estar preparado para receber o state: { loja }
     navigate('/cliente-dashboard', { 
         state: { loja } 
     });
@@ -300,6 +301,13 @@ export default function Vitrine() {
              <button className="nav-btn-link" onClick={() => navigate('/meus-agendamentos')}>
                 <FaCalendarCheck size={18} /> <span className="d-none d-md-inline">Meus Agendamentos</span>
              </button>
+             
+             {/* BOTÃO ADICIONADO: MINHA CONTA */}
+             <button className="nav-btn-link" onClick={() => navigate('/conta/configuracoes')}>
+                <FaUserCog size={18} /> <span className="d-none d-md-inline">Minha Conta</span>
+             </button>
+             {/* ------------------------------- */}
+
              <button className="btn-logout" onClick={logout}>
                 <FaSignOutAlt /> Sair
              </button>

@@ -4,29 +4,47 @@ from .serializers import ServicoSerializer, CategoriaSerializer
 
 class CategoriaViewSet(viewsets.ModelViewSet):
     """
-    CRUD de Categorias (Ex: Cabelo, Barba, Unha)
+    CRUD de Categorias (Ex: Cabelo, Barba, Unha).
+    Permitimos que qualquer pessoa veja as categorias, mas apenas admins as criem.
     """
     queryset = Categoria.objects.all()
     serializer_class = CategoriaSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_permissions(self):
+        if self.action in ['list', 'retrieve']:
+            return [permissions.AllowAny()]
+        return [permissions.IsAuthenticated()]
 
 class ServicoViewSet(viewsets.ModelViewSet):
     """
-    CRUD de Serviços (Ex: Corte Masculino, Manicure)
+    CRUD de Serviços.
+    Ajustado para permitir que clientes vejam serviços de lojas específicas.
     """
     serializer_class = ServicoSerializer
-    permission_classes = [permissions.IsAuthenticated]
+
+    def get_permissions(self):
+        # Permite que visitantes e clientes vejam a lista sem precisar de login
+        if self.action in ['list', 'retrieve']:
+            return [permissions.AllowAny()]
+        return [permissions.IsAuthenticated()]
 
     def get_queryset(self):
         user = self.request.user
         
-        # Se for ADMIN, vê apenas os SEUS serviços
-        if user.tipo_usuario == 'ADMIN':
+        # 1. Filtro por Empreendedor (Para o Cliente ver a loja)
+        # O React deve enviar: /api/servicos/?empreendedor_id=ID_DA_LOJA
+        empreendedor_id = self.request.query_params.get('empreendedor_id')
+        if empreendedor_id:
+            return Servico.objects.filter(criado_por_id=empreendedor_id, ativo=True)
+
+        # 2. Visão do Empreendedor (ADMIN logado no seu painel)
+        if user.is_authenticated and getattr(user, 'tipo_usuario', None) == 'ADMIN':
             return Servico.objects.filter(criado_por=user)
         
-        # Se for CLIENTE ou Publico, vê TODOS os serviços disponíveis no sistema
-        return Servico.objects.all()
+        # 3. Visão Geral (FallBack)
+        # Se for um cliente navegando sem filtrar loja, mostra todos os ativos
+        return Servico.objects.filter(ativo=True)
 
     def perform_create(self, serializer):
-        # Define automaticamente o dono do serviço como o usuário logado
+        # Garante que o serviço seja sempre vinculado ao Admin que o criou
         serializer.save(criado_por=self.request.user)

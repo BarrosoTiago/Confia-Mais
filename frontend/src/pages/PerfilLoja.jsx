@@ -1,316 +1,315 @@
 import { useState, useEffect } from 'react';
+import { Form, Row, Col, Alert, Spinner } from 'react-bootstrap';
+import { useSearchParams, useNavigate } from 'react-router-dom'; 
 import api from '../services/api';
-import { Container, Form, Button, Row, Col, Alert, Spinner } from 'react-bootstrap';
-import { useNavigate } from 'react-router-dom';
 import AnimatedBackground from '../components/AnimatedBackground';
-import { 
-  FaArrowLeft, FaStore, FaMapMarkerAlt, FaCamera, FaImage, FaSave, FaUserEdit 
-} from 'react-icons/fa';
+import OnboardingHeader from '../components/OnboardingHeader';
+import { FaStore, FaCamera, FaSave, FaArrowRight, FaMapMarkerAlt, FaPhone, FaInfoCircle } from 'react-icons/fa';
 
 export default function PerfilLoja() {
-  const navigate = useNavigate();
-  const [loading, setLoading] = useState(false);
-  
-  const [dados, setDados] = useState({
-    nome_completo: '',
-    telefone: '',
-    descricao: '',
-    endereco: '',
-    bairro: '',
-    cidade: '',
-    foto: null,
-    capa: null,
-    fotoPreview: '',
-    capaPreview: ''
-  });
-  const [notification, setNotification] = useState(null);
+    const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
+    
+    // Verifica se está no modo "Passo a Passo" (vindo do Login)
+    const isOnboarding = searchParams.get('onboarding') === 'true';
 
-  useEffect(() => {
-    carregarDados();
-  }, []);
+    const [loading, setLoading] = useState(false);
+    const [msg, setMsg] = useState('');
+    const [error, setError] = useState('');
 
-  async function carregarDados() {
-    try {
-      const response = await api.get('/auth/users/me/');
-      const user = response.data;
-      setDados({
-        nome_completo: user.nome_completo || '',
-        telefone: user.telefone || '',
-        descricao: user.descricao || '',
-        endereco: user.endereco || '',
-        bairro: user.bairro || '',
-        cidade: user.cidade || '',
-        foto: null,
-        capa: null,
-        fotoPreview: user.foto,
-        capaPreview: user.capa
-      });
-    } catch (error) {
-      setNotification({ type: 'danger', message: 'Erro ao carregar dados.' });
+    // Estado do Formulário
+    const [nome, setNome] = useState('');
+    const [descricao, setDescricao] = useState('');
+    const [telefone, setTelefone] = useState('');
+    const [endereco, setEndereco] = useState('');
+    const [bairro, setBairro] = useState('');
+    const [cidade, setCidade] = useState('');
+
+    // Imagens
+    const [fotoPreview, setFotoPreview] = useState(null);
+    const [fotoFile, setFotoFile] = useState(null);
+    const [capaPreview, setCapaPreview] = useState(null);
+    const [capaFile, setCapaFile] = useState(null);
+
+    // 1. Carregar dados atuais
+    useEffect(() => {
+        async function loadData() {
+            try {
+                const response = await api.get('/auth/users/me/');
+                const u = response.data;
+                
+                setNome(u.nome_completo || '');
+                setDescricao(u.descricao || '');
+                setTelefone(u.telefone || '');
+                setEndereco(u.endereco || '');
+                setBairro(u.bairro || '');
+                setCidade(u.cidade || '');
+                
+                if(u.foto) setFotoPreview(u.foto);
+                if(u.capa) setCapaPreview(u.capa);
+
+            } catch (err) {
+                console.error("Erro ao carregar perfil", err);
+            }
+        }
+        loadData();
+    }, []);
+
+    // Função para preview de imagem
+    const handleImageChange = (e, setFile, setPreview) => {
+        const file = e.target.files[0];
+        if (file) {
+            setFile(file);
+            setPreview(URL.createObjectURL(file));
+        }
+    };
+
+    // 2. Salvar
+    async function handleSalvar(e) {
+        e.preventDefault();
+        setLoading(true);
+        setMsg(''); setError('');
+
+        try {
+            const data = new FormData();
+            data.append('nome_completo', nome);
+            data.append('descricao', descricao);
+            data.append('telefone', telefone);
+            data.append('endereco', endereco);
+            data.append('bairro', bairro);
+            data.append('cidade', cidade);
+
+            // Só anexa se trocou a imagem
+            if (fotoFile) data.append('foto', fotoFile);
+            if (capaFile) data.append('capa', capaFile);
+
+            await api.patch('/auth/users/me/', data, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+
+            if (isOnboarding) {
+                // ROTEIRO: Passo 1 OK -> Vai para Passo 2 (Horários)
+                navigate('/admin/config-horarios?onboarding=true');
+            } else {
+                setMsg('Perfil atualizado com sucesso!');
+                window.scrollTo(0, 0);
+            }
+
+        } catch (err) {
+            console.error(err);
+            setError('Erro ao salvar. Verifique sua conexão.');
+            window.scrollTo(0, 0);
+        } finally {
+            setLoading(false);
+        }
     }
-  }
 
-  const handleFileChange = (e, campo) => {
-    const file = e.target.files[0];
-    if (file) {
-      setDados(prev => ({
-        ...prev,
-        [campo]: file,
-        [`${campo}Preview`]: URL.createObjectURL(file)
-      }));
-    }
-  };
-
-  const handleSave = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setNotification(null);
-
-    try {
-      const formData = new FormData();
-      formData.append('nome_completo', dados.nome_completo);
-      formData.append('telefone', dados.telefone);
-      formData.append('descricao', dados.descricao);
-      formData.append('endereco', dados.endereco);
-      formData.append('bairro', dados.bairro);
-      formData.append('cidade', dados.cidade);
-
-      if (dados.foto instanceof File) formData.append('foto', dados.foto);
-      if (dados.capa instanceof File) formData.append('capa', dados.capa);
-
-      await api.patch('/auth/users/me/', formData);
-      setNotification({ type: 'success', message: 'Perfil atualizado com sucesso!' });
-      
-    } catch (error) {
-      setNotification({ type: 'danger', message: 'Erro ao salvar perfil.' });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <>
-        <AnimatedBackground />
-
-        <div className="profile-wrapper">
-        <style>{`
-            @import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&display=swap');
-            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-
-            .profile-wrapper {
-            min-height: 100vh; background-color: #transparent; font-family: 'Inter', sans-serif;
-            padding: 40px 20px; overflow-x: hidden;
-            }
-            .container-limit { max-width: 1100px; margin: 0 auto; padding-bottom: 60px; }
-
-            /* HEADER */
-            .page-header {
-                display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px;
-            }
-            .header-left { display: flex; align-items: center; gap: 20px; }
-            .btn-back-circle {
-                width: 45px; height: 45px; border-radius: 50%; background: #F8F9FA; border: 1px solid #E9ECEF;
-                color: #002B55; display: flex; align-items: center; justify-content: center; font-size: 1.1rem;
-                cursor: pointer; transition: 0.2s;
-            }
-            .btn-back-circle:hover { background: #002B55; color: white; }
-            .title-group h1 { font-family: 'Libre Baskerville', serif; font-weight: 700; font-size: 1.8rem; color: #ffffff; margin: 0; }
-            .title-group span { font-size: 0.9rem; color: #dfdfdf; }
-
-            /* CARDS */
-            .glass-card {
-                background: white; border-radius: 20px; padding: 60px;
-                box-shadow: 0 10px 30px rgba(0,43,85,0.05); height: 100%; border: 1px solid white;
-            }
-
-            /* UPLOAD AVATAR */
-            .avatar-upload {
-                position: relative; width: 140px; height: 140px; margin: 0 auto 15px auto;
-            }
-            .avatar-preview {
-                width: 100%; height: 100%; border-radius: 50%; object-fit: cover; 
-                border: 4px solid #E3F2FD; box-shadow: 0 5px 15px rgba(0,0,0,0.1); background: white;
-            }
-            .avatar-edit-btn {
-                position: absolute; bottom: 5px; right: 5px; background: #002B55; color: white;
-                width: 35px; height: 35px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
-                cursor: pointer; transition: 0.2s; border: 2px solid white;
-            }
-            .avatar-edit-btn:hover { transform: scale(1.1); background: #004080; }
-
-            /* UPLOAD CAPA */
-            .cover-upload {
-                position: relative; height: 120px; background: #F1F3F5; border-radius: 12px; overflow: hidden;
-                display: flex; align-items: center; justify-content: center; border: 2px dashed #CED4DA; cursor: pointer;
-                transition: 0.2s;
-            }
-            .cover-upload:hover { border-color: #002B55; background: #E9ECEF; }
-            .cover-preview { width: 100%; height: 100%; object-fit: cover; }
-            .cover-placeholder { color: #888; font-size: 0.85rem; font-weight: 600; display: flex; flex-direction: column; align-items: center; gap: 5px; }
-
-            /* FORMULÁRIO */
-            .section-label { font-size: 0.8rem; font-weight: 700; color: #002B55; text-transform: uppercase; margin-bottom: 15px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #F1F3F5; padding-bottom: 10px; }
+    return (
+        <>
+            <AnimatedBackground />
             
-            .custom-input {
-                border: 2px solid #F1F3F5; background: #F8F9FA; padding: 12px; border-radius: 10px; font-size: 0.95rem; color: #333; font-weight: 500;
-            }
-            .custom-input:focus { border-color: #002B55; background: white; outline: none; box-shadow: none; }
-            .form-label { font-size: 0.85rem; font-weight: 600; color: #666; margin-bottom: 5px; }
+            <div className="perfil-wrapper">
+                <style>{`
+                    @import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&display=swap');
+                    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
-            .btn-save-float {
-                background: #002B55; color: white; border: none; padding: 12px 40px; border-radius: 30px;
-                font-size: 1rem; font-weight: 700; box-shadow: 0 8px 20px rgba(0,43,85,0.2); transition: 0.2s;
-                display: flex; align-items: center; gap: 10px; width: 100%; justify-content: center; margin-top: 20px;
-            }
-            .btn-save-float:hover { transform: translateY(-2px); background: #003366; }
-        `}</style>
+                    .perfil-wrapper { 
+                        padding: 30px 20px; min-height: 100vh; font-family: 'Inter', sans-serif; 
+                        display: flex; justify-content: center; align-items: flex-start;
+                    }
+                    .main-card { 
+                        background: white; border-radius: 24px; width: 100%; max-width: 850px; 
+                        box-shadow: 0 15px 50px rgba(0,43,85,0.1); overflow: hidden; position: relative;
+                        border: 1px solid rgba(255,255,255,0.8);
+                    }
+                    
+                    /* Área da Capa */
+                    .cover-area { 
+                        height: 220px; background: linear-gradient(135deg, #E3F2FD, #BBDEFB); 
+                        position: relative; background-size: cover; background-position: center; 
+                        transition: 0.3s;
+                    }
+                    .cover-upload-btn { 
+                        position: absolute; bottom: 20px; right: 20px; 
+                        background: rgba(0,0,0,0.5); backdrop-filter: blur(5px);
+                        color: white; border: 1px solid rgba(255,255,255,0.3); 
+                        padding: 8px 18px; border-radius: 30px; font-size: 0.85rem; font-weight: 600;
+                        cursor: pointer; transition: 0.2s; display: flex; align-items: center; gap: 8px;
+                    }
+                    .cover-upload-btn:hover { background: rgba(0,0,0,0.7); transform: translateY(-2px); }
 
-        <div className="container-limit">
-            
-            {/* HEADER */}
-            <div className="page-header">
-                <div className="header-left">
-                    <button className="btn-back-circle" onClick={() => navigate('/admin-dashboard')}>
-                        <FaArrowLeft />
-                    </button>
-                    <div className="title-group">
-                        <h1>Minha Loja</h1>
-                        <span>Edite as informações do seu negócio</span>
-                    </div>
+                    /* Área da Foto (Avatar) */
+                    .avatar-area { 
+                        position: absolute; top: 150px; left: 50%; transform: translateX(-50%); 
+                        width: 130px; height: 130px; z-index: 10;
+                    }
+                    .avatar-img { 
+                        width: 100%; height: 100%; border-radius: 50%; border: 5px solid white; 
+                        object-fit: cover; background: white; box-shadow: 0 8px 25px rgba(0,43,85,0.15); 
+                    }
+                    .avatar-upload-icon { 
+                        position: absolute; bottom: 5px; right: 5px; background: #002B55; color: white; 
+                        width: 38px; height: 38px; border-radius: 50%; display: flex; align-items: center; justify-content: center; 
+                        border: 3px solid white; cursor: pointer; transition: 0.2s; box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+                    }
+                    .avatar-upload-icon:hover { transform: scale(1.1); background: #004080; }
+
+                    /* Formulário */
+                    .form-container { padding: 80px 50px 50px 50px; }
+                    .section-title { 
+                        font-family: 'Libre Baskerville', serif; font-weight: 700; color: #002B55; 
+                        margin-bottom: 30px; text-align: center; font-size: 1.8rem;
+                    }
+                    
+                    .custom-label { font-size: 0.75rem; font-weight: 700; color: #6C757D; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+                    
+                    .custom-input { 
+                        background: #F8F9FA; border: 2px solid #E9ECEF; padding: 12px 15px; border-radius: 12px; 
+                        font-size: 0.95rem; color: #333; transition: 0.2s;
+                    }
+                    .custom-input:focus { border-color: #002B55; background: white; outline: none; box-shadow: 0 0 0 4px rgba(0, 43, 85, 0.05); }
+
+                    .icon-input-wrapper { position: relative; }
+                    .icon-input-wrapper .input-icon { position: absolute; top: 50%; left: 15px; transform: translateY(-50%); color: #ADB5BD; pointer-events: none; }
+                    .icon-input-wrapper .custom-input { padding-left: 40px; } /* Espaço pro ícone */
+
+                    .btn-save { 
+                        background: #002B55; color: white; border: none; padding: 14px 30px; 
+                        border-radius: 30px; font-weight: 700; font-size: 1rem;
+                        transition: 0.3s; width: 100%; box-shadow: 0 10px 25px rgba(0, 43, 85, 0.25);
+                        display: flex; align-items: center; justify-content: center; gap: 10px;
+                    }
+                    .btn-save:hover { background: #004080; transform: translateY(-3px); box-shadow: 0 15px 35px rgba(0, 43, 85, 0.35); }
+                    .btn-save:disabled { background: #CBD5E1; transform: none; box-shadow: none; cursor: not-allowed; }
+
+                    @media (max-width: 768px) {
+                        .form-container { padding: 70px 20px 30px 20px; }
+                        .cover-area { height: 180px; }
+                        .avatar-area { width: 110px; height: 110px; top: 120px; }
+                    }
+                `}</style>
+
+                <div className="main-card">
+                    {/* BARRA DE PROGRESSO (SÓ NO ONBOARDING) */}
+                    {isOnboarding && (
+                        <div className="p-4 bg-white border-bottom">
+                            <OnboardingHeader step={1} />
+                        </div>
+                    )}
+
+                    {/* MENSAGENS */}
+                    {msg && <Alert variant="success" className="m-3 text-center small fw-bold">{msg}</Alert>}
+                    {error && <Alert variant="danger" className="m-3 text-center small fw-bold">{error}</Alert>}
+
+                    <Form onSubmit={handleSalvar}>
+                        {/* 1. UPLOAD DE CAPA E FOTO */}
+                        <div className="cover-area" style={{ backgroundImage: capaPreview ? `url(${capaPreview})` : 'none' }}>
+                            <label className="cover-upload-btn">
+                                <FaCamera /> Editar Capa
+                                <input type="file" hidden accept="image/*" onChange={(e) => handleImageChange(e, setCapaFile, setCapaPreview)} />
+                            </label>
+                            
+                            <div className="avatar-area">
+                                {fotoPreview ? (
+                                    <img src={fotoPreview} alt="Logo" className="avatar-img" />
+                                ) : (
+                                    <div className="avatar-img d-flex align-items-center justify-content-center text-muted h1 bg-white">
+                                        <FaStore style={{opacity: 0.3}} />
+                                    </div>
+                                )}
+                                <label className="avatar-upload-icon">
+                                    <FaCamera size={14} />
+                                    <input type="file" hidden accept="image/*" onChange={(e) => handleImageChange(e, setFotoFile, setFotoPreview)} />
+                                </label>
+                            </div>
+                        </div>
+
+                        {/* 2. DADOS DA LOJA */}
+                        <div className="form-container">
+                            <h2 className="section-title">Informações Básicas</h2>
+                            
+                            <Row className="g-4">
+                                <Col md={12}>
+                                    <Form.Label className="custom-label">Nome do Estabelecimento</Form.Label>
+                                    <div className="icon-input-wrapper">
+                                        <FaStore className="input-icon" />
+                                        <Form.Control 
+                                            type="text" className="custom-input" required 
+                                            placeholder="Ex: Barbearia Viking"
+                                            value={nome} onChange={e => setNome(e.target.value)} 
+                                        />
+                                    </div>
+                                </Col>
+                                
+                                <Col md={12}>
+                                    <Form.Label className="custom-label">Sobre (Bio)</Form.Label>
+                                    <div className="icon-input-wrapper">
+                                        <FaInfoCircle className="input-icon" style={{top: '20px'}} />
+                                        <Form.Control 
+                                            as="textarea" rows={3} className="custom-input" 
+                                            placeholder="Descreva seu negócio para os clientes..."
+                                            value={descricao} onChange={e => setDescricao(e.target.value)} 
+                                        />
+                                    </div>
+                                </Col>
+
+                                <Col md={6}>
+                                    <Form.Label className="custom-label">Telefone / WhatsApp</Form.Label>
+                                    <div className="icon-input-wrapper">
+                                        <FaPhone className="input-icon" />
+                                        <Form.Control 
+                                            type="text" className="custom-input" required 
+                                            placeholder="(00) 00000-0000"
+                                            value={telefone} onChange={e => setTelefone(e.target.value)} 
+                                        />
+                                    </div>
+                                </Col>
+                                
+                                <Col md={6}>
+                                    <Form.Label className="custom-label">Cidade</Form.Label>
+                                    <div className="icon-input-wrapper">
+                                        <FaMapMarkerAlt className="input-icon" />
+                                        <Form.Control 
+                                            type="text" className="custom-input"
+                                            placeholder="Sua cidade"
+                                            value={cidade} onChange={e => setCidade(e.target.value)} 
+                                        />
+                                    </div>
+                                </Col>
+
+                                <Col md={8}>
+                                    <Form.Label className="custom-label">Endereço</Form.Label>
+                                    <Form.Control 
+                                        type="text" className="custom-input"
+                                        placeholder="Rua, Número, Complemento"
+                                        value={endereco} onChange={e => setEndereco(e.target.value)} 
+                                    />
+                                </Col>
+
+                                <Col md={4}>
+                                    <Form.Label className="custom-label">Bairro</Form.Label>
+                                    <Form.Control 
+                                        type="text" className="custom-input"
+                                        placeholder="Seu bairro"
+                                        value={bairro} onChange={e => setBairro(e.target.value)} 
+                                    />
+                                </Col>
+                            </Row>
+
+                            {/* BOTÃO INTELIGENTE */}
+                            <div className="mt-5">
+                                <button type="submit" className="btn-save" disabled={loading}>
+                                    {loading ? <Spinner size="sm" animation="border" variant="light"/> : (
+                                        isOnboarding 
+                                            ? <>Salvar e Continuar <FaArrowRight /></>
+                                            : <>Salvar Alterações <FaSave /></>
+                                    )}
+                                </button>
+                            </div>
+                        </div>
+                    </Form>
                 </div>
             </div>
-
-            {notification && (
-                <Alert variant={notification.type} onClose={() => setNotification(null)} dismissible className="shadow-sm mb-4">
-                {notification.message}
-                </Alert>
-            )}
-
-            <Form onSubmit={handleSave}>
-                <Row className="g-4">
-                    
-                    {/* COLUNA ESQUERDA: IMAGENS */}
-                    <Col md={4}>
-                        <div className="glass-card text-center align-content-center gap-2 d-flex flex-column">
-                            <div className="section-label justify-content-center"><FaImage /> Identidade Visual</div>
-                            
-                            {/* Logo Upload */}
-                            <div className="avatar-upload">
-                                {dados.fotoPreview ? (
-                                    <img src={dados.fotoPreview} className="avatar-preview" alt="Logo" />
-                                ) : (
-                                    <div className="avatar-preview d-flex align-items-center justify-content-center bg-light text-muted">
-                                        <FaStore size={40} opacity={0.3} />
-                                    </div>
-                                )}
-                                <label htmlFor="upload-foto" className="avatar-edit-btn">
-                                    <FaCamera size={14} />
-                                </label>
-                                <input type="file" id="upload-foto" accept="image/*" hidden onChange={(e) => handleFileChange(e, 'foto')} />
-                            </div>
-                            <p className="small text-muted mb-4">Logo da Loja</p>
-
-                            {/* Capa Upload */}
-                            <label htmlFor="upload-capa" className="cover-upload">
-                                {dados.capaPreview ? (
-                                    <img src={dados.capaPreview} className="cover-preview" alt="Capa" />
-                                ) : (
-                                    <div className="cover-placeholder">
-                                        <FaImage size={20} />
-                                        <span>Adicionar Capa</span>
-                                    </div>
-                                )}
-                                <input type="file" id="upload-capa" accept="image/*" hidden onChange={(e) => handleFileChange(e, 'capa')} />
-                            </label>
-                            <p className="small text-muted mt-2">Imagem de Fundo (Vitrine)</p>
-                        </div>
-                    </Col>
-
-                    {/* COLUNA DIREITA: DADOS */}
-                    <Col md={8}>
-                        <div className="glass-card">
-                            
-                            {/* SOBRE O NEGÓCIO */}
-                            <div className="section-label"><FaStore /> Sobre o Negócio</div>
-                            <Row className="mb-3">
-                                <Col md={6}>
-                                    <Form.Group className="mb-3">
-                                        <Form.Label>Nome da Loja / Profissional</Form.Label>
-                                        <Form.Control 
-                                            type="text" className="custom-input" 
-                                            value={dados.nome_completo} 
-                                            onChange={e => setDados({...dados, nome_completo: e.target.value})} 
-                                        />
-                                    </Form.Group>
-                                </Col>
-                                <Col md={6}>
-                                    <Form.Group className="mb-3">
-                                        <Form.Label>WhatsApp / Telefone</Form.Label>
-                                        <Form.Control 
-                                            type="text" className="custom-input" 
-                                            value={dados.telefone} 
-                                            onChange={e => setDados({...dados, telefone: e.target.value})} 
-                                        />
-                                    </Form.Group>
-                                </Col>
-                            </Row>
-
-                            <Form.Group className="mb-4">
-                                <Form.Label>Descrição (Bio)</Form.Label>
-                                <Form.Control 
-                                    as="textarea" rows={3} className="custom-input" 
-                                    placeholder="Conte um pouco sobre seus serviços..."
-                                    value={dados.descricao} 
-                                    onChange={e => setDados({...dados, descricao: e.target.value})} 
-                                />
-                            </Form.Group>
-
-                            {/* LOCALIZAÇÃO */}
-                            <div className="section-label mt-4"><FaMapMarkerAlt /> Localização</div>
-                            <Row>
-                                <Col md={6}>
-                                    <Form.Group className="mb-3">
-                                        <Form.Label>Endereço</Form.Label>
-                                        <Form.Control 
-                                            className="custom-input" 
-                                            value={dados.endereco} 
-                                            onChange={e => setDados({...dados, endereco: e.target.value})} 
-                                        />
-                                    </Form.Group>
-                                </Col>
-                                <Col md={3}>
-                                    <Form.Group className="mb-3">
-                                        <Form.Label>Bairro</Form.Label>
-                                        <Form.Control 
-                                            className="custom-input" 
-                                            value={dados.bairro} 
-                                            onChange={e => setDados({...dados, bairro: e.target.value})} 
-                                        />
-                                    </Form.Group>
-                                </Col>
-                                <Col md={3}>
-                                    <Form.Group className="mb-3">
-                                        <Form.Label>Cidade</Form.Label>
-                                        <Form.Control 
-                                            className="custom-input" 
-                                            value={dados.cidade} 
-                                            onChange={e => setDados({...dados, cidade: e.target.value})} 
-                                        />
-                                    </Form.Group>
-                                </Col>
-                            </Row>
-
-                            {/* BOTÃO SALVAR */}
-                            <button className="btn-save-float" type="submit" disabled={loading}>
-                                {loading ? <Spinner animation="border" size="sm" /> : <><FaSave /> Salvar Alterações</>}
-                            </button>
-
-                        </div>
-                    </Col>
-                </Row>
-            </Form>
-        </div>
-        </div>
-    </>
-  );
+        </>
+    );
 }

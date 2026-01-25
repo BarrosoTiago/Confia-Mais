@@ -2,11 +2,20 @@ from rest_framework import serializers
 from rest_framework.validators import UniqueValidator
 from django.contrib.auth import get_user_model
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer 
-from django.db.models import Avg # Importante para calcular média
+from django.db.models import Avg, Sum
+from django.utils import timezone
+import datetime
+
+# --- IMPORTS PROTEGIDOS DOS MODELOS ---
+try:
+    from servicos.models import Servico
+    from agendamentos.models import HorarioFuncionamento, Avaliacao, Agendamento
+except ImportError:
+    pass
 
 User = get_user_model() 
 
-# --- 1. SERIALIZER DE CADASTRO E VITRINE ---
+# --- 1. SERIALIZER DE CADASTRO (O QUE ESTAVA DANDO ERRO) ---
 class UserRegistrationSerializer(serializers.ModelSerializer):
     email = serializers.EmailField(
         required=True,
@@ -14,114 +23,140 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
     )
     
     password = serializers.CharField(
-        write_only=True, 
-        required=True, 
-        min_length=8,
-        style={'input_type': 'password'},
-        label="Senha"
+        write_only=True, required=True, min_length=8,
+        style={'input_type': 'password'}
     )
     
     password_confirm = serializers.CharField(
-        write_only=True, 
-        required=True, 
-        style={'input_type': 'password'},
-        label="Confirmação de Senha"
+        write_only=True, required=True, style={'input_type': 'password'}
     )
-
-    nome_completo = serializers.CharField(required=False, allow_blank=True)
-    telefone = serializers.CharField(required=False, allow_blank=True)
-    tipo_usuario = serializers.ChoiceField(choices=User.TIPO_CHOICES, default='CLIENTE')
-
-    # Campos novos opcionais
-    descricao = serializers.CharField(required=False, allow_blank=True)
-    endereco = serializers.CharField(required=False, allow_blank=True)
-    bairro = serializers.CharField(required=False, allow_blank=True)
-    cidade = serializers.CharField(required=False, allow_blank=True)
-
-    # --- NOVOS CAMPOS CALCULADOS (REPUTAÇÃO) ⭐ ---
-    nota_media = serializers.SerializerMethodField()
-    total_avaliacoes = serializers.SerializerMethodField()
 
     class Meta:
         model = User
         fields = (
             'id', 'username', 'email', 'password', 'password_confirm', 
             'nome_completo', 'telefone', 'tipo_usuario', 'foto', 'capa',
-            'descricao', 'endereco', 'bairro', 'cidade',
-            'nota_media', 'total_avaliacoes' # <--- Adicionados aqui
+            'descricao', 'endereco', 'bairro', 'cidade', 'setup_concluido'
         ) 
-        extra_kwargs = {
-            'username': {
-                'validators': [UniqueValidator(queryset=User.objects.all(), message="Este nome de usuário já está em uso.")]
-            },
-            'telefone': {'validators': []},
-        }
-
-    # Calcula a média das notas
-    def get_nota_media(self, obj):
-        # Import local para evitar erro de ciclo
-        from agendamentos.models import Avaliacao
-        
-        # Filtra avaliações de agendamentos cujos serviços pertencem a este usuário (empreendedor)
-        # O distinct() é importante caso o agendamento tenha 2 serviços do mesmo dono
-        media = Avaliacao.objects.filter(agendamento__servicos__criado_por=obj).distinct().aggregate(Avg('nota'))
-        
-        resultado = media['nota__avg']
-        return round(resultado, 1) if resultado else None
-
-    # Conta quantas avaliações existem
-    def get_total_avaliacoes(self, obj):
-        from agendamentos.models import Avaliacao
-        return Avaliacao.objects.filter(agendamento__servicos__criado_por=obj).distinct().count()
+        extra_kwargs = {'username': {'required': True}}
 
     def validate(self, attrs):
-        if attrs['password'] != attrs['password_confirm']:
+        if attrs.get('password') != attrs.get('password_confirm'):
             raise serializers.ValidationError({"password": "As senhas não correspondem."})
         return attrs
 
     def create(self, validated_data):
-        validated_data.pop('password_confirm')
-        
+        validated_data.pop('password_confirm', None)
         user = User.objects.create_user(
             username=validated_data['username'],
             email=validated_data['email'],
             password=validated_data['password'],
-            nome_completo=validated_data.get('nome_completo', ''),
-            telefone=validated_data.get('telefone', ''),
             tipo_usuario=validated_data.get('tipo_usuario', 'CLIENTE'),
-            foto=validated_data.get('foto'),
-            capa=validated_data.get('capa'),
-            descricao=validated_data.get('descricao', ''),
-            endereco=validated_data.get('endereco', ''),
-            bairro=validated_data.get('bairro', ''),
-            cidade=validated_data.get('cidade', '')
+            setup_concluido=False
         )
         return user
 
-# --- 2. SERIALIZER DE ATUALIZAÇÃO ---
+# --- 2. SERIALIZER DE ATUALIZAÇÃO (PERFIL) ---
 class UserUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = (
-            'id', 'username', 'email', 'nome_completo', 'telefone', 
-            'foto', 'capa', 'tipo_usuario',
-            'descricao', 'endereco', 'bairro', 'cidade'
-        )
-        read_only_fields = ('username', 'email', 'tipo_usuario')
+        fields = [
+            'id', 'username', 'email', 'nome_completo', 'telefone',
+            'foto', 'capa', 'tipo_usuario', 'descricao', 
+            'endereco', 'bairro', 'cidade', 'setup_concluido'
+        ]
+        read_only_fields = ['id', 'username', 'email', 'tipo_usuario']
 
 # --- 3. SERIALIZER DE LOGIN ---
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     def validate(self, attrs):
         data = super().validate(attrs)
-        
         data['id'] = self.user.id
         data['username'] = self.user.username
-        data['nome_completo'] = getattr(self.user, 'nome_completo', '')
         data['tipo_usuario'] = getattr(self.user, 'tipo_usuario', 'CLIENTE')
-        
-        if self.user.foto:
-            data['foto'] = self.user.foto.url
-        else:
-            data['foto'] = None
-            
+        data['setup_concluido'] = getattr(self.user, 'setup_concluido', False)
         return data
+
+# --- 4. SERIALIZERS DE SERVIÇOS E HORÁRIOS ---
+class ServicoSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Servico
+        fields = '__all__'
+        read_only_fields = ['criado_por']
+
+class HorarioConfigSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = HorarioFuncionamento
+        fields = '__all__'
+        read_only_fields = ['usuario']
+
+# --- 5. SERIALIZER DE AGENDAMENTO (COM CÁLCULO FINANCEIRO REAL) ---
+class AgendamentoSerializer(serializers.ModelSerializer):
+    servicos_detalhes = ServicoSerializer(source='servicos', many=True, read_only=True)
+    cliente_nome = serializers.ReadOnlyField(source='cliente.nome_completo')
+    
+    # Este campo 'financeiro' é o que preenche o saldo na sua tabela do frontend
+    financeiro = serializers.SerializerMethodField()
+
+    servicos = serializers.PrimaryKeyRelatedField(
+        many=True, queryset=Servico.objects.all(), write_only=True
+    )
+
+    class Meta:
+        model = Agendamento
+        fields = '__all__'
+        read_only_fields = ['data_hora_fim', 'cliente', 'status', 'criado_em']
+
+    def get_financeiro(self, obj):
+        """Calcula o saldo real buscando os pagamentos no app financeiro."""
+        try:
+            from financeiro.models import Pagamento
+            total_servicos = sum(s.preco for s in obj.servicos.all())
+            total_pago = Pagamento.objects.filter(transacao__agendamento=obj).aggregate(Sum('valor'))['valor__sum'] or 0
+            
+            return {
+                "total_estimado": float(total_servicos),
+                "total_pago": float(total_pago),
+                "restante": float(max(0, total_servicos - total_pago)),
+                "esta_pago": total_pago >= total_servicos
+            }
+        except Exception:
+            return {"total_estimado": 0, "total_pago": 0, "restante": 0, "esta_pago": False}
+
+    def validate(self, attrs):
+        inicio_solicitado = attrs.get('data_hora_inicio')
+        servicos_solicitados = attrs.get('servicos')
+        
+        if not servicos_solicitados:
+            raise serializers.ValidationError("Selecione pelo menos um serviço.")
+            
+        duracao_total = sum([s.duracao_minutos for s in servicos_solicitados])
+        fim_solicitado = inicio_solicitado + datetime.timedelta(minutes=duracao_total)
+        
+        # Validação de conflito de horário
+        conflitos = Agendamento.objects.filter(
+            servicos__criado_por=servicos_solicitados[0].criado_por,
+            status__in=['PENDENTE', 'CONFIRMADO'],
+            data_hora_inicio__lt=fim_solicitado,
+            data_hora_fim__gt=inicio_solicitado
+        )
+        if self.instance:
+            conflitos = conflitos.exclude(pk=self.instance.pk)
+            
+        if conflitos.exists():
+            raise serializers.ValidationError({"data_hora_inicio": "Horário indisponível."})
+            
+        attrs['data_hora_fim_calculado'] = fim_solicitado
+        return attrs
+
+    def create(self, validated_data):
+        fim = validated_data.pop('data_hora_fim_calculado')
+        servicos = validated_data.pop('servicos')
+        agendamento = Agendamento.objects.create(data_hora_fim=fim, **validated_data)
+        agendamento.servicos.set(servicos)
+        
+        # Gera automaticamente a Transação no app Financeiro
+        from financeiro.models import Transacao
+        Transacao.objects.create(agendamento=agendamento)
+        
+        return agendamento
