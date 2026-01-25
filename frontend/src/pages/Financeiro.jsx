@@ -6,7 +6,7 @@ import AnimatedBackground from '../components/AnimatedBackground';
 import { 
   FaArrowLeft, FaCheckCircle, FaHistory, 
   FaMoneyBillWave, FaClock, FaChartPie, FaSearch, 
-  FaEdit, FaTrash, FaTimes
+  FaEdit, FaTrash, FaTimes, FaExclamationCircle
 } from 'react-icons/fa';
 
 export default function Financeiro() {
@@ -15,41 +15,63 @@ export default function Financeiro() {
   const [agendamentos, setAgendamentos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  
+  // Estados para os cards superiores
   const [resumo, setResumo] = useState({ aReceber: 0, recebido: 0, total: 0 });
+  const [receitaMes, setReceitaMes] = useState(0);
 
   const [showModal, setShowModal] = useState(false);
   const [selectedAgenda, setSelectedAgenda] = useState(null);
   const [historicoPagamentos, setHistoricoPagamentos] = useState([]);
   
-  const [pagamentoForm, setPagamentoForm] = useState({ valor: '', forma: 'PIX', observacao: '' });
+  const [pagamentoForm, setPagamentoForm] = useState({ valor: '', forma_pagamento: 'PIX', observacao: '' });
   const [editingId, setEditingId] = useState(null);
 
   useEffect(() => {
     loadData();
+    loadDashboardStats();
   }, []);
+
+  // Busca estatísticas consolidadas (Card 1: Entradas do Mês)
+  async function loadDashboardStats() {
+    try {
+      const response = await api.get('/financeiro/dashboard/');
+      if (response.data) {
+        setReceitaMes(response.data.receita_mes || 0);
+      }
+    } catch (err) {
+      console.error("Erro ao carregar dashboard:", err);
+    }
+  }
 
   async function loadData() {
     try {
       setLoading(true);
       const response = await api.get('/agendamentos/');
       const dadosBrutos = Array.isArray(response.data) ? response.data : [];
+      // Filtramos cancelados, mas mantemos Pendentes para a listagem (sem contar no saldo)
       const dadosValidos = dadosBrutos.filter(ag => ag.status !== 'CANCELADO');
       setAgendamentos(dadosValidos);
       calcularResumo(dadosValidos);
     } catch (err) {
-      console.error(err);
+      console.error("Erro ao carregar dados:", err);
     } finally {
       setLoading(false);
     }
   }
 
+  // REGRA: Só conta "A Receber" se o agendamento estiver CONFIRMADO
   function calcularResumo(dados) {
       let aReceber = 0;
       let recebido = 0;
       dados.forEach(ag => {
-          const fin = ag.financeiro || { pago: 0, restante: 0 };
+          const fin = ag.financeiro || { pago: 0, restante: 0, total: 0 };
           recebido += parseFloat(fin.pago || 0);
-          aReceber += parseFloat(fin.restante || 0);
+          
+          // LOGICA: Só entra no saldo de "A Receber" se o empreendedor já confirmou o agendamento
+          if (ag.status === 'CONFIRMADO') {
+              aReceber += parseFloat(fin.restante || 0);
+          }
       });
       setResumo({ aReceber, recebido, total: aReceber + recebido });
   }
@@ -65,15 +87,13 @@ export default function Financeiro() {
     try {
         const response = await api.get('/pagamentos/');
         const dados = Array.isArray(response.data) ? response.data : [];
-        const filtrados = dados
-            .filter(p => p.agendamento === agendamentoId)
-            // Ordena usando qualquer campo de data que existir
-            .sort((a, b) => {
-                const dataA = new Date(a.data || a.data_pagamento || a.created_at || a.criado_em);
-                const dataB = new Date(b.data || b.data_pagamento || b.created_at || b.criado_em);
-                return dataB - dataA;
-            });
-        setHistoricoPagamentos(filtrados);
+        const filtrados = dados.filter(p => 
+            p.agendamento === agendamentoId || p.agendamento_id === agendamentoId
+        );
+        
+        setHistoricoPagamentos(filtrados.sort((a, b) => 
+            new Date(b.data_pagamento || b.created_at) - new Date(a.data_pagamento || a.created_at)
+        ));
     } catch (error) {
         setHistoricoPagamentos([]);
     }
@@ -88,13 +108,10 @@ export default function Financeiro() {
       if (!isoString) return '--/--';
       try {
           const date = new Date(isoString);
-          if (isNaN(date.getTime())) return 'Data Inválida';
           return date.toLocaleString('pt-BR', {
               day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'
           }).replace(',', ' às');
-      } catch (e) {
-          return '--/--';
-      }
+      } catch (e) { return '--/--'; }
   };
 
   const handleOpenPay = async (agenda) => {
@@ -102,7 +119,7 @@ export default function Financeiro() {
     setSelectedAgenda(agenda);
     setEditingId(null);
     const restante = agenda.financeiro?.restante || 0;
-    setPagamentoForm({ valor: restante, forma: 'PIX', observacao: '' });
+    setPagamentoForm({ valor: restante, forma_pagamento: 'PIX', observacao: '' });
     await loadHistorico(agenda.id);
     setShowModal(true);
   };
@@ -111,7 +128,7 @@ export default function Financeiro() {
       setEditingId(pagamento.id);
       setPagamentoForm({
           valor: pagamento.valor,
-          forma: pagamento.forma,
+          forma_pagamento: pagamento.forma_pagamento,
           observacao: pagamento.observacao || ''
       });
   };
@@ -119,7 +136,7 @@ export default function Financeiro() {
   const handleCancelEdit = () => {
       setEditingId(null);
       const restante = selectedAgenda?.financeiro?.restante || 0;
-      setPagamentoForm({ valor: restante, forma: 'PIX', observacao: '' });
+      setPagamentoForm({ valor: restante, forma_pagamento: 'PIX', observacao: '' });
   };
 
   const handleDeleteClick = async (id) => {
@@ -127,7 +144,8 @@ export default function Financeiro() {
       try {
           await api.delete(`/pagamentos/${id}/`);
           await loadHistorico(selectedAgenda.id);
-          loadData(); 
+          await loadData();
+          await loadDashboardStats();
           alert("Pagamento removido.");
       } catch (error) {
           alert("Erro ao excluir.");
@@ -138,31 +156,43 @@ export default function Financeiro() {
     e.preventDefault();
     if(!selectedAgenda) return;
 
+    const valorNumerico = parseFloat(pagamentoForm.valor);
+    if (isNaN(valorNumerico)) {
+        alert("Por favor, insira um valor válido.");
+        return;
+    }
+
     try {
         const payload = {
-            agendamento: selectedAgenda.id, // Envia o ID mesmo na edição por segurança
-            valor: pagamentoForm.valor,
-            forma: pagamentoForm.forma,
+            agendamento: selectedAgenda.id,
+            valor: valorNumerico,
+            forma_pagamento: pagamentoForm.forma_pagamento,
             observacao: pagamentoForm.observacao
         };
 
         if (editingId) {
             await api.patch(`/pagamentos/${editingId}/`, payload);
-            alert("Pagamento atualizado!");
-            setEditingId(null);
         } else {
             await api.post('/pagamentos/', payload);
-            alert("Pagamento registrado!");
         }
         
         await loadHistorico(selectedAgenda.id);
-        loadData(); 
+        await loadData(); 
+        await loadDashboardStats();
         
-        if (!editingId) {
-            setPagamentoForm(prev => ({ ...prev, valor: '', observacao: '' }));
-        }
+        setEditingId(null);
+        setPagamentoForm({ valor: '', forma_pagamento: 'PIX', observacao: '' });
+        setShowModal(false);
+        alert("Pagamento processado com sucesso!");
+
     } catch (error) {
-        alert("Erro ao salvar registro.");
+        console.error("Erro ao salvar:", error);
+        if (error.response?.data && typeof error.response.data === 'object') {
+            const msg = Object.entries(error.response.data).map(([k, v]) => `${k}: ${v}`).join('\n');
+            alert("Erro de validação:\n" + msg);
+        } else {
+            alert("Erro interno no servidor.");
+        }
     }
   }
 
@@ -177,17 +207,13 @@ export default function Financeiro() {
     );
   }
 
-  
   return (
     <>
         <AnimatedBackground />
-
-
         <div className="financeiro-wrapper">
         <style>{`
             @import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&display=swap');
             @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-
             .financeiro-wrapper { min-height: 100vh; background: transparent; font-family: 'Inter', sans-serif; padding: 40px 20px; overflow-x: hidden; }
             .container-limit { max-width: 1150px; margin: 0 auto; }
             .finance-header { background: white; border-radius: 20px; padding: 20px 30px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 10px 30px rgba(0,43,85,0.05); margin-bottom: 30px; gap: 20px; flex-wrap: wrap; }
@@ -241,11 +267,10 @@ export default function Financeiro() {
             .btn-action-mini { border: none; background: #F1F3F5; width: 28px; height: 28px; border-radius: 6px; display: flex; align-items: center; justify-content: center; color: #525F7F; transition: 0.2s; }
             .btn-action-mini:hover { background: #002B55; color: white; }
             .btn-action-mini.delete:hover { background: #D32F2F; color: white; }
-
+            .badge-warning-soft { background: #FFF8E1; color: #F9A825; font-size: 0.7rem; padding: 4px 8px; border-radius: 5px; font-weight: 700; }
         `}</style>
 
         <div className="container-limit">
-            
             <div className="finance-header">
                 <div className="header-left">
                     <button className="btn-back-circle" onClick={() => navigate('/admin-dashboard')} title="Voltar">
@@ -266,15 +291,15 @@ export default function Financeiro() {
             <div className="stats-row">
                 <div className="stat-card green-theme">
                     <div className="icon-circle"><FaCheckCircle /></div>
-                    <div className="stat-info"><span>Total Recebido</span><h3>{money(resumo.recebido)}</h3></div>
+                    <div className="stat-info"><span>Entradas do Mês</span><h3>{money(receitaMes)}</h3></div>
                 </div>
                 <div className="stat-card yellow-theme">
-                    <div className="icon-circle"><FaClock /></div>
-                    <div className="stat-info"><span>A Receber</span><h3>{money(resumo.aReceber)}</h3></div>
+                    <div className="icon-circle"><FaMoneyBillWave /></div>
+                    <div className="stat-info"><span>Total Recebido</span><h3>{money(resumo.recebido)}</h3></div>
                 </div>
                 <div className="stat-card blue-theme">
                     <div className="icon-circle"><FaChartPie /></div>
-                    <div className="stat-info"><span>Total Previsto</span><h3>{money(resumo.total)}</h3></div>
+                    <div className="stat-info"><span>A Receber (Confirmados)</span><h3>{money(resumo.aReceber)}</h3></div>
                 </div>
             </div>
 
@@ -284,7 +309,7 @@ export default function Financeiro() {
                         <tr>
                             <th>Cliente / Data</th>
                             <th>Serviço</th>
-                            <th>Status</th>
+                            <th>Status Pagamento</th>
                             <th>Saldo</th>
                             <th className="text-end">Ação</th>
                         </tr>
@@ -313,7 +338,12 @@ export default function Financeiro() {
                                             </div>
                                         </div>
                                     </td>
-                                    <td><span className="service-pill">{ag.servicos_detalhes?.[0]?.nome || 'Serviço'}</span></td>
+                                    <td>
+                                      <div className="d-flex flex-column gap-1">
+                                        <span className="service-pill">{ag.servicos_detalhes?.[0]?.nome || 'Serviço'}</span>
+                                        {ag.status === 'PENDENTE' && <span className="badge-warning-soft"><FaExclamationCircle /> Aguardando Confirmação</span>}
+                                      </div>
+                                    </td>
                                     <td>
                                         <div className={stClass}><span className="status-dot"></span> {stLabel}</div>
                                     </td>
@@ -322,7 +352,7 @@ export default function Financeiro() {
                                             <span style={{color:'#2DCE89'}}>{money(fin.pago)}</span>
                                             <span style={{color:'#888'}}>{money(fin.total)}</span>
                                         </div>
-                                        <ProgressBar now={percent} variant={percent >= 100 ? "success" : "warning"} style={{height:'5px', borderRadius:'10px'}} />
+                                        <ProgressBar now={percent} variant={fin.status_pagamento === 'QUITADO' ? "success" : "warning"} style={{height:'5px', borderRadius:'10px'}} />
                                     </td>
                                     <td className="text-end">
                                         <div className="action-group" style={{display:'flex', gap:'10px', justifyContent:'flex-end'}}>
@@ -377,11 +407,14 @@ export default function Financeiro() {
                                     </Col>
                                     <Col md={6}>
                                         <Form.Label className="small fw-bold text-muted">Forma</Form.Label>
-                                        <Form.Select value={pagamentoForm.forma} onChange={e=>setPagamentoForm({...pagamentoForm, forma:e.target.value})}>
+                                        <Form.Select 
+                                            value={pagamentoForm.forma_pagamento} 
+                                            onChange={e=>setPagamentoForm({...pagamentoForm, forma_pagamento:e.target.value})}
+                                        >
                                             <option value="PIX">Pix</option>
                                             <option value="DINHEIRO">Dinheiro</option>
                                             <option value="CARTAO_CREDITO">Crédito</option>
-                                            <option value="CARTAO_DEBITO">Débito</option>
+                                            <option value="CARTAO_DEBITO">Debito</option>
                                         </Form.Select>
                                     </Col>
                                 </Row>
@@ -417,13 +450,12 @@ export default function Financeiro() {
                                     <div key={h.id} className="history-item" style={{opacity: editingId === h.id ? 0.5 : 1}}>
                                         <div className="history-meta">
                                             <div className="history-method">
-                                                {h.forma} 
+                                                {h.forma_pagamento} 
                                                 {h.observacao && <span className="text-muted fw-normal ms-2" style={{fontSize:'0.8em'}}>- {h.observacao}</span>}
                                             </div>
                                             <div className="history-date">
                                                 <FaClock size={10} /> 
-                                                {/* CORREÇÃO AQUI: Tenta vários campos de data possíveis */}
-                                                {formatDateTime(h.data_pagamento || h.data || h.created_at || h.criado_em)}
+                                                {h.data_formatada || formatDateTime(h.data_pagamento || h.created_at)}
                                             </div>
                                         </div>
                                         
@@ -448,6 +480,5 @@ export default function Financeiro() {
         </div>
         </div>
      </>
-
   );
 }

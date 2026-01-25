@@ -1,24 +1,13 @@
 from rest_framework import serializers
-from .models import Agendamento, HorarioFuncionamento, Avaliacao, Despesa, Pagamento, Anotacao
+from .models import Agendamento, HorarioFuncionamento, Avaliacao, Anotacao
 from servicos.models import Servico
+from financeiro.models import Transacao, Pagamento
+from django.db.models import Sum
 from datetime import timedelta
 from django.utils import timezone
 
-# --- SERIALIZER DE DESPESAS 💸 ---
-class DespesaSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Despesa
-        fields = ['id', 'descricao', 'valor', 'data', 'categoria']
+# --- SERIALIZERS DE APOIO ---
 
-# --- SERIALIZER DE PAGAMENTOS 💰 ---
-class PagamentoSerializer(serializers.ModelSerializer):
-    data_formatada = serializers.DateTimeField(source='data', format="%d/%m/%Y %H:%M", read_only=True)
-    
-    class Meta:
-        model = Pagamento
-        fields = ['id', 'valor', 'forma', 'data', 'data_formatada', 'observacao', 'agendamento']
-
-# --- SERIALIZERS DE AVALIAÇÃO ---
 class AvaliacaoSerializer(serializers.ModelSerializer):
     class Meta:
         model = Avaliacao
@@ -42,16 +31,15 @@ class AvaliacaoPublicaSerializer(serializers.ModelSerializer):
         except:
             return "Cliente"
 
-# --- SERIALIZER DE AGENDAMENTO (PRINCIPAL) ---
+# --- SERIALIZER DE AGENDAMENTO (PRINCIPAL ATUALIZADO) ---
+
 class AgendamentoSerializer(serializers.ModelSerializer):
     servicos = serializers.PrimaryKeyRelatedField(
         queryset=Servico.objects.all(), 
         many=True
     )
-    
     avaliacao = AvaliacaoSerializer(read_only=True)
 
-    # A CLASSE META É OBRIGATÓRIA
     class Meta:
         model = Agendamento
         fields = '__all__'
@@ -63,137 +51,89 @@ class AgendamentoSerializer(serializers.ModelSerializer):
     def to_representation(self, instance):
         representation = super().to_representation(instance)
         
-        # --- 1. LÓGICA FINANCEIRA (NOVA) ---
+        # --- LÓGICA FINANCEIRA SINCRONIZADA ---
+        transacao = Transacao.objects.filter(agendamento=instance).first()
+        
         total_servico = sum([s.preco for s in instance.servicos.all()])
-        total_pago = sum([p.valor for p in instance.pagamentos.all()])
-        restante = total_servico - total_pago
-
-        if restante <= 0 and total_servico > 0:
-            status_pagamento = 'QUITADO'
-        elif total_pago > 0:
-            status_pagamento = 'PARCIAL'
+        total_pago = 0
+        data_ultima_confirmacao = None
+        
+        if transacao:
+            # 1. Soma real dos pagamentos confirmados no app Financeiro
+            total_pago = transacao.pagamentos.aggregate(Sum('valor'))['valor__sum'] or 0
+            
+            # 2. Captura a data/hora do último pagamento realizado
+            ultimo_pagamento = transacao.pagamentos.order_by('-data_pagamento').first()
+            if ultimo_pagamento:
+                data_ultima_confirmacao = ultimo_pagamento.data_pagamento
+        
+        # --- NOVA REGRA DE NEGÓCIO ---
+        # O valor "restante" só existe se o agendamento for CONFIRMADO.
+        # Se for PENDENTE, o sistema não assume que esse dinheiro "virá" ainda.
+        if instance.status == 'CONFIRMADO':
+            restante = round(total_servico - total_pago, 2)
         else:
-            status_pagamento = 'PENDENTE'
+            # Se ainda for apenas um pedido, o restante "previsto" é 0
+            # Mas mantemos o total_pago caso o cliente tenha enviado um sinal/antecipação
+            restante = 0
 
+        # 3. Definição do Status de Pagamento
+        status_pagamento = 'PENDENTE'
+        if total_servico > 0:
+            if instance.status == 'CONFIRMADO' and restante <= 0:
+                status_pagamento = 'QUITADO'
+            elif total_pago > 0:
+                status_pagamento = 'PARCIAL'
+
+        # Objeto financeiro injetado na resposta para o React
         representation['financeiro'] = {
-            'total': total_servico,
-            'pago': total_pago,
-            'restante': restante,
-            'status_pagamento': status_pagamento
+            'total': float(total_servico),
+            'pago': float(total_pago),
+            'restante': float(max(0, restante)),
+            'status_pagamento': status_pagamento,
+            'data_confirmacao': data_ultima_confirmacao.isoformat() if data_ultima_confirmacao else None
         }
         
-        # --- 2. DETALHES VISUAIS ---
-        servicos_data = []
-        nome_loja_principal = "Loja Parceira"
-        
-        for s in instance.servicos.all():
-            dono = s.criado_por
-            nome_dono = "Desconhecido"
-            if dono:
-                nome_dono = dono.nome_completo or dono.username
-                if nome_loja_principal == "Loja Parceira":
-                    nome_loja_principal = nome_dono
-
-            servicos_data.append({
+        # Detalhes dos serviços e do profissional
+        representation['servicos_detalhes'] = [
+            {
                 "id": s.id, 
                 "nome": s.nome, 
-                "preco": s.preco,
-                "criado_por_nome": nome_dono 
-            })
+                "preco": float(s.preco),
+                "criado_por_nome": s.criado_por.nome_completo if s.criado_por else "Profissional"
+            } for s in instance.servicos.all()
+        ]
 
-        representation['servicos_detalhes'] = servicos_data
-        representation['nome_loja'] = nome_loja_principal
-
-        # Detalhes do Cliente
         try:
             representation['cliente_nome'] = instance.cliente.nome_completo or instance.cliente.username
             representation['cliente_telefone'] = instance.cliente.telefone or ""
         except:
             representation['cliente_nome'] = "Desconhecido"
-            representation['cliente_telefone'] = ""
             
         return representation
 
     def validate(self, attrs):
-        if self.instance:
-            inicio = attrs.get('data_hora_inicio', self.instance.data_hora_inicio)
-            servicos_selecionados = attrs.get('servicos', self.instance.servicos.all())
+        inicio = attrs.get('data_hora_inicio', getattr(self.instance, 'data_hora_inicio', None))
+        servicos = attrs.get('servicos', None)
+        
+        if servicos is None and self.instance:
+            servicos_lista = self.instance.servicos.all()
         else:
-            inicio = attrs.get('data_hora_inicio')
-            servicos_selecionados = attrs.get('servicos')
+            servicos_lista = servicos or []
 
-        if not inicio: return attrs 
-
-        # Validação de Passado
-        if inicio < timezone.now():
-             raise serializers.ValidationError({"data_hora_inicio": "Não é possível agendar para o passado."})
-
-        if not servicos_selecionados:
-             raise serializers.ValidationError({"servicos": "Selecione serviços."})
-
-        duracao_total = sum([getattr(s, 'duracao_minutos', 30) for s in servicos_selecionados])
-        fim = inicio + timedelta(minutes=duracao_total)
-
-        # Validação de Horário
-        primeiro_servico = servicos_selecionados[0] if isinstance(servicos_selecionados, list) else servicos_selecionados.first()
-
-        if primeiro_servico and primeiro_servico.criado_por:
-            dono_servico = primeiro_servico.criado_por 
-            dia_semana = inicio.weekday()
+        if inicio and servicos_lista:
+            duracao = sum([getattr(s, 'duracao_minutos', 30) for s in servicos_lista])
+            attrs['data_hora_fim'] = inicio + timedelta(minutes=duracao)
             
-            try:
-                regra = HorarioFuncionamento.objects.get(dia_semana=dia_semana, usuario=dono_servico)
-                
-                if not regra.ativo:
-                    raise serializers.ValidationError({"data_hora_inicio": f"Fechado na {regra.get_dia_semana_display()}."})
-
-                hora_inicio = inicio.time()
-                hora_fim = fim.time()
-
-                if (hora_inicio < regra.horario_inicio or hora_fim > regra.horario_fim):
-                    raise serializers.ValidationError({"data_hora_inicio": "Fora do horário de expediente."})
-                
-                if regra.almoco_inicio and regra.almoco_fim:
-                    caiu_no_almoco = (hora_inicio >= regra.almoco_inicio and hora_inicio < regra.almoco_fim) or \
-                                     (hora_fim > regra.almoco_inicio and hora_fim <= regra.almoco_fim)
-                    if caiu_no_almoco:
-                        raise serializers.ValidationError({"data_hora_inicio": "Horário de intervalo/almoço."})
-
-            except HorarioFuncionamento.DoesNotExist:
-                raise serializers.ValidationError({
-                    "data_hora_inicio": "O estabelecimento não configurou os horários para este dia."
-                })
-            
-        # Validação de Conflitos
-        conflitos = Agendamento.objects.filter(
-            data_hora_inicio__lt=fim,
-            data_hora_fim__gt=inicio,
-            status__in=['PENDENTE', 'CONFIRMADO'],
-            servicos__criado_por=dono_servico
-        )
-
-        if self.instance:
-            conflitos = conflitos.exclude(id=self.instance.id)
-
-        if conflitos.exists():
-             raise serializers.ValidationError({"data_hora_inicio": "Este horário já está ocupado."})
-
-        attrs['data_hora_fim'] = fim
         return attrs
 
-# --- SERIALIZER DE HORÁRIOS ---
+# --- OUTROS SERIALIZERS ---
+
 class HorarioSerializer(serializers.ModelSerializer):
     class Meta:
         model = HorarioFuncionamento
-        fields = ['id', 'dia_semana', 'horario_inicio', 'horario_fim', 'almoco_inicio', 'almoco_fim', 'ativo']
+        fields = ['id', 'dia_semana', 'horario_inicio', 'horario_fim', 'ativo']
         read_only_fields = ('usuario',)
-
-    def validate(self, attrs):
-        user = self.context['request'].user
-        dia = attrs.get('dia_semana')
-        if not self.instance and HorarioFuncionamento.objects.filter(usuario=user, dia_semana=dia).exists():
-            raise serializers.ValidationError({"dia_semana": "Dia já configurado."})
-        return attrs
 
 class AnotacaoSerializer(serializers.ModelSerializer):
     class Meta:

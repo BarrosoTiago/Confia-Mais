@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Container, Row, Col, Card, Button, Modal, Spinner, Badge } from 'react-bootstrap';
+import { Container, Row, Col, Card, Button, Modal, Spinner, Badge, Form, InputGroup } from 'react-bootstrap';
 import api from '../services/api';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { 
   FaArrowLeft, FaMapMarkerAlt, FaStar, FaClock, FaCheckCircle, 
-  FaChevronLeft, FaChevronRight, FaStore, FaCalendarDay, FaSun, FaMoon 
+  FaChevronLeft, FaChevronRight, FaStore, FaCalendarDay, FaSearch 
 } from 'react-icons/fa';
 
 export default function ClienteDashboard() {
@@ -15,19 +15,20 @@ export default function ClienteDashboard() {
   const [loja, setLoja] = useState(lojaRecebida || null);
   const [servicos, setServicos] = useState([]);
   const [loading, setLoading] = useState(true);
+  
+  // ESTADO DA BUSCA INTERNA
+  const [busca, setBusca] = useState(''); 
 
-  // Modal
+  // Modal e Agendamento
   const [showModal, setShowModal] = useState(false);
   const [servicoSelecionado, setServicoSelecionado] = useState(null);
   const [dataSelecionada, setDataSelecionada] = useState(new Date());
   const [mesAtual, setMesAtual] = useState(new Date());
   const [horaSelecionada, setHoraSelecionada] = useState('');
   const [agendando, setAgendando] = useState(false);
-
-  // Lista de Horários
   const [horariosDisponiveis, setHorariosDisponiveis] = useState([]);
 
-
+  // 1. Proteção contra F5
   useEffect(() => {
     if (!lojaRecebida || !lojaRecebida.id) {
       navigate('/vitrine'); 
@@ -36,12 +37,18 @@ export default function ClienteDashboard() {
     loadServicos();
   }, [lojaRecebida]);
 
-    async function carregarHorariosDinâmicos() {
+  // Carrega horários
+  useEffect(() => {
+      if (showModal && servicoSelecionado) {
+          carregarHorariosDinâmicos();
+      }
+  }, [dataSelecionada, servicoSelecionado, showModal]);
 
-        console.log("Buscando horários para:", servicoSelecionado?.id, "na data:", dataSelecionada);
-        if (!servicoSelecionado || !dataSelecionada) return;
+  async function carregarHorariosDinâmicos() {
+    setHorariosDisponiveis([]); 
+    if (!servicoSelecionado || !dataSelecionada) return;
 
-        try {
+    try {
         const ano = dataSelecionada.getFullYear();
         const mes = String(dataSelecionada.getMonth() + 1).padStart(2, '0');
         const dia = String(dataSelecionada.getDate()).padStart(2, '0');
@@ -49,22 +56,15 @@ export default function ClienteDashboard() {
 
         const response = await api.get('/horarios/disponiveis/', {
             params: {
-            servico_id: servicoSelecionado.id,
-            data: dataFormatada
+                servico_id: servicoSelecionado.id,
+                data: dataFormatada
             }
         });
         setHorariosDisponiveis(response.data);
-        } catch (error) {
+    } catch (error) {
         console.error("Erro ao carregar horários:", error);
-        setHorariosDisponiveis([]);
-        }
     }
-
-    // Monitora quando o usuário muda o dia ou o serviço no Modal
-    useEffect(() => {
-        if (showModal) carregarHorariosDinâmicos();
-    }, [dataSelecionada, servicoSelecionado, showModal]);
-
+  }
 
   async function loadServicos() {
     try {
@@ -79,11 +79,17 @@ export default function ClienteDashboard() {
       
       setServicos(filtrados);
     } catch (error) {
+      console.error("Erro ao carregar serviços", error);
       setServicos([]); 
     } finally {
       setLoading(false);
     }
   }
+
+  // LÓGICA DE FILTRAGEM NA TELA (Busca)
+  const servicosVisiveis = servicos.filter(s => 
+    s.nome.toLowerCase().includes(busca.toLowerCase())
+  );
 
   // --- LÓGICA DE CALENDÁRIO ---
   const getDiasNoMes = (date) => new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
@@ -96,6 +102,12 @@ export default function ClienteDashboard() {
              d1.getFullYear() === d2.getFullYear();
   };
 
+  const isDateInPast = (date) => {
+      const hoje = new Date();
+      hoje.setHours(0,0,0,0);
+      return date < hoje;
+  };
+
   const handleOpenModal = (servico) => {
       setServicoSelecionado(servico);
       setDataSelecionada(new Date()); 
@@ -103,9 +115,10 @@ export default function ClienteDashboard() {
       setShowModal(true);
   };
 
-const handleConfirmarAgendamento = async () => {
+  const handleConfirmarAgendamento = async () => {
       if(!horaSelecionada) return;
       setAgendando(true);
+      
       const ano = dataSelecionada.getFullYear();
       const mes = String(dataSelecionada.getMonth() + 1).padStart(2, '0');
       const dia = String(dataSelecionada.getDate()).padStart(2, '0');
@@ -121,30 +134,21 @@ const handleConfirmarAgendamento = async () => {
           setShowModal(false);
           navigate('/meus-agendamentos');
       } catch (error) {
-          // --- LÓGICA PARA EXIBIR ERRO DETALHADO ---
           let mensagemErro = "Erro ao agendar. Tente novamente.";
-
           if (error.response && error.response.data) {
               const data = error.response.data;
-
-              // Se o backend enviou um erro de 'detail' (padrão SimpleJWT/DRF)
               if (data.detail) {
                   mensagemErro = data.detail;
-              } 
-              // Se o backend enviou erros de validação de campos específicos
-              else if (typeof data === 'object') {
+              } else if (typeof data === 'object') {
                   const mensagens = Object.values(data).flat();
                   mensagemErro = mensagens.join('\n');
               }
           }
-
           alert(`❌ Falha no Agendamento:\n${mensagemErro}`);
       } finally {
           setAgendando(false);
       }
   };
-
-  
 
   const diasVazios = Array.from({ length: getDiaSemanaInicio(mesAtual) }, (_, i) => i);
   const diasDoMes = Array.from({ length: getDiasNoMes(mesAtual) }, (_, i) => i + 1);
@@ -160,7 +164,6 @@ const handleConfirmarAgendamento = async () => {
         .client-dashboard-wrapper { min-height: 100vh; background-color: #A8DADC; font-family: 'Inter', sans-serif; padding-bottom: 50px; }
         .container-limit { max-width: 1000px; margin: 0 auto; }
         
-        /* HERO LOJA */
         .shop-hero { background: white; border-radius: 0 0 30px 30px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,43,85,0.1); margin-bottom: 30px; position: relative; }
         .shop-cover { height: 180px; background: linear-gradient(135deg, #002B55 0%, #00509E 100%); position: relative; }
         .btn-back-float { position: absolute; top: 20px; left: 20px; background: rgba(255,255,255,0.2); backdrop-filter: blur(5px); border: none; color: white; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; transition: 0.2s; cursor: pointer; z-index: 10; }
@@ -171,7 +174,15 @@ const handleConfirmarAgendamento = async () => {
         .shop-meta { display: flex; justify-content: center; gap: 15px; color: #666; font-size: 0.9rem; margin-bottom: 15px; }
         .badge-rating { background: #FFF8E1; color: #F9A825; border: 1px solid #FFE082; padding: 5px 10px; border-radius: 20px; font-weight: 700; display: flex; align-items: center; gap: 5px; }
         
-        /* SERVIÇOS */
+        /* BUSCA INTERNA */
+        .internal-search {
+            background: white; border-radius: 30px; padding: 10px 20px; 
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 30px;
+            display: flex; align-items: center; gap: 10px;
+        }
+        .internal-search input { border: none; width: 100%; outline: none; font-size: 0.95rem; color: #333; }
+        .internal-search svg { color: #BBB; }
+
         .section-title { font-family: 'Libre Baskerville'; color: #002B55; font-size: 1.4rem; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
         .service-card { background: white; border-radius: 16px; padding: 20px; margin-bottom: 15px; box-shadow: 0 4px 10px rgba(0,43,85,0.03); border: 1px solid transparent; display: flex; justify-content: space-between; align-items: center; transition: 0.2s; }
         .service-card:hover { transform: translateY(-3px); box-shadow: 0 8px 20px rgba(0,43,85,0.08); border-color: #A8DADC; }
@@ -181,48 +192,25 @@ const handleConfirmarAgendamento = async () => {
         .btn-book { background: #002B55; color: white; border: none; padding: 10px 25px; border-radius: 30px; font-weight: 600; transition: 0.2s; box-shadow: 0 4px 10px rgba(0,43,85,0.2); }
         .btn-book:hover { background: #004080; transform: scale(1.05); }
         
-        /* MODAL E CALENDÁRIO OTIMIZADO */
         .modal-clean-header { background: #002B55; color: white; border: none; padding: 20px 30px; border-radius: 0; }
         .modal-clean-header .btn-close { filter: invert(1); opacity: 1; }
-        
-        /* Removida a borda do wrapper para evitar 'caixa dentro de caixa' */
         .calendar-wrapper { padding: 10px; height: 100%; }
-        
         .cal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; font-weight: 700; color: #002B55; }
         .cal-nav { cursor: pointer; padding: 5px; color: #002B55; font-size: 1.1rem; }
         
-        .calendar-grid { 
-            display: grid; 
-            grid-template-columns: repeat(7, 1fr); 
-            gap: 8px; 
-            text-align: center;
-        }
+        .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; text-align: center; }
+        .week-day { font-size: 0.8rem; font-weight: 700; color: #888; margin-bottom: 10px; text-transform: uppercase; }
         
-        .week-day { 
-            font-size: 0.8rem; font-weight: 700; color: #888; 
-            margin-bottom: 10px; text-transform: uppercase;
-        }
-        
-        .day-cell { 
-            height: 42px; display: flex; align-items: center; justify-content: center; 
-            border-radius: 12px; font-size: 1rem; cursor: pointer; 
-            transition: 0.2s; position: relative; font-weight: 600;
-        }
-        .day-cell:hover { background: #E3F2FD; }
+        .day-cell { height: 42px; display: flex; align-items: center; justify-content: center; border-radius: 12px; font-size: 1rem; cursor: pointer; transition: 0.2s; position: relative; font-weight: 600; }
+        .day-cell:hover:not(.disabled-day) { background: #E3F2FD; }
         .day-cell.today { color: #002B55; font-weight: 900; border: 2px solid #002B55; background: transparent; }
         .day-cell.selected { background: #002B55 !important; color: white !important; box-shadow: 0 4px 10px rgba(0,43,85,0.3); border: none; }
+        .day-cell.disabled-day { color: #ccc; cursor: not-allowed; pointer-events: none; background: #f9f9f9; }
 
-        /* HORÁRIOS */
         .time-section { margin-top: 10px; }
         .period-label { font-size: 0.8rem; font-weight: 800; color: #8898AA; margin: 15px 0 10px 0; display: flex; align-items: center; gap: 6px; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #F1F3F5; padding-bottom: 5px; }
-        
         .chips-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
-        
-        .time-chip {
-            background: #fff; border: 1px solid #E9ECEF; padding: 10px 5px; border-radius: 12px;
-            font-size: 0.9rem; font-weight: 600; color: #495057; cursor: pointer; transition: 0.2s; text-align: center;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.02);
-        }
+        .time-chip { background: #fff; border: 1px solid #E9ECEF; padding: 10px 5px; border-radius: 12px; font-size: 0.9rem; font-weight: 600; color: #495057; cursor: pointer; transition: 0.2s; text-align: center; box-shadow: 0 2px 5px rgba(0,0,0,0.02); }
         .time-chip:hover { border-color: #002B55; color: #002B55; background: #E3F2FD; }
         .time-chip.selected { background: #002B55; color: white; border-color: #002B55; box-shadow: 0 4px 12px rgba(0,43,85,0.2); transform: scale(1.05); z-index: 2; }
 
@@ -256,16 +244,39 @@ const handleConfirmarAgendamento = async () => {
       </div>
 
       <div className="container-limit px-3">
-          <div className="section-title">
-              <FaCheckCircle className="text-success" /> Serviços Disponíveis
+          
+          <div className="d-flex justify-content-between align-items-center mb-3">
+            <div className="section-title m-0">
+                <FaCheckCircle className="text-success" /> Serviços Disponíveis
+            </div>
           </div>
 
-          {servicos.length === 0 ? (
+          {/* NOVA BARRA DE PESQUISA */}
+          <div className="internal-search">
+             <FaSearch />
+             <input 
+                type="text" 
+                placeholder="Buscar serviço (ex: Corte, Barba...)" 
+                value={busca}
+                onChange={(e) => setBusca(e.target.value)}
+             />
+          </div>
+
+          {servicosVisiveis.length === 0 ? (
               <div className="text-center py-5 text-muted bg-white rounded-3 shadow-sm">
-                  <FaStore size={30} className="mb-3 opacity-50"/>
-                  <p>Nenhum serviço disponível nesta loja no momento.</p>
+                  {busca ? (
+                      <>
+                        <FaSearch size={30} className="mb-3 opacity-50"/>
+                        <p>Nenhum serviço encontrado para "{busca}".</p>
+                      </>
+                  ) : (
+                      <>
+                        <FaStore size={30} className="mb-3 opacity-50"/>
+                        <p>Nenhum serviço disponível nesta loja no momento.</p>
+                      </>
+                  )}
               </div>
-          ) : servicos.map(servico => (
+          ) : servicosVisiveis.map(servico => (
               <div key={servico.id} className="service-card">
                   <div className="svc-info">
                       <h5>{servico.nome}</h5>
@@ -280,7 +291,7 @@ const handleConfirmarAgendamento = async () => {
               </div>
           ))}
 
-          {/* 3. MODAL DE AGENDAMENTO (XL) */}
+          {/* MODAL DE AGENDAMENTO (MANTIDO IGUAL) */}
           <Modal show={showModal} onHide={() => setShowModal(false)} centered size="xl">
               <Modal.Header closeButton className="modal-clean-header">
                   <Modal.Title style={{fontFamily: 'Libre Baskerville'}}>
@@ -289,7 +300,7 @@ const handleConfirmarAgendamento = async () => {
               </Modal.Header>
               
               <Modal.Body className="p-0">
-                  <Row className="g-0" style={{minHeight: '400px'}}> {/* Altura mínima para não colapsar */}
+                  <Row className="g-0" style={{minHeight: '400px'}}> 
                       
                       {/* ESQUERDA: CALENDÁRIO */}
                       <Col md={12} lg={6} className="p-4 border-end col-left d-flex flex-column justify-content-center">
@@ -314,15 +325,23 @@ const handleConfirmarAgendamento = async () => {
                                   <div className="week-day">S</div>
 
                                   {diasVazios.map(v => <div key={`empty-${v}`}></div>)}
+                                  
                                   {diasDoMes.map(dia => {
                                       const dateClone = new Date(mesAtual); dateClone.setDate(dia);
                                       const isSelected = isSameDay(dateClone, dataSelecionada);
                                       const isToday = isSameDay(dateClone, new Date());
+                                      const isPast = isDateInPast(dateClone);
+
                                       return ( 
                                           <div 
                                               key={dia} 
-                                              className={`day-cell ${isSelected ? 'selected' : ''} ${isToday ? 'today' : ''}`}
-                                              onClick={() => { setDataSelecionada(dateClone); setHoraSelecionada(''); }}
+                                              className={`day-cell ${isSelected ? 'selected' : ''} ${isToday ? 'today' : ''} ${isPast ? 'disabled-day' : ''}`}
+                                              onClick={() => { 
+                                                  if(!isPast) {
+                                                      setDataSelecionada(dateClone); 
+                                                      setHoraSelecionada(''); 
+                                                  }
+                                              }}
                                           >
                                               {dia}
                                           </div>
@@ -369,7 +388,6 @@ const handleConfirmarAgendamento = async () => {
                   </Row>
               </Modal.Body>
               
-              {/* RODAPÉ DO MODAL (FOOTER FIXO) */}
               <Modal.Footer style={{borderTop:'1px solid #E9ECEF', background:'#F8F9FA'}}>
                   <Button variant="link" className="text-muted text-decoration-none fw-bold me-auto" onClick={() => setShowModal(false)}>
                       Cancelar

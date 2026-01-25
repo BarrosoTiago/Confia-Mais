@@ -5,51 +5,66 @@ const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
-    const [accessToken, setAccessToken] = useState(null);
     const [loading, setLoading] = useState(true);
     const [notification, setNotification] = useState(null);
 
+    // Função auxiliar para notificações globais (opcional)
     const clearNotification = () => setNotification(null);
 
     // 1. Persistência (Mantém logado ao dar F5)
     useEffect(() => {
-        const token = localStorage.getItem('token');
-        if (token) {
-            api.defaults.headers.Authorization = `Bearer ${token}`;
-            setAccessToken(token);
-            api.get('/auth/users/me/')
-               .then(response => setUser(response.data))
-               .catch(() => {
-                   // Se o token venceu (Erro 401), limpa tudo
-                   console.log("Sessão expirada. Deslogando...");
-                   logout();
-               }) 
-               .finally(() => setLoading(false));
-        } else {
+        const recoverUser = async () => {
+            const token = localStorage.getItem('token');
+            
+            if (token) {
+                try {
+                    // Define o token no cabeçalho para todas as requisições futuras
+                    api.defaults.headers.Authorization = `Bearer ${token}`;
+                    
+                    // Busca os dados do usuário para preencher o contexto
+                    const response = await api.get('/auth/users/me/');
+                    setUser(response.data);
+                } catch (error) {
+                    console.error("Sessão inválida ou expirada:", error);
+                    logout(); // Token inválido? Limpa tudo.
+                }
+            }
+            
             setLoading(false);
-        }
+        };
+
+        recoverUser();
     }, []);
 
     // 2. Login
     const login = async (username, password) => {
         try {
+            // Faz o POST para pegar os tokens
             const response = await api.post('/auth/login/', { username, password });
-            const { access } = response.data;
+            
+            // O backend geralmente retorna { access: "...", refresh: "..." }
+            const { access, refresh } = response.data;
 
-            setAccessToken(access);
+            // Salva no LocalStorage
             localStorage.setItem('token', access);
+            if (refresh) localStorage.setItem('refresh_token', refresh);
+
+            // Configura o Axios
             api.defaults.headers.Authorization = `Bearer ${access}`;
 
-            // Busca os dados do usuário (Admin ou Cliente)
+            // Busca os dados completos do usuário (incluindo setup_concluido)
             const userResponse = await api.get('/auth/users/me/');
             const userData = userResponse.data;
             
             setUser(userData);
+
+            // ⚠️ IMPORTANTE: Retornamos os dados para que o Login.jsx 
+            // possa decidir o redirecionamento (Onboarding vs Dashboard)
             return userData; 
 
         } catch (error) {
             console.error("Erro no login:", error);
-            // Repassa o erro detalhado do Django (ex: { detail: "No active account found..." })
+            // Repassa o erro detalhado se houver
             if (error.response && error.response.data) {
                 throw error.response.data;
             }
@@ -57,15 +72,13 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
-    // 3. O QUE ESTAVA FALTANDO: CADASTRO (Register) 🚨
+    // 3. Cadastro (Register)
     const register = async (userData) => {
         try {
-            // Envia os dados para a rota que criamos no Backend
             const response = await api.post('/auth/register/', userData);
             return response.data;
         } catch (error) {
             console.error("Erro no cadastro:", error);
-            // Repassa o erro do backend para a tela mostrar (ex: "Senha curta")
             if (error.response && error.response.data) {
                 throw error.response.data; 
             } else {
@@ -77,18 +90,22 @@ export const AuthProvider = ({ children }) => {
     // 4. Logout
     const logout = () => {
         localStorage.removeItem('token');
-        setAccessToken(null);
+        localStorage.removeItem('refresh_token');
         setUser(null);
         api.defaults.headers.Authorization = null;
+        
+        // Força o redirecionamento para login para garantir que saia de páginas protegidas
+        // Usamos window.location para garantir uma limpeza total de estado
+        window.location.href = '/login';
     };
 
     const value = {
+        signed: !!user, // Propriedade útil para rotas privadas
         user,
-        accessToken,
-        login,
-        register, // <--- Agora a função existe e pode ser usada!
-        logout,
         loading,
+        login,
+        register,
+        logout,
         notification,
         setNotification,
         clearNotification

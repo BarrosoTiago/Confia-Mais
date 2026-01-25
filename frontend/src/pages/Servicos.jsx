@@ -1,16 +1,21 @@
 import { useState, useEffect } from 'react';
-import { Container, Table, Button, Modal, Form, Badge, Row, Col, Spinner } from 'react-bootstrap';
+import { Table, Button, Modal, Form, Spinner, Row, Col } from 'react-bootstrap';
 import api from '../services/api';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import AnimatedBackground from '../components/AnimatedBackground';
+import OnboardingHeader from '../components/OnboardingHeader';
 import { 
   FaArrowLeft, FaHandshake, FaPlus, FaEdit, FaTrash, 
-  FaClock, FaTag, FaCheckCircle, FaBan 
+  FaClock, FaTag, FaCheckCircle, FaRocket 
 } from 'react-icons/fa';
 
 export default function Servicos() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   
+  // Verifica se está no modo Onboarding (Passo Final)
+  const isOnboarding = searchParams.get('onboarding') === 'true';
+
   const [servicos, setServicos] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -33,9 +38,53 @@ export default function Servicos() {
       const response = await api.get('/servicos/');
       setServicos(response.data);
     } catch (error) {
-      alert("Erro ao carregar serviços.");
+      console.error("Erro ao carregar serviços", error);
     } finally {
       setLoading(false);
+    }
+  }
+
+  // --- FUNÇÃO PARA FINALIZAR O ONBOARDING (COM FORMDATA P/ EVITAR ERRO 415) ---
+  async function handleFinalizarOnboarding() {
+    if (servicos.length === 0) {
+        const confirm = window.confirm("Você ainda não cadastrou nenhum serviço. Deseja finalizar mesmo assim?");
+        if (!confirm) return;
+    }
+
+    try {
+        setLoading(true);
+        console.log("Tentando finalizar onboarding...");
+
+        // USAMOS FORMDATA: O backend espera multipart/form-data na rota de usuário
+        const data = new FormData();
+        data.append('setup_concluido', 'True');
+
+        await api.patch('/auth/users/me/', data, {
+            headers: {
+                'Content-Type': 'multipart/form-data',
+            }
+        });
+        
+        // Sucesso!
+        alert("🎉 Parabéns! Sua loja está configurada e pronta para uso.");
+        
+        // Força recarregamento total para atualizar o AuthContext e limpar cache
+        window.location.href = '/admin-dashboard';
+        
+    } catch (error) {
+        console.error("Erro detalhado:", error);
+        let msg = "Erro ao finalizar configuração.";
+        
+        if (error.response) {
+            if (error.response.status === 415) {
+                msg += "\nErro de formato (415).";
+            } else if (error.response.data) {
+                msg += "\nDetalhe: " + JSON.stringify(error.response.data);
+            }
+        }
+        alert(msg);
+    } finally {
+        setLoading(false);
     }
   }
 
@@ -62,13 +111,20 @@ export default function Servicos() {
   async function handleSubmit(e) {
     e.preventDefault();
     try {
-      if (formData.id) await api.put(`/servicos/${formData.id}/`, formData);
-      else await api.post('/servicos/', formData);
+      const payload = {
+          ...formData,
+          preco: parseFloat(formData.preco),
+          duracao_minutos: parseInt(formData.duracao_minutos)
+      };
+
+      if (formData.id) await api.put(`/servicos/${formData.id}/`, payload);
+      else await api.post('/servicos/', payload);
       
       setShowModal(false);
       loadServicos();
     } catch (error) {
-      alert("Erro ao salvar serviço.");
+      console.error(error);
+      alert("Erro ao salvar serviço. Verifique os dados.");
     }
   }
 
@@ -103,8 +159,8 @@ export default function Servicos() {
             @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
             .servicos-wrapper {
-            min-height: 100vh; background-color: transparent; font-family: 'Inter', sans-serif;
-            padding: 40px 20px; overflow-x: hidden;
+                min-height: 100vh; background-color: transparent; font-family: 'Inter', sans-serif;
+                padding: 40px 20px 100px 20px; overflow-x: hidden;
             }
             .container-limit { max-width: 1150px; margin: 0 auto; }
 
@@ -130,10 +186,9 @@ export default function Servicos() {
             }
             .btn-new:hover { background: #004080; transform: translateY(-2px); }
 
-            /* TABELA UNIFICADA (CARD STYLE) */
+            /* TABELA */
             .table-panel { background: white; border-radius: 16px; box-shadow: 0 5px 30px rgba(0,0,0,0.05); overflow: hidden; }
             .clean-table { width: 100%; border-collapse: collapse; }
-            
             .clean-table thead th {
                 background: #F8F9FA; color: #525F7F; font-family: 'Inter', sans-serif;
                 font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px;
@@ -143,53 +198,75 @@ export default function Servicos() {
             .clean-table tbody tr:hover { background: #FAFBFC; }
             .clean-table td { padding: 20px 25px; vertical-align: middle; }
 
-            /* Células */
             .service-name { font-weight: 700; color: #002B55; font-size: 1rem; display: flex; align-items: center; gap: 10px; }
-            .service-icon-box { 
-                width: 40px; height: 40px; background: #E3F2FD; color: #1565C0; border-radius: 10px; 
-                display: flex; align-items: center; justify-content: center; font-size: 1rem; 
-            }
-            
-            .info-pill { 
-                background: #F6F9FC; color: #525F7F; padding: 6px 12px; border-radius: 20px; 
-                font-size: 0.85rem; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; 
-            }
-            
+            .service-icon-box { width: 40px; height: 40px; background: #E3F2FD; color: #1565C0; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1rem; }
+            .info-pill { background: #F6F9FC; color: #525F7F; padding: 6px 12px; border-radius: 20px; font-size: 0.85rem; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; }
             .price-text { font-weight: 700; color: #2DCE89; font-size: 1rem; }
-
-            /* Status */
             .status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; }
             .st-active { color: #2DCE89; font-weight: 600; font-size: 0.9rem; } .st-active .status-dot { background: #2DCE89; }
             .st-inactive { color: #ADB5BD; font-weight: 600; font-size: 0.9rem; } .st-inactive .status-dot { background: #ADB5BD; }
 
-            /* Ações */
             .actions-cell { display: flex; justify-content: flex-end; gap: 6px; }
-            .btn-icon-action {
-                background: #e2e1ff; width: 45px; height: 45px; border-radius: 5px; border: 1px solid; display: flex; align-items: center; justify-content: center;
-                transition: 0.4s; cursor: pointer; font-size: 0.83rem;
-            }
+            .btn-icon-action { background: #e2e1ff; width: 45px; height: 45px; border-radius: 5px; border: 1px solid; display: flex; align-items: center; justify-content: center; transition: 0.4s; cursor: pointer; font-size: 0.83rem; }
             .act-edit { border: 1px solid #E3F2FD; color: #1565C0; } .act-edit:hover { background: #2a69b0; color: white; }
             .act-delete { border: 1px solid #FFEBEE; color: #F5365C; } .act-delete:hover { background: #ed4768; color: white; }
 
             /* Modal */
             .modal-clean-header { background: #002B55; color: white; padding: 25px; border: none; }
             .modal-clean-header .btn-close { filter: invert(1); opacity: 1; }
-            
-            .custom-input {
-                width: 100%; padding: 12px 15px; border-radius: 10px; border: 2px solid #F1F3F5;
-                background: #F8F9FA; color: #002B55; font-weight: 500; font-size: 0.9rem;
-            }
+            .custom-input { width: 100%; padding: 12px 15px; border-radius: 10px; border: 2px solid #F1F3F5; background: #F8F9FA; color: #002B55; font-weight: 500; font-size: 0.9rem; }
             .custom-input:focus { border-color: #002B55; background: white; outline: none; }
+
+            /* CARD DE FINALIZAÇÃO DO ONBOARDING (PREMIUM DESIGN) */
+            .finish-onboarding-card {
+                background: linear-gradient(135deg, #ffffff 0%, #f8faff 100%);
+                border-radius: 24px;
+                padding: 40px;
+                margin-top: 40px;
+                text-align: center;
+                border: 1px solid #E2E8F0;
+                box-shadow: 0 20px 50px rgba(0, 43, 85, 0.08);
+                position: relative;
+                overflow: hidden;
+            }
+            .finish-onboarding-card::before {
+                content: '';
+                position: absolute; top: -50%; left: -50%; width: 200%; height: 200%;
+                background: radial-gradient(circle, rgba(45, 206, 137, 0.05) 0%, transparent 60%);
+                z-index: 0;
+            }
+            .finish-content { position: relative; z-index: 1; }
+            .finish-title { font-family: 'Libre Baskerville', serif; font-size: 2rem; color: #002B55; margin-bottom: 15px; }
+            .finish-desc { color: #64748B; font-size: 1.1rem; max-width: 500px; margin: 0 auto 30px auto; line-height: 1.6; }
+
+            .btn-finish-all {
+                background: #002B55; color: white; border: none; padding: 18px 50px; border-radius: 50px;
+                font-weight: 700; font-size: 1.1rem; letter-spacing: 0.5px; transition: all 0.3s ease;
+                box-shadow: 0 10px 30px rgba(0, 43, 85, 0.25); display: inline-flex; align-items: center; gap: 12px;
+            }
+            .btn-finish-all:hover { transform: translateY(-3px) scale(1.02); background: #003366; box-shadow: 0 15px 40px rgba(0, 43, 85, 0.35); }
         `}</style>
 
         <div className="container-limit">
             
-            {/* HEADER */}
+            {/* 1. SE FOR ONBOARDING, MOSTRA O HEADER DE PROGRESSO */}
+            {isOnboarding && (
+                <div className="mb-4">
+                    <div className="p-3 bg-white rounded shadow-sm">
+                        <OnboardingHeader step={3} />
+                    </div>
+                </div>
+            )}
+
+            {/* HEADER DA PÁGINA */}
             <div className="page-header">
                 <div className="header-left">
-                    <button className="btn-back-circle" onClick={() => navigate('/admin-dashboard')}>
-                        <FaArrowLeft />
-                    </button>
+                    {/* Esconde botão voltar se estiver no onboarding para focar no fluxo */}
+                    {!isOnboarding && (
+                        <button className="btn-back-circle" onClick={() => navigate('/admin-dashboard')}>
+                            <FaArrowLeft />
+                        </button>
+                    )}
                     <div className="title-group">
                         <h1><FaHandshake className="me-2" /> Serviços</h1>
                         <span>Catálogo de serviços oferecidos</span>
@@ -214,7 +291,11 @@ export default function Servicos() {
                     </thead>
                     <tbody>
                         {servicos.length === 0 ? (
-                            <tr><td colSpan="5" className="text-center py-5 text-muted">Nenhum serviço cadastrado.</td></tr>
+                            <tr><td colSpan="5" className="text-center py-5 text-muted">
+                                {isOnboarding 
+                                    ? "Cadastre seu primeiro serviço acima para continuar!" 
+                                    : "Nenhum serviço cadastrado."}
+                            </td></tr>
                         ) : servicos.map(s => (
                             <tr key={s.id} style={{opacity: s.ativo ? 1 : 0.6}}>
                                 <td>
@@ -251,6 +332,23 @@ export default function Servicos() {
                     </tbody>
                 </Table>
             </div>
+
+            {/* 2. CARTÃO DE FINALIZAÇÃO (NOVO DESIGN PREMIUM) */}
+            {isOnboarding && (
+                <div className="finish-onboarding-card">
+                    <div className="finish-content">
+                        <div style={{fontSize: '3rem', marginBottom: '20px'}}>🚀</div>
+                        <h2 className="finish-title">Tudo pronto para começar!</h2>
+                        <p className="finish-desc">
+                            Você configurou seu perfil, horários e serviços com sucesso. 
+                            Sua loja já está pronta para receber agendamentos.
+                        </p>
+                        <button className="btn-finish-all" onClick={handleFinalizarOnboarding}>
+                            Concluir e Ir para o Painel <FaRocket />
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {/* MODAL */}
             <Modal show={showModal} onHide={() => setShowModal(false)} centered>

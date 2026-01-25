@@ -23,7 +23,7 @@ class Usuario(AbstractUser):
     foto = models.ImageField(upload_to='perfil/', blank=True, null=True, verbose_name="Logo/Foto de Perfil")
     capa = models.ImageField(upload_to='capas/', blank=True, null=True, verbose_name="Imagem de Capa")
 
-    # 4. LOCALIZAÇÃO E SOBRE (NOVOS CAMPOS) 📍
+    # 4. LOCALIZAÇÃO E SOBRE 📍
     # Descrição para o cliente conhecer a loja
     descricao = models.TextField(blank=True, null=True, verbose_name="Sobre a Loja/Bio")
     
@@ -31,6 +31,10 @@ class Usuario(AbstractUser):
     endereco = models.CharField(max_length=255, blank=True, null=True, verbose_name="Endereço (Rua e Número)")
     bairro = models.CharField(max_length=100, blank=True, null=True, verbose_name="Bairro")
     cidade = models.CharField(max_length=100, blank=True, null=True, verbose_name="Cidade")
+
+    # 5. CONTROLE DE ONBOARDING (NOVO CAMPO) 🚀
+    # Define se o empreendedor já passou pelo roteiro inicial de configuração
+    setup_concluido = models.BooleanField(default=False, verbose_name="Setup Inicial Concluído")
 
     def save(self, *args, **kwargs):
         # Lógica extra: Se for ADMIN, garante acesso ao painel admin do Django

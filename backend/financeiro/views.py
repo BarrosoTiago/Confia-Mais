@@ -1,92 +1,61 @@
-from rest_framework import viewsets, permissions
+from rest_framework import viewsets, permissions, status
 from rest_framework.response import Response
-from rest_framework.decorators import action
+from rest_framework.views import APIView
 from django.db.models import Sum
 from django.utils import timezone
 from .models import Transacao, Pagamento, Despesa, CalculadoraPrecificacao
-from .serializers import TransacaoSerializer, PagamentoSerializer, DespesaSerializer, CalculadoraSerializer
+from agendamentos.models import Agendamento 
+from .serializers import (
+    TransacaoSerializer, 
+    PagamentoSerializer, 
+    DespesaSerializer, 
+    CalculadoraSerializer
+)
 
-class TransacaoViewSet(viewsets.ModelViewSet):
-    serializer_class = TransacaoSerializer
+class FinanceiroDashboardView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
-    def get_queryset(self):
-        user = self.request.user
-        
-        # Se for ADMIN, vê transações dos serviços que ELE criou
-        if user.tipo_usuario == 'ADMIN':
-            return Transacao.objects.filter(
-                agendamento__servicos__criado_por=user
-            ).distinct().order_by('-data_criacao')
-            
-        # Se for CLIENTE, vê transações dos agendamentos DELE
-        return Transacao.objects.filter(
-            agendamento__cliente=user
-        ).distinct().order_by('-data_criacao')
-
-    # Removi o perform_create pois Transacao não tem campo 'usuario' direto.
-    # Ela já nasce vinculada a um Agendamento.
-
-    @action(detail=False, methods=['get'])
-    def dashboard(self, request):
-        """
-        Retorna totais do mês atual APENAS para o usuário logado (Admin).
-        """
+    def get(self, request):
         user = request.user
-        hoje = timezone.now()
-        mes_atual = hoje.month
-        ano_atual = hoje.year
+        # Usamos o timezone consciente para evitar problemas de fuso horário no dashboard
+        agora = timezone.now()
+        hoje = agora.date()
+        inicio_mes = agora.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
-        # 1. Identificar minhas transações (Caminho: Transacao -> Agendamento -> Servico -> Dono)
-        # Usamos distinct() para não duplicar IDs se houver múltiplos serviços
-        minhas_transacoes_ids = Transacao.objects.filter(
-            agendamento__servicos__criado_por=user
-        ).values_list('id', flat=True).distinct()
+        # 1. Busca todos os IDs de agendamento que pertencem ao profissional logado
+        ag_ids = Agendamento.objects.filter(servicos__criado_por=user).values_list('id', flat=True).distinct()
+
+        # 2. CÁLCULOS DE RECEITA REAL (Dinheiro que já entrou via Pagamentos)
+        pagamentos_base = Pagamento.objects.filter(transacao__agendamento_id__in=ag_ids)
         
-        # 2. Somar os pagamentos dessas transações
-        total_receita = Pagamento.objects.filter(
-            transacao__id__in=minhas_transacoes_ids,
-            data_pagamento__month=mes_atual,
-            data_pagamento__year=ano_atual
-        ).aggregate(Sum('valor'))['valor__sum'] or 0
+        receita_total = pagamentos_base.aggregate(total=Sum('valor'))['total'] or 0
+        receita_hoje = pagamentos_base.filter(data_pagamento__date=hoje).aggregate(total=Sum('valor'))['total'] or 0
+        
+        # CORREÇÃO: Filtro robusto para Entradas do Mês
+        receita_mes = pagamentos_base.filter(
+            data_pagamento__gte=inicio_mes
+        ).aggregate(total=Sum('valor'))['total'] or 0
 
-        # 3. Total Despesas no Mês (Despesa tem campo usuario direto)
-        total_despesas = Despesa.objects.filter(
-            usuario=user,
-            data_despesa__month=mes_atual,
-            data_despesa__year=ano_atual
-        ).aggregate(Sum('valor'))['valor__sum'] or 0
+        # 3. VALOR PREVISTO / A RECEBER
+        # REGRA DE NEGÓCIO: Só conta como valor previsto se o status for 'CONFIRMADO'.
+        # Pedidos 'PENDENTES' não entram na soma de previsão financeira.
+        total_confirmado = Agendamento.objects.filter(
+            id__in=ag_ids, 
+            status='CONFIRMADO'
+        ).aggregate(total=Sum('servicos__preco'))['total'] or 0
 
-        # 4. Lucro
-        lucro = total_receita - total_despesas
+        # 4. DESPESAS TOTAIS
+        despesas_total = Despesa.objects.filter(usuario=user).aggregate(total=Sum('valor'))['total'] or 0
 
         return Response({
-            "mes": mes_atual,
-            "receita": total_receita,
-            "despesas": total_despesas,
-            "lucro": lucro
+            "receita_hoje": float(receita_hoje),
+            "receita_mes": float(receita_mes),
+            "receita_total": float(receita_total),
+            "total_previsto": float(total_confirmado),
+            "fiado": float(max(0, total_confirmado - receita_total)),
+            "despesas_total": float(despesas_total),
+            "lucro_total": float(receita_total - despesas_total)
         })
-
-class DespesaViewSet(viewsets.ModelViewSet):
-    serializer_class = DespesaSerializer
-    permission_classes = [permissions.IsAuthenticated]
-
-    def get_queryset(self):
-        # Despesa tem dono direto, então filtro simples funciona
-        return Despesa.objects.filter(usuario=self.request.user).order_by('-data_despesa')
-
-    def perform_create(self, serializer):
-        serializer.save(usuario=self.request.user)
-        
-class CalculadoraViewSet(viewsets.ModelViewSet):
-    serializer_class = CalculadoraSerializer
-    permission_classes = [permissions.IsAuthenticated]
-    
-    def get_queryset(self):
-        return CalculadoraPrecificacao.objects.filter(usuario=self.request.user)
-
-    def perform_create(self, serializer):
-        serializer.save(usuario=self.request.user)
 
 class PagamentoViewSet(viewsets.ModelViewSet):
     serializer_class = PagamentoSerializer
@@ -94,9 +63,52 @@ class PagamentoViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         user = self.request.user
-        # Filtra pagamentos onde o dono do serviço do agendamento sou EU
         return Pagamento.objects.filter(
             transacao__agendamento__servicos__criado_por=user
         ).distinct().order_by('-data_pagamento')
 
-    # Removi perform_create pois Pagamento herda dono da Transação
+    def perform_create(self, serializer):
+        agendamento_id = self.request.data.get('agendamento')
+        serializer.validated_data.pop('agendamento', None)
+
+        if agendamento_id:
+            transacao, created = Transacao.objects.get_or_create(agendamento_id=agendamento_id)
+            
+            # Recalcula o valor total da transação baseado nos serviços
+            total_servicos = transacao.agendamento.servicos.aggregate(total=Sum('preco'))['total'] or 0
+            transacao.valor_total = total_servicos
+            transacao.save()
+            
+            serializer.save(transacao=transacao)
+        else:
+            serializer.save()
+
+class TransacaoViewSet(viewsets.ModelViewSet):
+    serializer_class = TransacaoSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_queryset(self):
+        return Transacao.objects.filter(
+            agendamento__servicos__criado_por=self.request.user
+        ).distinct().order_by('-data_criacao')
+
+class DespesaViewSet(viewsets.ModelViewSet):
+    serializer_class = DespesaSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_queryset(self): 
+        # CORREÇÃO: Alterado de '-data' para '-data_despesa'
+        return Despesa.objects.filter(usuario=self.request.user).order_by('-data_despesa')
+    
+    def perform_create(self, serializer): 
+        serializer.save(usuario=self.request.user)
+
+class CalculadoraViewSet(viewsets.ModelViewSet):
+    serializer_class = CalculadoraSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_queryset(self): 
+        return CalculadoraPrecificacao.objects.filter(usuario=self.request.user)
+    
+    def perform_create(self, serializer): 
+        serializer.save(usuario=self.request.user)

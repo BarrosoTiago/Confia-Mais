@@ -12,11 +12,10 @@ import { CSS } from '@dnd-kit/utilities';
 // Ícones
 import { 
   FaUserFriends, FaHandshake, FaChartLine, 
-  FaSignOutAlt, FaExpandArrowsAlt, FaEllipsisV, 
-  FaCalendarAlt, FaUser, FaShoppingBag, FaDollarSign, 
-  FaStore, FaCog, FaMoneyBillWave, FaCheck, FaTimes, FaInfo, FaCircle,
-  FaListOl, FaCalculator, FaPercentage, FaStickyNote, FaHeart, FaRegCalendarCheck,
-  FaGripVertical, FaPen, FaArrowUp, FaArrowDown, FaFileInvoiceDollar
+  FaSignOutAlt, FaExpandArrowsAlt, 
+  FaCalendarAlt, FaMoneyBillWave, FaCheck, FaTimes, FaInfo, FaCircle,
+  FaListOl, FaCalculator, FaStickyNote, FaHeart, FaRegCalendarCheck,
+  FaGripVertical, FaPen, FaArrowUp, FaFileInvoiceDollar, FaCog
 } from 'react-icons/fa';
 import { IoMdClose } from 'react-icons/io';
 import { Spinner, Alert, Badge, Modal, Button } from 'react-bootstrap';
@@ -58,14 +57,22 @@ export default function AdminDashboard() {
 
   const [loading, setLoading] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [financeiro, setFinanceiro] = useState({ receita: 0, despesas: 0, lucro: 0 });
-  const [agendamentos, setAgendamentos] = useState([]);
-  const [pagamentosHoje, setPagamentosHoje] = useState([]);
+  
+  // ESTADO FINANCEIRO UNIFICADO
+  const [dadosFinanceiros, setDadosFinanceiros] = useState({
+      receita_hoje: 0,
+      receita_mes: 0,
+      receita_total: 0,
+      despesas_mes: 0,
+      despesas_total: 0,
+      fiado: 0,
+      lucro_total: 0
+  });
 
+  const [agendamentos, setAgendamentos] = useState([]);
+  
   // Estados Drag & Drop
   const [editMode, setEditMode] = useState(false);
-  
-  // Adicionado 'fiado' na ordem padrão dos cards
   const [cardOrder, setCardOrder] = useState([
       'receita_hoje', 'receita_mes', 'fiado', 'servicos_top', 
       'balanco', 'calculadora', 'fidelidade', 'anotacoes'
@@ -105,23 +112,18 @@ export default function AdminDashboard() {
 
   async function loadDashboardData() {
     try {
-      const [respFinanceiro, respAgenda, respPagamentos] = await Promise.allSettled([
+      const [respFinanceiro, respAgenda] = await Promise.allSettled([
         api.get('/financeiro/transacoes/dashboard/'),
-        api.get('/agendamentos/'),
-        api.get('/pagamentos/')
+        api.get('/agendamentos/')
       ]);
 
       if (respFinanceiro.status === 'fulfilled' && respFinanceiro.value?.data) {
-          setFinanceiro(respFinanceiro.value.data);
+          setDadosFinanceiros(respFinanceiro.value.data);
       }
       
       if (respAgenda.status === 'fulfilled') {
           const dados = respAgenda.value.data;
           setAgendamentos(Array.isArray(dados) ? dados : []);
-      }
-
-      if (respPagamentos.status === 'fulfilled') {
-          setPagamentosHoje(Array.isArray(respPagamentos.value.data) ? respPagamentos.value.data : []);
       }
 
     } catch (error) {
@@ -157,39 +159,6 @@ export default function AdminDashboard() {
   const handleLogout = () => { logout(); navigate("/login"); };
 
   const safeAgendamentos = Array.isArray(agendamentos) ? agendamentos : [];
-
-  const calcularRecebidosHoje = () => {
-      const hoje = new Date();
-      hoje.setHours(0,0,0,0);
-      return pagamentosHoje.reduce((total, pg) => {
-          const dataPagamento = new Date(pg.created_at || pg.data || pg.data_pagamento);
-          dataPagamento.setHours(0,0,0,0);
-          return dataPagamento.getTime() === hoje.getTime() ? total + parseFloat(pg.valor) : total;
-      }, 0);
-  };
-
-  const calcularReceitaMes = () => {
-    const hoje = new Date();
-    return pagamentosHoje.reduce((total, pg) => {
-        const dataPagamento = new Date(pg.created_at || pg.data || pg.data_pagamento);
-        return (dataPagamento.getMonth() === hoje.getMonth() && dataPagamento.getFullYear() === hoje.getFullYear()) ? total + parseFloat(pg.valor) : total;
-    }, 0);
-  };
-
-  const calcularReceitaTotal = () => pagamentosHoje.reduce((total, pg) => total + parseFloat(pg.valor), 0);
-
-  // CÁLCULO DE FIADO (CONTAS A RECEBER)
-  // Soma o valor de todos os agendamentos com status 'PENDENTE'
-  const totalFiado = safeAgendamentos
-      .filter(a => a.status === 'PENDENTE')
-      .reduce((total, item) => {
-          const valor = item.servicos_detalhes?.[0]?.preco || 0;
-          return total + parseFloat(valor);
-      }, 0);
-
-  const receitaHoje = calcularRecebidosHoje();
-  const receitaMes = calcularReceitaMes(); 
-  const receitaTotal = calcularReceitaTotal(); 
   const pendentes = safeAgendamentos.filter(a => a.status === 'PENDENTE').length;
   const formatMoney = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
 
@@ -220,7 +189,6 @@ export default function AdminDashboard() {
   const userLogo = user?.foto || user?.logo || null; 
   const iniciais = nomeEmpresa.substring(0, 2).toUpperCase();
 
-  // --- RENDERIZAÇÃO DOS CARDS ---
   const renderCard = (id) => {
       switch(id) {
           case 'receita_hoje':
@@ -232,7 +200,7 @@ export default function AdminDashboard() {
                     </div>
                     <div>
                          <span className="card-label">Recebidos Hoje</span>
-                         <h3 className="card-value-lg text-success">{formatMoney(receitaHoje)}</h3>
+                         <h3 className="card-value-lg text-success">{formatMoney(dadosFinanceiros.receita_hoje)}</h3>
                     </div>
                 </div>
               );
@@ -245,7 +213,7 @@ export default function AdminDashboard() {
                     </div>
                     <div>
                          <span className="card-label">Entradas Mês</span>
-                         <h3 className="card-value-lg text-primary">{formatMoney(receitaMes)}</h3>
+                         <h3 className="card-value-lg text-primary">{formatMoney(dadosFinanceiros.receita_mes)}</h3>
                     </div>
                 </div>
               );
@@ -254,7 +222,6 @@ export default function AdminDashboard() {
                   <div onClick={() => !editMode && navigate('/admin/agendamentos')} className="h-100 d-flex flex-column justify-content-between p-1">
                     <div className="d-flex justify-content-between align-items-center mb-2">
                         <div className="d-flex align-items-center gap-2">
-                             {/* Ícone de Fatura/Dinheiro Laranja */}
                              <div className="icon-box-finance" style={{backgroundColor: '#FFEDD5', color: '#F97316'}}>
                                 <FaFileInvoiceDollar />
                              </div>
@@ -262,10 +229,9 @@ export default function AdminDashboard() {
                         </div>
                         <FaExpandArrowsAlt className="card-action-icon" />
                     </div>
-                    
                     <div className="flex-grow-1 d-flex flex-column justify-content-center">
                         <span className="card-label mb-1">Total Pendente</span>
-                        <h3 className="card-value-lg" style={{color: '#F97316'}}>{formatMoney(totalFiado)}</h3>
+                        <h3 className="card-value-lg" style={{color: '#F97316'}}>{formatMoney(dadosFinanceiros.fiado)}</h3>
                         <div className="mt-2 d-flex align-items-center gap-2">
                             <span style={{fontSize: '0.75rem', fontWeight: 600, color: '#94A3B8', background: '#F1F5F9', padding: '2px 8px', borderRadius: '10px'}}>
                                 {pendentes} {pendentes === 1 ? 'cliente' : 'clientes'}
@@ -312,19 +278,18 @@ export default function AdminDashboard() {
                     <div className="flex-grow-1 d-flex flex-column justify-content-center">
                         <div className="d-flex justify-content-between align-items-center mb-2">
                             <span className="text-muted small">Total</span>
-                            <span className="fw-bold">{formatMoney(receitaTotal)}</span>
+                            <span className="fw-bold">{formatMoney(dadosFinanceiros.receita_total)}</span>
                         </div>
                         <div className="prog-bar mb-3"><div className="fill-success" style={{width: '100%'}}></div></div>
                         
                         <div className="d-flex justify-content-between align-items-center mb-2">
                             <span className="text-muted small">Despesas</span>
-                            <span className="fw-bold text-danger">- {formatMoney(financeiro.despesas)}</span>
+                            <span className="fw-bold text-danger">- {formatMoney(dadosFinanceiros.despesas_total)}</span>
                         </div>
                         <div className="prog-bar"><div className="fill-danger" style={{width: '100%'}}></div></div>
                     </div>
                   </div>
               );
-          
           case 'calculadora':
               return (
                   <div onClick={() => !editMode && navigate('/admin/calculadora')} className="h-100 d-flex flex-column justify-content-center align-items-center text-center p-2">
@@ -359,17 +324,6 @@ export default function AdminDashboard() {
       }
   }
 
-  if (loading) {
-    return (
-      <>
-        <AnimatedBackground />
-        <div style={{height: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center', background: 'transparent'}}>
-          <Spinner animation="border" style={{color: 'white'}} />
-        </div>
-      </>
-    );
-  }
-
   return (
     <>
     <AnimatedBackground />
@@ -379,7 +333,6 @@ export default function AdminDashboard() {
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
         @import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&display=swap');
 
-        /* PALETA DE CORES (CSS Variables) */
         :root {
             --col-navy: #002B55;
             --col-sky: #0284C7;
@@ -399,25 +352,19 @@ export default function AdminDashboard() {
             color: #1E293B;
         }
 
-        /* --- BOTÃO MENU (TRANSPARENTE COM BORDA BRANCA) --- */
         .menu-trigger { 
             position: fixed; top: 25px; left: 30px; width: 55px; height: 55px; 
-            background-color: transparent; /* Fundo transparente */
-            border: 2px solid white; /* Borda Branca */
+            background-color: transparent;
+            border: 2px solid white;
             border-radius: 50%; 
             display: flex; align-items: center; justify-content: center; 
             cursor: pointer; z-index: 1000; 
             box-shadow: 0 4px 15px rgba(0,0,0,0.2);
             transition: transform 0.2s; 
         }
-        .menu-trigger:hover { 
-            transform: scale(1.05); 
-            background-color: rgba(255,255,255,0.1); 
-        }
-        /* Logo colorido restaurado */
+        .menu-trigger:hover { transform: scale(1.05); background-color: rgba(255,255,255,0.1); }
         .logo-trigger { width: 30px; height: auto; }
 
-        /* CARDS */
         .dashboard-card { 
             background-color: rgba(246, 246, 246, 0.9);
             backdrop-filter: blur(6px);
@@ -497,7 +444,6 @@ export default function AdminDashboard() {
         .main-content { padding: 0 40px; max-width: 1200px; margin: 0 auto; }
         .top-cards-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 24px; margin-top: 10px; }
 
-        /* HEADER / TOP BAR */
         .top-bar { 
             display: flex; justify-content: flex-end; align-items: center; 
             padding: 20px 40px; margin-bottom: 10px; 
@@ -518,10 +464,10 @@ export default function AdminDashboard() {
             width: 42px; height: 42px; border-radius: 50%; background: transparent;
             border: 2px solid #fc1717; display: flex; align-items: center; justify-content: center; 
             color: var(--col-danger); transition: 0.2s; 
+            cursor: pointer;
         }
         .btn-logout-circle:hover { background: #fc1717; color: white; transform: rotate(90deg); }
 
-        /* SIDEBAR RESTAURADA */
         .sidebar-overlay { position: fixed; top: 0; left: 0; height: 100vh; width: 300px; background: transparent; z-index: 2000; display: flex; transform: translateX(-100%); transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
         .sidebar-overlay.open { transform: translateX(0); }
         .sidebar-dark-strip { width: 40px; background-color: var(--col-navy); height: 100%; display: flex; flex-direction: column; align-items: center; padding-top: 25px; }
@@ -530,6 +476,14 @@ export default function AdminDashboard() {
             flex-grow: 2; background-color: #E6E6E6; padding: 40px 30px; 
             display: flex; flex-direction: column; box-shadow: 10px 0 30px rgba(0,0,0,0.1); 
         }
+
+        .sidebar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .sidebar-actions { display: flex; align-items: center; gap: 12px; }
+        .sidebar-icon-btn { cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 5px; border-radius: 8px; transition: 0.2s; }
+        .sidebar-icon-btn:hover { background: rgba(0, 43, 85, 0.05); }
+        .sidebar-close-btn { border: 2px solid var(--col-navy); border-radius: 8px; padding: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: 0.2s; }
+        .sidebar-close-btn:hover { background: var(--col-navy); }
+        .sidebar-close-btn:hover svg { color: white !important; }
         
         .menu-item { 
             display: flex; align-items: center; gap: 15px; 
@@ -583,89 +537,50 @@ export default function AdminDashboard() {
           </div>
       </div>
 
-      {/* MENU TRIGGER (TRANSPARENTE + BORDA BRANCA + LOGO REAL) */}
       {!menuOpen && (
         <div className="menu-trigger" onClick={() => setMenuOpen(true)}>
-             {/* Logo colorido original sem filtros */}
              <img src={lightLogotipoSystem} alt="C+" className="logo-trigger" onError={(e) => {e.target.style.display='none'; e.target.nextSibling.style.display='block'}} />
              <span style={{display:'none', fontWeight:'bold', color: 'white'}}>C+</span>
         </div>
       )}
 
-          {/* SIDEBAR */}
-        <div className={`sidebar-overlay ${menuOpen ? 'open' : ''}`}>
-            {/* Removemos o FaInfo daqui (da faixa azul escura) */}
+      {/* SIDEBAR */}
+      <div className={`sidebar-overlay ${menuOpen ? 'open' : ''}`}>
         <div className="sidebar-menu-content">
-            <div style={{ 
-                display: 'flex', 
-                justifyContent: 'space-between', // Joga o logo para um lado e os botões para o outro
-                alignItems: 'center', 
-                marginBottom: '20px' 
-            }}>
-                
-                <img 
-                    src={logotipoSystem} 
-                    alt="Logo" 
-                    style={{ height: '35px', width: 'auto' }} 
-                />
-
-                {/* GRUPO DE BOTÕES ALINHADOS À DIREITA */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    {/* ÍCONE DE INFORMAÇÃO */}
-                    <div 
-                        style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '5px' }} 
-                        onClick={() => navigate('/admin/ajuda')}
-                        title="Ajuda e Informações"
-                    >
+            <div className="sidebar-header">
+                <img src={logotipoSystem} alt="Logo" style={{ height: '35px', width: 'auto' }} />
+                <div className="sidebar-actions">
+                    <div className="sidebar-icon-btn" onClick={() => navigate('/admin/ajuda')} title="Ajuda">
                         <FaInfo size={16} color="#002B55" style={{ opacity: 0.6 }} />
                     </div>
-
-                    {/* BOTÃO FECHAR */}
-                    <div 
-                        style={{ 
-                            border: '2px solid #002B55', 
-                            borderRadius: '8px', 
-                            padding: '4px', 
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center'
-                        }} 
-                        onClick={() => setMenuOpen(false)}
-                    >
+                    <div className="sidebar-close-btn" onClick={() => setMenuOpen(false)}>
                         <IoMdClose size={20} color="#002B55" />
                     </div>
                 </div>
             </div>
         
-              
-              {/* SEÇÃO ITENS */}
-              <div className="menu-section-title">ITENS</div>
-              <div className="menu-item" onClick={() => navigate('/admin/agendamentos')}><FaUserFriends /> CLIENTES</div>
-              <div className="menu-item" onClick={() => navigate('/admin/servicos')}><FaHandshake /> SERVIÇOS</div>
-              <div className="menu-item" onClick={() => navigate('/admin/config-horarios')}><FaCog /> HORÁRIOS</div>
-              <div className="menu-item" onClick={() => navigate('/admin/clientes')}><FaHeart /> FIDELIDADE</div>
-              <div className="menu-item" onClick={() => navigate('/admin/anotacoes')}><FaStickyNote /> ANOTAÇÕES</div>
+            <div className="menu-section-title">ITENS</div>
+            <div className="menu-item" onClick={() => navigate('/admin/agendamentos')}><FaUserFriends /> CLIENTES</div>
+            <div className="menu-item" onClick={() => navigate('/admin/servicos')}><FaHandshake /> SERVIÇOS</div>
+            <div className="menu-item" onClick={() => navigate('/admin/config-horarios')}><FaCog /> HORÁRIOS</div>
+            <div className="menu-item" onClick={() => navigate('/admin/clientes')}><FaHeart /> FIDELIDADE</div>
+            <div className="menu-item" onClick={() => navigate('/admin/anotacoes')}><FaStickyNote /> ANOTAÇÕES</div>
 
-              {/* SEPARADOR */}
-              <div className="menu-separator"></div>
+            <div className="menu-separator"></div>
 
-              {/* SEÇÃO MEU NEGÓCIO */}
-              <div className="menu-section-title">MEU NEGÓCIO</div>
-              <div className="menu-item" onClick={() => navigate('/admin/financeiro')}><FaChartLine /> REGISTROS</div>
-              <div className="menu-item" onClick={() => navigate('/admin/despesas')}><FaMoneyBillWave /> DESPESAS</div>
-              <div className="menu-item" onClick={() => navigate('/admin/calculadora')}><FaCalculator /> SAÚDE FINANCEIRA</div>
-              
-              {/* PERFIL (RESTAURADO) */}
-              <div className="entrepreneur-section" onClick={() => navigate('/admin/perfil')}>
-                  <div className="logo-circle">
-                      {userLogo ? <img src={userLogo} alt="Logo" style={{width:'100%', height:'100%', objectFit:'cover'}} /> : <span className="logo-initials">{iniciais}</span>}
-                  </div>
-                  {/* Nome do Usuário Centralizado */}
-                  <span style={{fontWeight:700, color:'#002B55', fontSize:'0.9rem', fontFamily: 'Libre Baskerville, serif'}}>{nomeEmpresa}</span>
-                  <small style={{display:'block', color:'#666', fontSize:'0.75rem', fontWeight:600, letterSpacing:'1px', textDecoration:'underline',}}>MEU PERFIL</small>
-              </div>
-          </div>
+            <div className="menu-section-title">MEU NEGÓCIO</div>
+            <div className="menu-item" onClick={() => navigate('/admin/financeiro')}><FaChartLine /> REGISTROS</div>
+            <div className="menu-item" onClick={() => navigate('/admin/despesas')}><FaMoneyBillWave /> DESPESAS</div>
+            <div className="menu-item" onClick={() => navigate('/admin/calculadora')}><FaCalculator /> SAÚDE FINANCEIRA</div>
+            
+            <div className="entrepreneur-section" onClick={() => navigate('/admin/perfil')}>
+                <div className="logo-circle">
+                    {userLogo ? <img src={userLogo} alt="Logo" style={{width:'100%', height:'100%', objectFit:'cover'}} /> : <span className="logo-initials">{iniciais}</span>}
+                </div>
+                <span style={{fontWeight:700, color:'#002B55', fontSize:'0.9rem', fontFamily: 'Libre Baskerville, serif'}}>{nomeEmpresa}</span>
+                <small style={{display:'block', color:'#666', fontSize:'0.75rem', fontWeight:600, letterSpacing:'1px', textDecoration:'underline',}}>MEU PERFIL</small>
+            </div>
+        </div>
       </div>
 
       <div className="main-content">
@@ -746,8 +661,7 @@ export default function AdminDashboard() {
       <div className="brand-logo-footer">CONFIA +</div>
 
       <Modal show={showPagamentoModal} onHide={() => setShowPagamentoModal(false)} centered size="sm">
-          <Modal.Header closeButton className="border-0 pb-0">
-          </Modal.Header>
+          <Modal.Header closeButton className="border-0 pb-0"></Modal.Header>
           <Modal.Body className="text-center pt-0 pb-4">
               <div style={{width:60, height:60, background:'#DCFCE7', borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 20px auto'}}>
                   <FaMoneyBillWave size={24} color="#16A34A" />

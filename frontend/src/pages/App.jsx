@@ -3,7 +3,7 @@ import { AuthProvider, useAuth } from "../context/AuthContext";
 import { Toast, ToastContainer } from 'react-bootstrap';
 
 // Importação das Telas
-import Landing from "./Landing"; // <--- 1. IMPORT DA LANDING PAGE
+import Landing from "./Landing";
 import Login from "./Login";
 import Register from "./Register";
 import AdminDashboard from "./AdminDashboard";
@@ -15,12 +15,20 @@ import Despesas from "./Despesas";
 import Agendamentos from "./Agendamentos";
 import RecuperarSenha from "./RecuperarSenha"; 
 import Vitrine from "./Vitrine";
-import PerfilLoja from "./PerfilLoja";
+
+// --- TELA DE ONBOARDING (Passo a Passo Inicial) ---
+import Onboarding from "./Onboarding"; // <--- NOVO IMPORT
+
+// --- ÁREA DE CONTA & PERFIL ---
+import PerfilLoja from "./PerfilLoja";             
+import ConfiguracoesConta from "./ConfiguracoesConta"; 
+import PerfilUsuario from "./PerfilUsuario";       
+
 import HistoricoGeral from "./HistoricoGeral";
 import CalculadoraPreco from "./CalculadoraPreco";
 import Anotacoes from "./Anotacoes"; 
 import Clientes from "./Clientes";
-import Ajuda from "./Ajuda"; // <--- 2. IMPORT DA PÁGINA DE AJUDA
+import Ajuda from "./Ajuda";
 
 // --- Componente que Protege as Rotas ---
 const PrivateRoute = ({ children, role }) => {
@@ -40,8 +48,14 @@ const PrivateRoute = ({ children, role }) => {
     return <Navigate to="/login" />;
   }
 
+  // Se a rota for só para ADMIN e o usuário não for, manda para vitrine
   if (role === 'ADMIN' && user.tipo_usuario !== 'ADMIN') {
     return <Navigate to="/vitrine" />;
+  }
+  
+  // Se a rota for só para CLIENTE e o usuário for ADMIN, manda para o dashboard
+  if (role === 'CLIENTE' && user.tipo_usuario === 'ADMIN') {
+    return <Navigate to="/admin-dashboard" />;
   }
 
   return children;
@@ -90,6 +104,12 @@ export default function App() {
           <Route path="/recuperar-senha" element={<RecuperarSenha />} />
 
           {/* --- Rotas do ADMIN (Empreendedor) --- */}
+          
+          {/* ROTA DE ONBOARDING (PRIMEIRO ACESSO) */}
+          <Route path="/onboarding" element={
+            <PrivateRoute role="ADMIN"><Onboarding /></PrivateRoute>
+          } />
+
           <Route path="/admin-dashboard" element={
             <PrivateRoute role="ADMIN"><AdminDashboard /></PrivateRoute>
           } />
@@ -108,9 +128,11 @@ export default function App() {
           <Route path="/admin/agendamentos" element={
             <PrivateRoute role="ADMIN"><Agendamentos /></PrivateRoute>
           } />
+          
           <Route path="/admin/perfil" element={
             <PrivateRoute role="ADMIN"><PerfilLoja /></PrivateRoute>
           } />
+
           <Route path="/admin/calculadora" element={
             <PrivateRoute role="ADMIN"><CalculadoraPreco /></PrivateRoute>
           } />
@@ -120,11 +142,19 @@ export default function App() {
           <Route path="/admin/anotacoes" element={
             <PrivateRoute role="ADMIN"><Anotacoes /></PrivateRoute>
           } />
-          
-          {/* Rota Nova: Central de Ajuda */}
           <Route path="/admin/ajuda" element={
             <PrivateRoute role="ADMIN"><Ajuda /></PrivateRoute>
           } />
+
+          {/* --- Rotas GERAIS DE CONTA (Admin e Cliente) --- */}
+          <Route path="/conta/configuracoes" element={
+            <PrivateRoute><ConfiguracoesConta /></PrivateRoute>
+          } />
+
+          <Route path="/conta/excluir" element={
+            <PrivateRoute><PerfilUsuario /></PrivateRoute>
+          } />
+
 
           {/* --- Rotas do CLIENTE --- */}
           <Route path="/vitrine" element={
@@ -139,7 +169,7 @@ export default function App() {
             <PrivateRoute role="CLIENTE"><ClienteDashboard /></PrivateRoute>
           } />
 
-          {/* Qualquer rota desconhecida vai para o Login (ou poderia ir para Landing) */}
+          {/* Rota Padrão para 404 */}
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </AuthProvider>
