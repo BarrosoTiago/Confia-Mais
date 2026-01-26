@@ -10,6 +10,7 @@ import imgTiago from "../assets/tiagoimg.jpeg";
 import imgEmily from "../assets/emilyimg.jpeg";
 import imgIasmin from "../assets/iasmimimg.jpeg";
 import imgGiseliane from "../assets/giselianeimg.jpeg";
+import videoApresentacao from "../assets/video-apresentacao.mp4";
 
 export default function Landing() {
   const navigate = useNavigate();
@@ -294,7 +295,18 @@ export default function Landing() {
                           <div className="video-placeholder">
                               <FaPlay className="play-btn" size={24} />
                               <span className="fw-bold">Assistir Apresentação do Sistema</span>
+                                <video 
+                                    width="100%" 
+                                    src={videoApresentacao} // Src direto aqui
+                                    controls 
+                                    playsInline
+                                    className="rounded-2 shadow-lg"
+                                    style={{ display: 'block', aspectRatio: '16/9', objectFit: 'cover' }}
+                                    >
+                                    Seu navegador não suporta vídeos.
+                                </video>
                           </div>
+                          
                       </div>
                   </Col>
               </Row>
