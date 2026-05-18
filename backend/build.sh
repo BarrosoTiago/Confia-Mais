@@ -9,4 +9,4 @@ python manage.py migrate
 # Cria o superusuário automaticamente usando as variáveis do Render (sem travar o deploy)
 if [ "$DJANGO_SUPERUSER_USERNAME" ]; then
   python manage.py createsuperuser --no-input || true
-fi
+
