@@ -5,3 +5,8 @@ set -o errexit
 pip install -r requirements.txt
 python manage.py collectstatic --no-input
 python manage.py migrate
+
+# Cria o superusuário automaticamente usando as variáveis do Render (sem travar o deploy)
+if [ "$DJANGO_SUPERUSER_USERNAME" ]; then
+  python manage.py createsuperuser --no-input || true
+
