@@ -14,7 +14,8 @@ export const AuthProvider = ({ children }) => {
     // 1. Persistência (Mantém logado ao dar F5)
     useEffect(() => {
         const recoverUser = async () => {
-            const token = localStorage.getItem('token');
+            // CORRIGIDO: Alterado de 'token' para 'access_token' para alinhar com o api.js
+            const token = localStorage.getItem('access_token');
             
             if (token) {
                 try {
@@ -39,32 +40,29 @@ export const AuthProvider = ({ children }) => {
     // 2. Login
     const login = async (username, password) => {
         try {
-            // Faz o POST para pegar os tokens
-            const response = await api.post('/auth/login/', { username, password });
+            // CORRIGIDO: Se o seu Django usa Djoser, a rota correta é '/auth/jwt/create/'
+            // Se o seu Django usa Simple JWT puro, altere para '/api/token/'
+            const response = await api.post('/auth/jwt/create/', { username, password });
             
-            // O backend geralmente retorna { access: "...", refresh: "..." }
+            // O backend retorna { access: "...", refresh: "..." }
             const { access, refresh } = response.data;
 
-            // Salva no LocalStorage
-            localStorage.setItem('token', access);
+            // CORRIGIDO: Salva no LocalStorage com os mesmos nomes que o api.js espera
+            localStorage.setItem('access_token', access);
             if (refresh) localStorage.setItem('refresh_token', refresh);
 
             // Configura o Axios
             api.defaults.headers.Authorization = `Bearer ${access}`;
 
-            // Busca os dados completos do usuário (incluindo setup_concluido)
+            // Busca os dados completos do usuário
             const userResponse = await api.get('/auth/users/me/');
             const userData = userResponse.data;
             
             setUser(userData);
-
-            // ⚠️ IMPORTANTE: Retornamos os dados para que o Login.jsx 
-            // possa decidir o redirecionamento (Onboarding vs Dashboard)
             return userData; 
 
         } catch (error) {
             console.error("Erro no login:", error);
-            // Repassa o erro detalhado se houver
             if (error.response && error.response.data) {
                 throw error.response.data;
             }
@@ -75,7 +73,9 @@ export const AuthProvider = ({ children }) => {
     // 3. Cadastro (Register)
     const register = async (userData) => {
         try {
-            const response = await api.post('/auth/register/', userData);
+            // CORRIGIDO: No Djoser, a rota de criação de usuário padrão é '/auth/users/'
+            // Se no seu urls.py do Django você criou uma rota customizada, mantenha '/auth/register/'
+            const response = await api.post('/auth/users/', userData);
             return response.data;
         } catch (error) {
             console.error("Erro no cadastro:", error);
@@ -89,18 +89,19 @@ export const AuthProvider = ({ children }) => {
 
     // 4. Logout
     const logout = () => {
-        localStorage.removeItem('token');
+        // CORRIGIDO: Limpa as chaves corretas do localStorage
+        localStorage.removeItem('access_token');
         localStorage.removeItem('refresh_token');
+        localStorage.removeItem('user_data');
         setUser(null);
         api.defaults.headers.Authorization = null;
         
         // Força o redirecionamento para login para garantir que saia de páginas protegidas
-        // Usamos window.location para garantir uma limpeza total de estado
         window.location.href = '/login';
     };
 
     const value = {
-        signed: !!user, // Propriedade útil para rotas privadas
+        signed: !!user, 
         user,
         loading,
         login,
