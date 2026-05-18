@@ -89,6 +89,7 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://localhost:5173",
     "https://confiaplus-app.onrender.com",
+    
     # Quando criar o serviço do frontend no Render, adicione a URL dele aqui:
     # "https://confia-mais-frontend.onrender.com"
 ]
