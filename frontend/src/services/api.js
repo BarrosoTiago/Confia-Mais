@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: 'http://localhost:8000/api',
+  baseURL: 'https://confiaplus-api.onrender.com',
 });
 
 // 1. INTERCEPTOR DE REQUISIÇÃO (O que você já deve ter)
