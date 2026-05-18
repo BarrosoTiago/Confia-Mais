@@ -40,6 +40,7 @@ INSTALLED_APPS = [
     'servicos',
     'financeiro',
     'agendamentos',
+    'corsheaders',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
