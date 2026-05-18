@@ -34,7 +34,6 @@ if RENDER_EXTERNAL_HOSTNAME:
 INSTALLED_APPS = [
     'rest_framework_simplejwt',
     'rest_framework',
-    'corsheaders',
     'api',
     'usuarios',
     'servicos',
