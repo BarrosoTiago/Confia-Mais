@@ -21,6 +21,7 @@ export const AuthProvider = ({ children }) => {
                     
                     // Rota corrigida com /api/
                     const response = await api.get('/api/auth/users/me/');
+                    // const response = await api.get('/api/auth/users/me/');
                     setUser(response.data);
                 } catch (error) {
                     console.error("Sessão inválida ou expirada:", error);
@@ -39,6 +40,7 @@ export const AuthProvider = ({ children }) => {
         try {
             // Rota corrigida com /api/ batendo exatamente na CustomLoginView
             const response = await api.post('/api/auth/login/', { username, password });
+            //const response = await api.post('/api/auth/login/', { username, password });
             
             const { access, refresh } = response.data;
 
