@@ -34,23 +34,22 @@ export const AuthProvider = ({ children }) => {
         recoverUser();
     }, []);
 
-    // 2. Login
+    // 2. Login Otimizado
     const login = async (username, password) => {
         try {
-            // CORRIGIDO: Adicionado /api/
+            // Faz o login e já recebe os tokens E os dados do usuário!
             const response = await api.post('/api/auth/login/', { username, password });
             
-            const { access, refresh } = response.data;
+            // Extraímos os tokens e o resto guardamos na variável userData
+            const { access, refresh, ...userData } = response.data;
 
             localStorage.setItem('access_token', access); 
             if (refresh) localStorage.setItem('refresh_token', refresh);
 
             api.defaults.headers.Authorization = `Bearer ${access}`;
 
-            // CORRIGIDO: Adicionado /api/
-            const userResponse = await api.get('/api/auth/users/me/');
-            const userData = userResponse.data;
-            
+            // Como o Django já mandou o id, username e tipo_usuario, não precisamos
+            // daquele segundo api.get()! Só salvamos direto no estado:
             setUser(userData);
             return userData; 
 
