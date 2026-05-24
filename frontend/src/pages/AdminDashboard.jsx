@@ -113,8 +113,8 @@ export default function AdminDashboard() {
   async function loadDashboardData() {
     try {
       const [respFinanceiro, respAgenda] = await Promise.allSettled([
-        api.get('/financeiro/transacoes/dashboard/'),
-        api.get('/agendamentos/')
+        api.get('/api/financeiro/transacoes/dashboard/'),
+        api.get('/api/agendamentos/')
       ]);
 
       if (respFinanceiro.status === 'fulfilled' && respFinanceiro.value?.data) {

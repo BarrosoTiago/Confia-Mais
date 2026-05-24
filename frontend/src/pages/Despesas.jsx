@@ -30,7 +30,7 @@ export default function Despesas() {
 
   async function loadDespesas() {
     try {
-      const response = await api.get('/despesas/');
+      const response = await api.get('/api/despesas/');
       // Ordenar por data (mais recente primeiro)
       const listaOrdenada = response.data.sort((a, b) => new Date(b.data) - new Date(a.data));
       setDespesas(listaOrdenada);
@@ -71,7 +71,7 @@ export default function Despesas() {
     e.preventDefault();
     try {
       if (formData.id) await api.put(`/despesas/${formData.id}/`, formData);
-      else await api.post('/despesas/', formData);
+      else await api.post('/api/despesas/', formData);
       
       setShowModal(false);
       loadDespesas(); 

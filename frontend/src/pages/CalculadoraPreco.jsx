@@ -51,7 +51,7 @@ export default function CalculadoraPreco() {
     async function fetchData() {
         try {
             // Busca Serviços
-            const respServicos = await api.get('/servicos/');
+            const respServicos = await api.get('/api/servicos/');
             setMeusServicos(respServicos.data || []);
 
             // Busca Despesas do Financeiro (Reutilizando endpoint do Dashboard)
@@ -70,7 +70,7 @@ export default function CalculadoraPreco() {
   const carregarDespesasDoBanco = async () => {
       setLoadingFinanceiro(true);
       try {
-          const response = await api.get('/financeiro/transacoes/dashboard/');
+          const response = await api.get('/api/financeiro/transacoes/dashboard/');
           // O endpoint retorna { receita: X, despesas: Y, lucro: Z }
           const totalDespesas = parseFloat(response.data.despesas || 0);
           

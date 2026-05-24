@@ -40,8 +40,8 @@ export default function Agendamentos() {
   async function loadData() {
     try {
       const [respAgenda, respServicos, respClientes] = await Promise.all([
-        api.get('/agendamentos/'),
-        api.get('/servicos/'),
+        api.get('/api/agendamentos/'),
+        api.get('/api/servicos/'),
         api.get('/api/auth/clientes/')
       ]);
       
@@ -143,7 +143,7 @@ async function carregarHorariosDinâmicos() {
 
     try {
         if (editingId) await api.patch(`/agendamentos/${editingId}/`, payload);
-        else await api.post('/agendamentos/', payload);
+        else await api.post('/api/agendamentos/', payload);
         setShowModal(false); loadData();
     } catch (error) { alert("Erro ao salvar."); }
   };
