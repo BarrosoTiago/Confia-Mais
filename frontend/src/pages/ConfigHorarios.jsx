@@ -43,7 +43,7 @@ export default function ConfigHorarios() {
 
     async function fetchHorarios() {
         try {
-            const response = await api.get('/api/horarios/');
+            const response = await api.get('/horarios/');
             const dadosBackend = Array.isArray(response.data) ? response.data : [];
 
             const diasFormatados = diasSemana.map(dia => {
@@ -127,7 +127,7 @@ export default function ConfigHorarios() {
                 if (dia.id) {
                     await api.put(`/horarios/${dia.id}/`, payload);
                 } else {
-                    await api.post('/api/horarios/', payload);
+                    await api.post('/horarios/', payload);
                 }
             }
 

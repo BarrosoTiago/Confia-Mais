@@ -54,7 +54,7 @@ export default function ClienteDashboard() {
         const dia = String(dataSelecionada.getDate()).padStart(2, '0');
         const dataFormatada = `${ano}-${mes}-${dia}`;
 
-        const response = await api.get('/api/horarios/disponiveis/', {
+        const response = await api.get('/horarios/disponiveis/', {
             params: {
                 servico_id: servicoSelecionado.id,
                 data: dataFormatada
@@ -68,7 +68,7 @@ export default function ClienteDashboard() {
 
   async function loadServicos() {
     try {
-      const response = await api.get('/api/servicos/');
+      const response = await api.get('/servicos/');
       const todos = response.data || [];
 
       const filtrados = todos.filter(s => {
@@ -125,7 +125,7 @@ export default function ClienteDashboard() {
       const dataHoraFinal = `${ano}-${mes}-${dia}T${horaSelecionada}:00`;
 
       try {
-          await api.post('/api/agendamentos/', {
+          await api.post('/agendamentos/', {
               empreendedor: lojaRecebida.id, 
               servicos: [servicoSelecionado.id],
               data_hora_inicio: dataHoraFinal

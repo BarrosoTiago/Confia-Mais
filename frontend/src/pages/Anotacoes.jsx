@@ -29,7 +29,7 @@ export default function Anotacoes() {
 
   async function carregarNotas() {
     try {
-      const resp = await api.get('/api/anotacoes/');
+      const resp = await api.get('/anotacoes/');
       setNotas(resp.data);
     } catch (error) {
       console.error("Erro ao carregar", error);
@@ -41,7 +41,7 @@ export default function Anotacoes() {
   async function criarNota() {
       if(!novaNota.conteudo) return alert("Sua nota precisa de conteúdo!");
       try {
-          await api.post('/api/anotacoes/', novaNota);
+          await api.post('/anotacoes/', novaNota);
           setShowModal(false);
           setNovaNota({ titulo: '', conteudo: '', cor: '#FFF9C4' }); 
           carregarNotas();

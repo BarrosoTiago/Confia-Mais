@@ -26,7 +26,7 @@ export default function HistoricoGeral() {
 
   async function loadAll() {
     try {
-      const response = await api.get('/api/agendamentos/');
+      const response = await api.get('/agendamentos/');
       // Ordena por data (mais recente primeiro)
       const ordenados = response.data.sort((a, b) => new Date(b.data_hora_inicio) - new Date(a.data_hora_inicio));
       setAgendamentos(ordenados);

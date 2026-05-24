@@ -35,7 +35,7 @@ export default function Servicos() {
 
   async function loadServicos() {
     try {
-      const response = await api.get('/api/servicos/');
+      const response = await api.get('/servicos/');
       setServicos(response.data);
     } catch (error) {
       console.error("Erro ao carregar serviços", error);
@@ -59,7 +59,7 @@ export default function Servicos() {
         const data = new FormData();
         data.append('setup_concluido', 'True');
 
-        await api.patch('/api/auth/users/me/', data, {
+        await api.patch('/auth/users/me/', data, {
             headers: {
                 'Content-Type': 'multipart/form-data',
             }
@@ -125,7 +125,7 @@ async function handleSubmit(e) {
           // Se NÃO tem ID, é Cadastro Novo (POST)
           // Arrancamos o campo 'id' fora do payload para o Django não surtar
           delete payload.id; 
-          await api.post('/api/servicos/', payload);
+          await api.post('/servicos/', payload);
       }
       
       setShowModal(false);

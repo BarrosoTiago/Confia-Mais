@@ -30,7 +30,7 @@ export default function RecuperarSenha() {
         setError(''); setMsg(''); setLoading(true);
         
         try {
-            await api.post('/api/auth/password_reset/', { email });
+            await api.post('/auth/password_reset/', { email });
             setStep(2);
             setMsg('E-mail enviado! Verifique sua caixa de entrada.');
         } catch (err) {
@@ -58,7 +58,7 @@ export default function RecuperarSenha() {
         setLoading(true);
 
         try {
-            await api.post('/api/auth/password_reset/confirm/', {
+            await api.post('/auth/password_reset/confirm/', {
                 token: token,
                 password: password
             });

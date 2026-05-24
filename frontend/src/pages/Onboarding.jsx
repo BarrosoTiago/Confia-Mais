@@ -20,7 +20,7 @@ export default function Onboarding() {
     e.preventDefault();
     setLoading(true);
     try {
-      await api.patch('/api/auth/users/me/', perfil);
+      await api.patch('/auth/users/me/', perfil);
       setStep(2);
     } catch (err) { alert('Erro ao salvar perfil.'); }
     setLoading(false);
@@ -34,7 +34,7 @@ export default function Onboarding() {
       // Cria horário padrão para Seg(0) a Sex(4)
       const diasSemana = [0, 1, 2, 3, 4]; 
       for (const dia of diasSemana) {
-          await api.post('/api/horarios-config/', {
+          await api.post('/horarios-config/', {
               dia_semana: dia,
               horario_abertura: horario.inicio,
               horario_fechamento: horario.fim,
@@ -55,14 +55,14 @@ export default function Onboarding() {
     setLoading(true);
     try {
       // 1. Cria o serviço
-      await api.post('/api/servicos/', {
+      await api.post('/servicos/', {
           nome: servico.nome,
           preco: parseFloat(servico.preco),
           duracao_minutos: parseInt(servico.duracao)
       });
 
       // 2. Marca setup como concluído no Backend
-      await api.patch('/api/auth/users/me/', { setup_concluido: true });
+      await api.patch('/auth/users/me/', { setup_concluido: true });
 
       alert("🎉 Configuração concluída! Bem-vindo ao seu painel.");
       

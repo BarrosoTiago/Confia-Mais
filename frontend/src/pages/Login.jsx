@@ -30,7 +30,7 @@ export default function Login() {
       await login(formData.username, formData.password);
       
       // 2. Busca dados atualizados do usuário (para verificar o setup_concluido)
-      const response = await api.get('/api/auth/users/me/');
+      const response = await api.get('/auth/users/me/');
       const user = response.data;
 
       console.log("Login realizado. Usuário:", user.username, "| Setup:", user.setup_concluido);

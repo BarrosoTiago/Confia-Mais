@@ -35,7 +35,7 @@ export default function Financeiro() {
   // Busca estatísticas consolidadas (Card 1: Entradas do Mês)
   async function loadDashboardStats() {
     try {
-      const response = await api.get('/api/financeiro/dashboard/');
+      const response = await api.get('/financeiro/dashboard/');
       if (response.data) {
         setReceitaMes(response.data.receita_mes || 0);
       }
@@ -47,7 +47,7 @@ export default function Financeiro() {
   async function loadData() {
     try {
       setLoading(true);
-      const response = await api.get('/api/agendamentos/');
+      const response = await api.get('/agendamentos/');
       const dadosBrutos = Array.isArray(response.data) ? response.data : [];
       // Filtramos cancelados, mas mantemos Pendentes para a listagem (sem contar no saldo)
       const dadosValidos = dadosBrutos.filter(ag => ag.status !== 'CANCELADO');
@@ -85,7 +85,7 @@ export default function Financeiro() {
 
   async function loadHistorico(agendamentoId) {
     try {
-        const response = await api.get('/api/pagamentos/');
+        const response = await api.get('/pagamentos/');
         const dados = Array.isArray(response.data) ? response.data : [];
         const filtrados = dados.filter(p => 
             p.agendamento === agendamentoId || p.agendamento_id === agendamentoId
@@ -173,7 +173,7 @@ export default function Financeiro() {
         if (editingId) {
             await api.patch(`/pagamentos/${editingId}/`, payload);
         } else {
-            await api.post('/api/pagamentos/', payload);
+            await api.post('/pagamentos/', payload);
         }
         
         await loadHistorico(selectedAgenda.id);
