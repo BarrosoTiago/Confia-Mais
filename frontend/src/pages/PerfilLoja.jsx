@@ -35,7 +35,7 @@ export default function PerfilLoja() {
     useEffect(() => {
         async function loadData() {
             try {
-                const response = await api.get('/auth/users/me/');
+                const response = await api.get('/api/auth/users/me/');
                 const u = response.data;
                 
                 setNome(u.nome_completo || '');
@@ -83,7 +83,7 @@ export default function PerfilLoja() {
             if (fotoFile) data.append('foto', fotoFile);
             if (capaFile) data.append('capa', capaFile);
 
-            await api.patch('/auth/users/me/', data, {
+            await api.patch('/api/auth/users/me/', data, {
                 headers: { 'Content-Type': 'multipart/form-data' }
             });
 
