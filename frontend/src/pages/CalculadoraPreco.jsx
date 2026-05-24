@@ -127,7 +127,7 @@ export default function CalculadoraPreco() {
       if(!servicoSelecionado) return;
       setSaving(true);
       try {
-          await api.patch(`/servicos/${servicoSelecionado.id}/`, {
+          await api.patch(`/api/servicos/${servicoSelecionado.id}/`, {
               preco: precoSugerido.toFixed(2)
           });
           setNotification({ type: 'success', message: `Preço atualizado com sucesso!` });
