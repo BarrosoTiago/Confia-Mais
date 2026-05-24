@@ -19,7 +19,7 @@ export const AuthProvider = ({ children }) => {
                 try {
                     api.defaults.headers.Authorization = `Bearer ${token}`;
                     // Certifique-se de que essa rota existe no seu Django backend
-                    const response = await api.get('/auth/users/me/');
+                    const response = await api.get('/api/auth/users/me/');
                     setUser(response.data);
                 } catch (error) {
                     console.error("Sessão inválida ou expirada:", error);
@@ -36,8 +36,8 @@ export const AuthProvider = ({ children }) => {
     // 2. Login
     const login = async (username, password) => {
         try {
-            // ATENÇÃO: Verifique se no Django a rota é '/auth/jwt/create/' ou '/auth/login/'
-            const response = await api.post('/auth/login/', { username, password });
+            // ATENÇÃO: Verifique se no Django a rota é '/api/auth/jwt/create/' ou '/api/auth/login/'
+            const response = await api.post('/api/auth/login/', { username, password });
             
             // Ajustado para ler a estrutura padrão do backend
             const { access, refresh } = response.data;
@@ -49,7 +49,7 @@ export const AuthProvider = ({ children }) => {
             api.defaults.headers.Authorization = `Bearer ${access}`;
 
             // Busca os dados do usuário
-            const userResponse = await api.get('/auth/users/me/');
+            const userResponse = await api.get('/api/auth/users/me/');
             const userData = userResponse.data;
             
             setUser(userData);
@@ -67,8 +67,8 @@ export const AuthProvider = ({ children }) => {
     // 3. Cadastro (Register)
     const register = async (userData) => {
         try {
-            // ATENÇÃO: Verifique se no seu Django a rota de criação é '/auth/users/' ou '/auth/register/'
-            const response = await api.post('/auth/register/', userData);
+            // ATENÇÃO: Verifique se no seu Django a rota de criação é '/api/auth/users/' ou '/api/auth/register/'
+            const response = await api.post('/api/auth/register/', userData);
             return response.data;
         } catch (error) {
             console.error("Erro no cadastro:", error);

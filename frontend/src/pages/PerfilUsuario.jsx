@@ -24,7 +24,7 @@ export default function PerfilUsuario() {
     setLoading(true);
 
     try {
-      await api.delete('/auth/users/delete/', {
+      await api.delete('/api/auth/users/delete/', {
         data: { password: password }
       });
 
