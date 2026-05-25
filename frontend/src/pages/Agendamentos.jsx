@@ -42,7 +42,7 @@ export default function Agendamentos() {
       const [respAgenda, respServicos, respClientes] = await Promise.all([
         api.get('/agendamentos/'),
         api.get('/servicos/'),
-        api.get('/api/auth/clientes/')
+        api.get('/auth/clientes/')
       ]);
       
       const listaOrdenada = respAgenda.data.sort((a, b) => 

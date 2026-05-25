@@ -59,7 +59,7 @@ export default function Servicos() {
         const data = new FormData();
         data.append('setup_concluido', 'True');
 
-        await api.patch('/api/auth/users/me/', data, {
+        await api.patch('/auth/users/me/', data, {
             headers: {
                 'Content-Type': 'multipart/form-data',
             }

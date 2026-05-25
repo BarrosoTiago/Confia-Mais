@@ -20,7 +20,7 @@ export const AuthProvider = ({ children }) => {
                     api.defaults.headers.Authorization = `Bearer ${token}`;
                     
                     // CORRIGIDO: Adicionado /api/
-                    const response = await api.get('/api/auth/users/me/');
+                    const response = await api.get('/auth/users/me/');
                     setUser(response.data);
                 } catch (error) {
                     console.error("Sessão inválida ou expirada:", error);
