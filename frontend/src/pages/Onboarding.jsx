@@ -20,7 +20,7 @@ export default function Onboarding() {
     e.preventDefault();
     setLoading(true);
     try {
-      await api.patch('/auth/users/me/', perfil);
+      await api.patch('/api/auth/users/me/', perfil);
       setStep(2);
     } catch (err) { alert('Erro ao salvar perfil.'); }
     setLoading(false);
@@ -62,7 +62,7 @@ export default function Onboarding() {
       });
 
       // 2. Marca setup como concluído no Backend
-      await api.patch('/auth/users/me/', { setup_concluido: true });
+      await api.patch('/api/auth/users/me/', { setup_concluido: true });
 
       alert("🎉 Configuração concluída! Bem-vindo ao seu painel.");
       
