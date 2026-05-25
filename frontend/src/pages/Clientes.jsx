@@ -18,7 +18,7 @@ export default function Clientes() {
 
   async function carregarClientes() {
     try {
-      const resp = await api.get('/api/auth/clientes/');
+      const resp = await api.get('/auth/clientes/');
       setClientes(resp.data);
     } catch (error) {
       console.error("Erro ao carregar clientes", error);
