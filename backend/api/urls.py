@@ -34,7 +34,8 @@ from .views import (
     ClienteListView, 
     EmpreendedorListView, 
     ServicoViewSet, 
-    HorarioConfigViewSet
+    HorarioConfigViewSet,
+    DashboardView
 )
 
 router = DefaultRouter()
@@ -81,4 +82,6 @@ urlpatterns = [
     
     # --- CRUD PADRÃO ---
     path('', include(router.urls)),
+
+    path('dashboard/', DashboardView.as_view(), name='api_dashboard'),
 ]

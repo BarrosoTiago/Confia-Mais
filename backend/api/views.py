@@ -3,7 +3,8 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.views import TokenObtainPairView
 from django.contrib.auth import get_user_model
-from django.db.models import Count, Q 
+from django.db.models import Count, Q, Sum
+from django.utils import timezone # Adicionado o timezone
 
 # Import obrigatório para aceitar JSON e Arquivos (Corrige erro 415)
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser 
@@ -171,3 +172,121 @@ class HorarioConfigViewSet(viewsets.ModelViewSet):
         return HorarioFuncionamento.objects.filter(usuario=self.request.user)
     def perform_create(self, serializer):
         serializer.save(usuario=self.request.user)
+
+# --- 8. DASHBOARD (PAINEL PRINCIPAL) ---
+class DashboardView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        
+        # Garante que apenas ADMINS (os empreendedores) vejam o painel financeiro
+        if getattr(user, 'tipo_usuario', 'CLIENTE') != 'ADMIN':
+            return Response(
+                {"detail": "Acesso negado. Apenas empreendedores têm acesso ao dashboard financeiro."}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        hoje = timezone.localtime(timezone.now()).date()
+        mes_atual = hoje.month
+        ano_atual = hoje.year
+
+        # Se os modelos Agendamento e Servico estiverem disponíveis
+        try:
+            from agendamentos.models import Agendamento
+            
+            # --- 1. CÁLCULOS FINANCEIROS (Baseado nos Serviços e Agendamentos) ---
+            
+            # Entradas do Mês (Agendamentos Concluídos no mês atual)
+            entradas_mes_query = Agendamento.objects.filter(
+                servicos__criado_por=user,
+                status='CONCLUIDO',
+                data_hora__month=mes_atual,
+                data_hora__year=ano_atual
+            ).aggregate(total=Sum('servicos__preco'))
+            entradas_mes = entradas_mes_query['total'] or 0.00
+
+            # Recebidos Hoje (Agendamentos Concluídos no dia de hoje)
+            recebidos_hoje_query = Agendamento.objects.filter(
+                servicos__criado_por=user,
+                status='CONCLUIDO',
+                data_hora__date=hoje
+            ).aggregate(total=Sum('servicos__preco'))
+            recebidos_hoje = recebidos_hoje_query['total'] or 0.00
+
+            # A Receber (Agendamentos Pendentes/Confirmados que ainda não foram pagos)
+            a_receber_query = Agendamento.objects.filter(
+                servicos__criado_por=user,
+                status__in=['PENDENTE', 'CONFIRMADO']
+            ).aggregate(total=Sum('servicos__preco'))
+            a_receber = a_receber_query['total'] or 0.00
+
+            # Clientes Pendentes (Quantos clientes únicos têm agendamentos pendentes)
+            clientes_pendentes = Agendamento.objects.filter(
+                servicos__criado_por=user,
+                status__in=['PENDENTE', 'CONFIRMADO']
+            ).values('cliente').distinct().count()
+
+            # Despesas (Como não vi model de despesas, deixarei fixo para você adaptar)
+            despesas = 0.00
+            balanco_total = float(entradas_mes) - float(despesas)
+
+            # --- 2. ÚLTIMOS AGENDAMENTOS (Próximos 5) ---
+            
+            proximos_agendamentos = Agendamento.objects.filter(
+                servicos__criado_por=user,
+                data_hora__date__gte=hoje
+            ).order_by('data_hora')[:5]
+
+            meses_pt = {
+                1: 'JAN', 2: 'FEV', 3: 'MAR', 4: 'ABR', 5: 'MAI', 6: 'JUN',
+                7: 'JUL', 8: 'AGO', 9: 'SET', 10: 'OUT', 11: 'NOV', 12: 'DEZ'
+            }
+
+            ultimos_agendamentos_lista = []
+            for ag in proximos_agendamentos:
+                data_local = timezone.localtime(ag.data_hora)
+                
+                # Pegando o primeiro serviço do agendamento (ajuste se for mais de um)
+                primeiro_servico = ag.servicos.first()
+                nome_servico = primeiro_servico.nome if primeiro_servico else "Serviço não definido"
+                preco_servico = primeiro_servico.preco if primeiro_servico else 0.00
+
+                # Lógica para pegar o nome do cliente (User ou Cliente model)
+                nome_cliente = ag.cliente.nome_completo or ag.cliente.username if ag.cliente else "Desconhecido"
+
+                ultimos_agendamentos_lista.append({
+                    "id": ag.id,
+                    "dia": data_local.strftime('%d'),
+                    "mes_abreviado": meses_pt[data_local.month],
+                    "cliente_nome": nome_cliente,
+                    "servico_nome": nome_servico,
+                    "horario": data_local.strftime('%H:%M'),
+                    "preco": f"{preco_servico:.2f}",
+                    "status": ag.status
+                })
+
+        except ImportError:
+            # Fallback (Plano B) caso os models de agendamento não estejam prontos
+            entradas_mes = 0.00
+            recebidos_hoje = 0.00
+            a_receber = 0.00
+            clientes_pendentes = 0
+            balanco_total = 0.00
+            despesas = 0.00
+            ultimos_agendamentos_lista = []
+
+        # --- 3. RETORNO DO JSON PARA O CELULAR ---
+        data = {
+            "metrics": {
+                "recebidos_hoje": float(recebidos_hoje),
+                "entradas_mes": float(entradas_mes),
+                "a_receber": float(a_receber),
+                "clientes_pendentes": clientes_pendentes,
+                "balanco_total": float(balanco_total),
+                "despesas": float(despesas)
+            },
+            "ultimos_agendamentos": ultimos_agendamentos_lista
+        }
+        
+        return Response(data)
