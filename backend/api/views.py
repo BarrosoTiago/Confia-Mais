@@ -173,17 +173,21 @@ class HorarioConfigViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(usuario=self.request.user)
 
-# --- 8. DASHBOARD (PAINEL PRINCIPAL) ---
+# --- 8. DASHBOARD (PAINEL PRINCIPAL BLINDADO) ---
 class DashboardView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
+        # Imports locais e independentes para garantir que o Django não dê NameError
+        from django.db.models import Sum
+        from django.utils import timezone
+        
         user = request.user
         
-        # Garante que apenas ADMINS (os empreendedores) vejam o painel financeiro
+        # Garante que apenas ADMINS vejam o painel financeiro
         if getattr(user, 'tipo_usuario', 'CLIENTE') != 'ADMIN':
             return Response(
-                {"detail": "Acesso negado. Apenas empreendedores têm acesso ao dashboard financeiro."}, 
+                {"detail": "Acesso negado. Apenas empreendedores têm acesso ao dashboard."}, 
                 status=status.HTTP_403_FORBIDDEN
             )
 
@@ -191,18 +195,17 @@ class DashboardView(APIView):
         mes_atual = hoje.month
         ano_atual = hoje.year
 
-        # Importando os modelos exatos que você criou
         try:
             from agendamentos.models import Agendamento, Despesa
             
             # --- 1. CÁLCULOS FINANCEIROS ---
             
-            # Entradas do Mês (Soma do preço dos serviços de agendamentos CONCLUIDOS no mês)
+            # Entradas do Mês
             entradas_mes_query = Agendamento.objects.filter(
                 servicos__criado_por=user,
                 status='CONCLUIDO',
-                data_hora_inicio__month=mes_atual, # CORREÇÃO AQUI
-                data_hora_inicio__year=ano_atual   # CORREÇÃO AQUI
+                data_hora_inicio__month=mes_atual,
+                data_hora_inicio__year=ano_atual
             ).aggregate(total=Sum('servicos__preco'))
             entradas_mes = entradas_mes_query['total'] or 0.00
 
@@ -210,11 +213,11 @@ class DashboardView(APIView):
             recebidos_hoje_query = Agendamento.objects.filter(
                 servicos__criado_por=user,
                 status='CONCLUIDO',
-                data_hora_inicio__date=hoje # CORREÇÃO AQUI
+                data_hora_inicio__date=hoje
             ).aggregate(total=Sum('servicos__preco'))
             recebidos_hoje = recebidos_hoje_query['total'] or 0.00
 
-            # A Receber (Pendentes ou Confirmados)
+            # A Receber
             a_receber_query = Agendamento.objects.filter(
                 servicos__criado_por=user,
                 status__in=['PENDENTE', 'CONFIRMADO']
@@ -227,7 +230,7 @@ class DashboardView(APIView):
                 status__in=['PENDENTE', 'CONFIRMADO']
             ).values('cliente').distinct().count()
 
-            # Despesas (AGORA USANDO SEU NOVO MODELO!)
+            # Despesas (Usando seu modelo real)
             despesas_query = Despesa.objects.filter(
                 usuario=user,
                 data__month=mes_atual,
@@ -237,12 +240,12 @@ class DashboardView(APIView):
 
             balanco_total = float(entradas_mes) - float(despesas)
 
-            # --- 2. ÚLTIMOS AGENDAMENTOS (Próximos 5) ---
+            # --- 2. ÚLTIMOS AGENDAMENTOS ---
             
             proximos_agendamentos = Agendamento.objects.filter(
                 servicos__criado_por=user,
-                data_hora_inicio__date__gte=hoje # CORREÇÃO AQUI
-            ).order_by('data_hora_inicio')[:5]   # CORREÇÃO AQUI
+                data_hora_inicio__date__gte=hoje
+            ).order_by('data_hora_inicio')[:5]
 
             meses_pt = {
                 1: 'JAN', 2: 'FEV', 3: 'MAR', 4: 'ABR', 5: 'MAI', 6: 'JUN',
@@ -251,15 +254,14 @@ class DashboardView(APIView):
 
             ultimos_agendamentos_lista = []
             for ag in proximos_agendamentos:
-                data_local = timezone.localtime(ag.data_hora_inicio) # CORREÇÃO AQUI
+                data_local = timezone.localtime(ag.data_hora_inicio)
                 
-                # Pegando o primeiro serviço do ManyToManyField
                 primeiro_servico = ag.servicos.first()
                 nome_servico = primeiro_servico.nome if primeiro_servico else "Sem serviço"
                 preco_servico = primeiro_servico.preco if primeiro_servico else 0.00
 
-                # Lógica para pegar o nome do cliente
-                nome_cliente = ag.cliente.nome_completo or ag.cliente.username if ag.cliente else "Desconhecido"
+                # FORMA ULTRA SEGURA: Evita o erro se 'nome_completo' não existir no User
+                nome_cliente = getattr(ag.cliente, 'nome_completo', None) or getattr(ag.cliente, 'first_name', None) or ag.cliente.username
 
                 ultimos_agendamentos_lista.append({
                     "id": ag.id,
@@ -272,27 +274,23 @@ class DashboardView(APIView):
                     "status": ag.status
                 })
 
-        except ImportError:
-            # Fallback (Plano B)
-            entradas_mes = 0.00
-            recebidos_hoje = 0.00
-            a_receber = 0.00
-            clientes_pendentes = 0
-            balanco_total = 0.00
-            despesas = 0.00
-            ultimos_agendamentos_lista = []
+            # Retorno de sucesso normal
+            return Response({
+                "metrics": {
+                    "recebidos_hoje": float(recebidos_hoje),
+                    "entradas_mes": float(entradas_mes),
+                    "a_receber": float(a_receber),
+                    "clientes_pendentes": clientes_pendentes,
+                    "balanco_total": float(balanco_total),
+                    "despesas": float(despesas)
+                },
+                "ultimos_agendamentos": ultimos_agendamentos_lista
+            })
 
-        # --- 3. RETORNO DO JSON PARA O CELULAR ---
-        data = {
-            "metrics": {
-                "recebidos_hoje": float(recebidos_hoje),
-                "entradas_mes": float(entradas_mes),
-                "a_receber": float(a_receber),
-                "clientes_pendentes": clientes_pendentes,
-                "balanco_total": float(balanco_total),
-                "despesas": float(despesas)
-            },
-            "ultimos_agendamentos": ultimos_agendamentos_lista
-        }
-        
-        return Response(data)
+        except Exception as e:
+            # AQUI ESTÁ A MÁGICA: Se der qualquer erro interno, o Django não vai mais sumir.
+            # Ele vai capturar a mensagem exata do erro e responder em texto puro para você ver no celular!
+            return Response({
+                "error_message": str(e),
+                "detail": "Erro interno capturado no views.py do servidor."
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
