@@ -37,16 +37,20 @@ export const AuthProvider = ({ children }) => {
     // 2. Login Otimizado
     const login = async (username, password) => {
         try {
-            // Faz o login e já recebe os tokens E os dados do usuário!
-            const response = await api.post('/api/auth/login/', { username, password });
+            // ATENÇÃO: Verifique se no Django a rota é '/api/auth/jwt/create/' ou '/api/auth/login/'
+            const response = await api.post('/auth/login/', { username, password });
             
             // Extraímos os tokens e o resto guardamos na variável userData
-            const { access, refresh, ...userData } = response.data;
+            const { access, refresh } = response.data;
 
             localStorage.setItem('access_token', access); 
             if (refresh) localStorage.setItem('refresh_token', refresh);
 
             api.defaults.headers.Authorization = `Bearer ${access}`;
+          
+            // Busca os dados do usuário
+            const userResponse = await api.get('/auth/users/me/');
+            const userData = userResponse.data;
 
             // Como o Django já mandou o id, username e tipo_usuario, não precisamos
             // daquele segundo api.get()! Só salvamos direto no estado:
@@ -65,8 +69,8 @@ export const AuthProvider = ({ children }) => {
     // 3. Cadastro (Register)
     const register = async (userData) => {
         try {
-            // CORRIGIDO: Adicionado /api/
-            const response = await api.post('/api/auth/register/', userData);
+            // ATENÇÃO: Verifique se no seu Django a rota de criação é '/api/auth/users/' ou '/api/auth/register/'
+            const response = await api.post('/auth/register/', userData);
             return response.data;
         } catch (error) {
             console.error("Erro no cadastro:", error);

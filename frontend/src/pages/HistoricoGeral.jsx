@@ -56,7 +56,7 @@ export default function HistoricoGeral() {
     if (!selectedAgendamento) return;
     setModalLoading(true);
     try {
-        await api.post(`/agendamentos/${selectedAgendamento.id}/avaliar/`, { nota, comentario });
+        await api.post(`/api/agendamentos/${selectedAgendamento.id}/avaliar/`, { nota, comentario });
         alert("Avaliação enviada com sucesso! ⭐"); 
         setShowModal(false);
         loadAll(); 
@@ -78,7 +78,7 @@ export default function HistoricoGeral() {
         // await api.delete(`/agendamentos/${id}/`);
         
         // Opção B: Apenas mudar status (Recomendado para manter histórico)
-        await api.patch(`/agendamentos/${id}/`, { status: 'CANCELADO' });
+        await api.patch(`/api/agendamentos/${id}/`, { status: 'CANCELADO' });
         
         alert("Agendamento cancelado com sucesso.");
         loadAll(); // Recarrega a lista

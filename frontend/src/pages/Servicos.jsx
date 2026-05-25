@@ -108,17 +108,25 @@ export default function Servicos() {
     setShowModal(true);
   };
 
-  async function handleSubmit(e) {
+async function handleSubmit(e) {
     e.preventDefault();
     try {
+      // Cria o pacote com as conversões de número
       const payload = {
           ...formData,
           preco: parseFloat(formData.preco),
           duracao_minutos: parseInt(formData.duracao_minutos)
       };
 
-      if (formData.id) await api.put(`/servicos/${formData.id}/`, payload);
-      else await api.post('/servicos/', payload);
+      if (formData.id) {
+          // Se tem ID, é Edição (PUT)
+          await api.put(`/api/servicos/${formData.id}/`, payload);
+      } else {
+          // Se NÃO tem ID, é Cadastro Novo (POST)
+          // Arrancamos o campo 'id' fora do payload para o Django não surtar
+          delete payload.id; 
+          await api.post('/servicos/', payload);
+      }
       
       setShowModal(false);
       loadServicos();
@@ -131,7 +139,7 @@ export default function Servicos() {
   async function handleDelete(id) {
     if (!window.confirm("Tem certeza?")) return;
     try {
-      await api.delete(`/servicos/${id}/`);
+      await api.delete(`/api/servicos/${id}/`);
       loadServicos();
     } catch (error) {
       alert("Erro ao excluir.");
