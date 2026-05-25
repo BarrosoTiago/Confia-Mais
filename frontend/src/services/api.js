@@ -4,9 +4,6 @@ const api = axios.create({
   baseURL: 'https://confiaplus-api.onrender.com/api',
 });
 
-
-
-
 // 1. INTERCEPTOR DE REQUISIÇÃO (O que você já deve ter)
 // Coloca o token no cabeçalho antes de sair do navegador
 api.interceptors.request.use((config) => {
