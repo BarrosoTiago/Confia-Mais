@@ -191,52 +191,58 @@ class DashboardView(APIView):
         mes_atual = hoje.month
         ano_atual = hoje.year
 
-        # Se os modelos Agendamento e Servico estiverem disponíveis
+        # Importando os modelos exatos que você criou
         try:
-            from agendamentos.models import Agendamento
+            from agendamentos.models import Agendamento, Despesa
             
-            # --- 1. CÁLCULOS FINANCEIROS (Baseado nos Serviços e Agendamentos) ---
+            # --- 1. CÁLCULOS FINANCEIROS ---
             
-            # Entradas do Mês (Agendamentos Concluídos no mês atual)
+            # Entradas do Mês (Soma do preço dos serviços de agendamentos CONCLUIDOS no mês)
             entradas_mes_query = Agendamento.objects.filter(
                 servicos__criado_por=user,
                 status='CONCLUIDO',
-                data_hora__month=mes_atual,
-                data_hora__year=ano_atual
+                data_hora_inicio__month=mes_atual, # CORREÇÃO AQUI
+                data_hora_inicio__year=ano_atual   # CORREÇÃO AQUI
             ).aggregate(total=Sum('servicos__preco'))
             entradas_mes = entradas_mes_query['total'] or 0.00
 
-            # Recebidos Hoje (Agendamentos Concluídos no dia de hoje)
+            # Recebidos Hoje
             recebidos_hoje_query = Agendamento.objects.filter(
                 servicos__criado_por=user,
                 status='CONCLUIDO',
-                data_hora__date=hoje
+                data_hora_inicio__date=hoje # CORREÇÃO AQUI
             ).aggregate(total=Sum('servicos__preco'))
             recebidos_hoje = recebidos_hoje_query['total'] or 0.00
 
-            # A Receber (Agendamentos Pendentes/Confirmados que ainda não foram pagos)
+            # A Receber (Pendentes ou Confirmados)
             a_receber_query = Agendamento.objects.filter(
                 servicos__criado_por=user,
                 status__in=['PENDENTE', 'CONFIRMADO']
             ).aggregate(total=Sum('servicos__preco'))
             a_receber = a_receber_query['total'] or 0.00
 
-            # Clientes Pendentes (Quantos clientes únicos têm agendamentos pendentes)
+            # Clientes Pendentes
             clientes_pendentes = Agendamento.objects.filter(
                 servicos__criado_por=user,
                 status__in=['PENDENTE', 'CONFIRMADO']
             ).values('cliente').distinct().count()
 
-            # Despesas (Como não vi model de despesas, deixarei fixo para você adaptar)
-            despesas = 0.00
+            # Despesas (AGORA USANDO SEU NOVO MODELO!)
+            despesas_query = Despesa.objects.filter(
+                usuario=user,
+                data__month=mes_atual,
+                data__year=ano_atual
+            ).aggregate(total=Sum('valor'))
+            despesas = despesas_query['total'] or 0.00
+
             balanco_total = float(entradas_mes) - float(despesas)
 
             # --- 2. ÚLTIMOS AGENDAMENTOS (Próximos 5) ---
             
             proximos_agendamentos = Agendamento.objects.filter(
                 servicos__criado_por=user,
-                data_hora__date__gte=hoje
-            ).order_by('data_hora')[:5]
+                data_hora_inicio__date__gte=hoje # CORREÇÃO AQUI
+            ).order_by('data_hora_inicio')[:5]   # CORREÇÃO AQUI
 
             meses_pt = {
                 1: 'JAN', 2: 'FEV', 3: 'MAR', 4: 'ABR', 5: 'MAI', 6: 'JUN',
@@ -245,14 +251,14 @@ class DashboardView(APIView):
 
             ultimos_agendamentos_lista = []
             for ag in proximos_agendamentos:
-                data_local = timezone.localtime(ag.data_hora)
+                data_local = timezone.localtime(ag.data_hora_inicio) # CORREÇÃO AQUI
                 
-                # Pegando o primeiro serviço do agendamento (ajuste se for mais de um)
+                # Pegando o primeiro serviço do ManyToManyField
                 primeiro_servico = ag.servicos.first()
-                nome_servico = primeiro_servico.nome if primeiro_servico else "Serviço não definido"
+                nome_servico = primeiro_servico.nome if primeiro_servico else "Sem serviço"
                 preco_servico = primeiro_servico.preco if primeiro_servico else 0.00
 
-                # Lógica para pegar o nome do cliente (User ou Cliente model)
+                # Lógica para pegar o nome do cliente
                 nome_cliente = ag.cliente.nome_completo or ag.cliente.username if ag.cliente else "Desconhecido"
 
                 ultimos_agendamentos_lista.append({
@@ -267,7 +273,7 @@ class DashboardView(APIView):
                 })
 
         except ImportError:
-            # Fallback (Plano B) caso os models de agendamento não estejam prontos
+            # Fallback (Plano B)
             entradas_mes = 0.00
             recebidos_hoje = 0.00
             a_receber = 0.00
