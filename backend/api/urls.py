@@ -54,18 +54,6 @@ router.register(r'calculadora', CalculadoraViewSet, basename='calculadora')
 router.register(r'servicos', ServicoViewSet, basename='servico')
 router.register(r'categorias', CategoriaViewSet, basename='categoria')
 
-router = DefaultRouter()
-
-# Registros do Router (Re-organizados para clareza)
-router.register(r'agendamentos', AgendamentoViewSet, basename='agendamento')
-router.register(r'horarios', HorarioViewSet, basename='horario')
-router.register(r'categorias', CategoriaViewSet, basename='categoria')
-router.register(r'despesas', DespesaViewSet, basename='despesa')
-router.register(r'pagamentos', PagamentoViewSet, basename='pagamento')
-router.register(r'anotacoes', AnotacaoViewSet, basename='anotacao')
-router.register(r'servicos', ServicoViewSet, basename='servico')
-router.register(r'financeiro/transacoes', TransacaoViewSet, basename='transacao')
-
 urlpatterns = [
     # --- FINANCEIRO & DASHBOARD (PONTO CRÍTICO) ---
     # Esta rota deve chamar a view do app financeiro para os cards saírem do R$ 0,00

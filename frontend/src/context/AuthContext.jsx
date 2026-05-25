@@ -10,16 +10,17 @@ export const AuthProvider = ({ children }) => {
 
     const clearNotification = () => setNotification(null);
 
-    // 1. Persistência (Mantém logado ao dar F5) - Ajustado para 'access_token'
+    // 1. Persistência
     useEffect(() => {
         const recoverUser = async () => {
-            const token = localStorage.getItem('access_token'); // CORRIGIDO: igual ao api.js
+            const token = localStorage.getItem('access_token');
             
             if (token) {
                 try {
                     api.defaults.headers.Authorization = `Bearer ${token}`;
-                    // Certifique-se de que essa rota existe no seu Django backend
-                    const response = await api.get('/auth/users/me/');
+                    
+                    // CORRIGIDO: Adicionado /api/
+                    const response = await api.get('/api/auth/users/me/');
                     setUser(response.data);
                 } catch (error) {
                     console.error("Sessão inválida ou expirada:", error);
@@ -33,25 +34,26 @@ export const AuthProvider = ({ children }) => {
         recoverUser();
     }, []);
 
-    // 2. Login
+    // 2. Login Otimizado
     const login = async (username, password) => {
         try {
-            // ATENÇÃO: Verifique se no Django a rota é '/auth/jwt/create/' ou '/auth/login/'
+            // ATENÇÃO: Verifique se no Django a rota é '/api/auth/jwt/create/' ou '/api/auth/login/'
             const response = await api.post('/auth/login/', { username, password });
             
-            // Ajustado para ler a estrutura padrão do backend
+            // Extraímos os tokens e o resto guardamos na variável userData
             const { access, refresh } = response.data;
 
-            // Salva no LocalStorage usando os mesmos nomes do api.js
-            localStorage.setItem('access_token', access); // CORRIGIDO
+            localStorage.setItem('access_token', access); 
             if (refresh) localStorage.setItem('refresh_token', refresh);
 
             api.defaults.headers.Authorization = `Bearer ${access}`;
-
+          
             // Busca os dados do usuário
             const userResponse = await api.get('/auth/users/me/');
             const userData = userResponse.data;
-            
+
+            // Como o Django já mandou o id, username e tipo_usuario, não precisamos
+            // daquele segundo api.get()! Só salvamos direto no estado:
             setUser(userData);
             return userData; 
 
@@ -67,7 +69,7 @@ export const AuthProvider = ({ children }) => {
     // 3. Cadastro (Register)
     const register = async (userData) => {
         try {
-            // ATENÇÃO: Verifique se no seu Django a rota de criação é '/auth/users/' ou '/auth/register/'
+            // ATENÇÃO: Verifique se no seu Django a rota de criação é '/api/auth/users/' ou '/api/auth/register/'
             const response = await api.post('/auth/register/', userData);
             return response.data;
         } catch (error) {
@@ -80,15 +82,14 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
-    // 4. Logout - Ajustado para limpar as chaves certas
+    // 4. Logout
     const logout = () => {
-        localStorage.removeItem('access_token'); // CORRIGIDO
-        localStorage.removeItem('refresh_token'); // CORRIGIDO
+        localStorage.removeItem('access_token'); 
+        localStorage.removeItem('refresh_token'); 
         localStorage.removeItem('user_data');
         setUser(null);
         api.defaults.headers.Authorization = null;
         
-        // Redireciona de forma limpa
         window.location.href = '/login';
     };
 

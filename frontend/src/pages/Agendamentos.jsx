@@ -42,7 +42,7 @@ export default function Agendamentos() {
       const [respAgenda, respServicos, respClientes] = await Promise.all([
         api.get('/agendamentos/'),
         api.get('/servicos/'),
-        api.get('/auth/clientes/')
+        api.get('/api/auth/clientes/')
       ]);
       
       const listaOrdenada = respAgenda.data.sort((a, b) => 
@@ -75,7 +75,7 @@ async function carregarHorariosDinâmicos() {
       const dia = String(dataSelecionada.getDate()).padStart(2, '0');
       const dataFormatada = `${ano}-${mes}-${dia}`;
 
-      const response = await api.get(`/agendamentos/horarios-disponiveis/`, {
+      const response = await api.get(`/api/agendamentos/horarios-disponiveis/`, {
         params: {
           servico_id: servicoId,
           data: dataFormatada
@@ -113,13 +113,13 @@ async function carregarHorariosDinâmicos() {
 
   const handleDelete = async (id) => {
       if(window.confirm("Tem certeza que deseja excluir este agendamento?")) {
-          try { await api.delete(`/agendamentos/${id}/`); loadData(); } catch (error) { alert("Erro ao excluir."); }
+          try { await api.delete(`/api/agendamentos/${id}/`); loadData(); } catch (error) { alert("Erro ao excluir."); }
       }
   };
 
   const handleStatusChange = async (id, novoStatus) => {
       if(!window.confirm(`Mudar status para ${novoStatus}?`)) return;
-      try { await api.patch(`/agendamentos/${id}/`, { status: novoStatus }); loadData(); } catch (error) { alert("Erro ao atualizar status."); }
+      try { await api.patch(`/api/agendamentos/${id}/`, { status: novoStatus }); loadData(); } catch (error) { alert("Erro ao atualizar status."); }
   };
 
   const handleShowAdd = () => {

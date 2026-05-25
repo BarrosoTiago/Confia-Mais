@@ -22,7 +22,7 @@ export default function Vitrine() {
   useEffect(() => {
     async function fetchLojas() {
       try {
-        const response = await api.get('/auth/empreendedores/');
+        const response = await api.get('/api/auth/empreendedores/');
         setLojas(response.data);
       } catch (error) {
         console.error("Erro ao buscar lojas", error);
