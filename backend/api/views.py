@@ -189,10 +189,16 @@ class DashboardView(APIView):
                 status=status.HTTP_403_FORBIDDEN
             )
 
-        # AGORA SIM! Pega a data de hoje simples, respeitando o seu USE_TZ = False
+        # Pega a data de hoje simples, respeitando o seu USE_TZ = False
         hoje = datetime.now().date()
         mes_atual = hoje.month
         ano_atual = hoje.year
+
+        # Coleta as informações de perfil do usuário (empreendedor)
+        nome_usuario = getattr(user, 'nome_completo', None) or getattr(user, 'first_name', None) or user.username
+        foto_url = None
+        if hasattr(user, 'foto') and user.foto:
+            foto_url = request.build_absolute_uri(user.foto.url)
 
         try:
             from agendamentos.models import Agendamento, Despesa
@@ -248,7 +254,6 @@ class DashboardView(APIView):
 
             ultimos_agendamentos_lista = []
             for ag in proximos_agendamentos:
-                # Usa a hora do banco de dados direto, sem tentar converter fuso!
                 data_local = ag.data_hora_inicio
                 
                 primeiro_servico = ag.servicos.first()
@@ -269,6 +274,10 @@ class DashboardView(APIView):
                 })
 
             return Response({
+                "perfil": {
+                    "nome": nome_usuario,
+                    "foto": foto_url
+                },
                 "metrics": {
                     "recebidos_hoje": float(recebidos_hoje),
                     "entradas_mes": float(entradas_mes),
