@@ -178,20 +178,19 @@ class DashboardView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
-        # Imports locais e independentes para garantir que o Django não dê NameError
         from django.db.models import Sum
-        from django.utils import timezone
+        from datetime import datetime # Usando o datetime simples do Python!
         
         user = request.user
         
-        # Garante que apenas ADMINS vejam o painel financeiro
         if getattr(user, 'tipo_usuario', 'CLIENTE') != 'ADMIN':
             return Response(
                 {"detail": "Acesso negado. Apenas empreendedores têm acesso ao dashboard."}, 
                 status=status.HTTP_403_FORBIDDEN
             )
 
-        hoje = timezone.localtime(timezone.now()).date()
+        # AGORA SIM! Pega a data de hoje simples, respeitando o seu USE_TZ = False
+        hoje = datetime.now().date()
         mes_atual = hoje.month
         ano_atual = hoje.year
 
@@ -200,7 +199,6 @@ class DashboardView(APIView):
             
             # --- 1. CÁLCULOS FINANCEIROS ---
             
-            # Entradas do Mês
             entradas_mes_query = Agendamento.objects.filter(
                 servicos__criado_por=user,
                 status='CONCLUIDO',
@@ -209,7 +207,6 @@ class DashboardView(APIView):
             ).aggregate(total=Sum('servicos__preco'))
             entradas_mes = entradas_mes_query['total'] or 0.00
 
-            # Recebidos Hoje
             recebidos_hoje_query = Agendamento.objects.filter(
                 servicos__criado_por=user,
                 status='CONCLUIDO',
@@ -217,20 +214,17 @@ class DashboardView(APIView):
             ).aggregate(total=Sum('servicos__preco'))
             recebidos_hoje = recebidos_hoje_query['total'] or 0.00
 
-            # A Receber
             a_receber_query = Agendamento.objects.filter(
                 servicos__criado_por=user,
                 status__in=['PENDENTE', 'CONFIRMADO']
             ).aggregate(total=Sum('servicos__preco'))
             a_receber = a_receber_query['total'] or 0.00
 
-            # Clientes Pendentes
             clientes_pendentes = Agendamento.objects.filter(
                 servicos__criado_por=user,
                 status__in=['PENDENTE', 'CONFIRMADO']
             ).values('cliente').distinct().count()
 
-            # Despesas (Usando seu modelo real)
             despesas_query = Despesa.objects.filter(
                 usuario=user,
                 data__month=mes_atual,
@@ -254,13 +248,13 @@ class DashboardView(APIView):
 
             ultimos_agendamentos_lista = []
             for ag in proximos_agendamentos:
-                data_local = timezone.localtime(ag.data_hora_inicio)
+                # Usa a hora do banco de dados direto, sem tentar converter fuso!
+                data_local = ag.data_hora_inicio
                 
                 primeiro_servico = ag.servicos.first()
                 nome_servico = primeiro_servico.nome if primeiro_servico else "Sem serviço"
                 preco_servico = primeiro_servico.preco if primeiro_servico else 0.00
 
-                # FORMA ULTRA SEGURA: Evita o erro se 'nome_completo' não existir no User
                 nome_cliente = getattr(ag.cliente, 'nome_completo', None) or getattr(ag.cliente, 'first_name', None) or ag.cliente.username
 
                 ultimos_agendamentos_lista.append({
@@ -274,7 +268,6 @@ class DashboardView(APIView):
                     "status": ag.status
                 })
 
-            # Retorno de sucesso normal
             return Response({
                 "metrics": {
                     "recebidos_hoje": float(recebidos_hoje),
@@ -288,8 +281,6 @@ class DashboardView(APIView):
             })
 
         except Exception as e:
-            # AQUI ESTÁ A MÁGICA: Se der qualquer erro interno, o Django não vai mais sumir.
-            # Ele vai capturar a mensagem exata do erro e responder em texto puro para você ver no celular!
             return Response({
                 "error_message": str(e),
                 "detail": "Erro interno capturado no views.py do servidor."
