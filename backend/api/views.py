@@ -6,6 +6,7 @@ from django.contrib.auth import get_user_model
 from django.db.models import Count, Q, Sum
 from django.utils import timezone
 from django.conf import settings
+import resend
 
 # Imports para a Recuperação de Senha
 import random
@@ -303,13 +304,16 @@ class SolicitarRecuperacaoSenhaView(APIView):
 
             # ✅ CORRIGIDO: send_mail dentro de try/except para capturar erros de e-mail
             try:
-                send_mail(
-                    'Recuperação de Senha - Confia+',
-                    f'Olá {user.nome_completo or user.username}!\n\nRecebemos um pedido para redefinir a sua senha.\nO seu código de verificação é: {codigo}\n\nSe não foi você que solicitou, ignore esta mensagem.',
-                    settings.DEFAULT_FROM_EMAIL,
-                    [user.email],
-                    fail_silently=False,
-                )
+                resend.Emails.send({
+                    "from": "Confia+ <onboarding@resend.dev>",
+                    "to": [user.email],
+                    "subject": "Recuperação de Senha - Confia+",
+                    "text": (
+                        f"Olá {user.nome_completo or user.username}!\n\n"
+                        f"Seu código de verificação é: {codigo}\n\n"
+                        "Se não foi você, ignore esta mensagem."
+                    )
+                })
             except Exception as email_error:
                 print(f"[ERRO E-MAIL] {email_error}")
                 return Response(
