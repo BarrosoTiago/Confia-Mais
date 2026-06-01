@@ -304,6 +304,7 @@ class SolicitarRecuperacaoSenhaView(APIView):
 
             # ✅ CORRIGIDO: send_mail dentro de try/except para capturar erros de e-mail
             try:
+                resend.api_key = settings.RESEND_API_KEY  # ← adicione essa linha
                 resend.Emails.send({
                     "from": "Confia+ <onboarding@resend.dev>",
                     "to": [user.email],
