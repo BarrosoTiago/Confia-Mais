@@ -16,8 +16,8 @@ export default function RecuperarSenha() {
     const [email, setEmail] = useState('');
     const [token, setToken] = useState('');
     const [password, setPassword] = useState('');
-    const [confirmPassword, setConfirmPassword] = useState(''); // <--- NOVO
-    const [showPassword, setShowPassword] = useState(false); // <--- NOVO
+    const [confirmPassword, setConfirmPassword] = useState('');
+    const [showPassword, setShowPassword] = useState(false);
     
     // Feedback
     const [msg, setMsg] = useState('');
@@ -30,7 +30,8 @@ export default function RecuperarSenha() {
         setError(''); setMsg(''); setLoading(true);
         
         try {
-            await api.post('/auth/password_reset/', { email });
+            // ATUALIZADO PARA A NOVA ROTA DO DJANGO
+            await api.post('/recuperar-senha/solicitar/', { email });
             setStep(2);
             setMsg('E-mail enviado! Verifique sua caixa de entrada.');
         } catch (err) {
@@ -58,14 +59,21 @@ export default function RecuperarSenha() {
         setLoading(true);
 
         try {
-            await api.post('/auth/password_reset/confirm/', {
-                token: token,
-                password: password
+            // ATUALIZADO PARA A NOVA ROTA E OS NOVOS NOMES DOS CAMPOS
+            await api.post('/recuperar-senha/redefinir/', {
+                email: email,
+                codigo: token,
+                nova_senha: password
             });
             alert("Senha alterada com sucesso! Você será redirecionado para o login.");
             navigate('/login');
         } catch (err) {
-            setError('Token inválido, expirado ou erro no servidor.');
+            // Se o Django devolver uma mensagem de erro específica, nós mostramos
+            if (err.response && err.response.data && err.response.data.erro) {
+                setError(err.response.data.erro);
+            } else {
+                setError('Código inválido, expirado ou erro no servidor.');
+            }
         } finally {
             setLoading(false);
         }
@@ -172,6 +180,8 @@ export default function RecuperarSenha() {
                                     <Form.Control 
                                         className="custom-input" type="text" placeholder="Cole o código aqui"
                                         value={token} onChange={e => setToken(e.target.value)} required 
+                                        maxLength="6"
+                                        style={{letterSpacing: '3px', fontWeight: 'bold'}}
                                     />
                                     <FaKey className="position-absolute text-muted" style={{left: '12px'}} />
                                 </div>
