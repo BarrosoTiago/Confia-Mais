@@ -2,7 +2,6 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 
 # --- 1. IMPORT DAS VIEWS DO APP FINANCEIRO (DINHEIRO REAL) ---
-# Importamos daqui para garantir que os cálculos usem as tabelas Transacao e Pagamento
 from financeiro.views import (
     FinanceiroDashboardView,
     TransacaoViewSet,
@@ -35,7 +34,9 @@ from .views import (
     EmpreendedorListView, 
     ServicoViewSet, 
     HorarioConfigViewSet,
-    DashboardView
+    DashboardView,
+    SolicitarRecuperacaoSenhaView, # <--- ADICIONADO AQUI
+    RedefinirSenhaView             # <--- ADICIONADO AQUI
 )
 
 router = DefaultRouter()
@@ -45,7 +46,7 @@ router.register(r'agendamentos', AgendamentoViewSet, basename='agendamento')
 router.register(r'horarios', HorarioViewSet, basename='horario')
 router.register(r'anotacoes', AnotacaoViewSet, basename='anotacao')
 
-# Rotas Financeiras (Agora apontando para o app financeiro)
+# Rotas Financeiras
 router.register(r'financeiro/transacoes', TransacaoViewSet, basename='transacao')
 router.register(r'pagamentos', PagamentoViewSet, basename='pagamento')
 router.register(r'despesas', DespesaViewSet, basename='despesa')
@@ -56,10 +57,8 @@ router.register(r'servicos', ServicoViewSet, basename='servico')
 router.register(r'categorias', CategoriaViewSet, basename='categoria')
 
 urlpatterns = [
-    # --- FINANCEIRO & DASHBOARD (PONTO CRÍTICO) ---
-    # Esta rota deve chamar a view do app financeiro para os cards saírem do R$ 0,00
+    # --- FINANCEIRO & DASHBOARD ---
     path('financeiro/transacoes/dashboard/', FinanceiroDashboardView.as_view(), name='financeiro_dashboard'),
-    
     path('horarios/disponiveis/', HorarioDisponivelView.as_view(), name='horarios_disponiveis'),
     
     # --- AVALIAÇÕES ---
@@ -77,11 +76,13 @@ urlpatterns = [
     path('auth/clientes/', ClienteListView.as_view(), name='clientes_list'),
     path('auth/empreendedores/', EmpreendedorListView.as_view(), name='empreendedores_list'),
 
-    # --- SENHA ---
-    path('auth/password_reset/', include('django_rest_passwordreset.urls', namespace='password_reset')),
+    # --- SENHA (ROTAS NOVAS CORRIGIDAS) 🔐 ---
+    path('recuperar-senha/solicitar/', SolicitarRecuperacaoSenhaView.as_view(), name='solicitar-recuperacao'),
+    path('recuperar-senha/redefinir/', RedefinirSenhaView.as_view(), name='redefinir-senha'),
+    
+    # Opcional: Se quiser remover a biblioteca antiga de vez, você pode até apagar ela do INSTALLED_APPS no settings.py.
     
     # --- CRUD PADRÃO ---
     path('', include(router.urls)),
-
     path('dashboard/', DashboardView.as_view(), name='api_dashboard'),
 ]
