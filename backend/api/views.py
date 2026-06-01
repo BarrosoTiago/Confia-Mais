@@ -4,9 +4,15 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.views import TokenObtainPairView
 from django.contrib.auth import get_user_model
 from django.db.models import Count, Q, Sum
-from django.utils import timezone # Adicionado o timezone
+from django.utils import timezone
+from django.conf import settings
 
-# Import obrigatório para aceitar JSON e Arquivos (Corrige erro 415)
+# Novos imports para a Recuperação de Senha
+import random
+from django.core.mail import send_mail
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError as DjangoValidationError
+
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser 
 
 from .serializers import (
@@ -18,7 +24,7 @@ from .serializers import (
 )
 
 try:
-    from agendamentos.models import Agendamento, HorarioFuncionamento
+    from agendamentos.models import Agendamento, HorarioFuncionamento, Despesa # Adicionado Despesa
     from servicos.models import Servico
 except ImportError:
     pass
@@ -76,7 +82,7 @@ class UserMeView(generics.RetrieveUpdateAPIView):
         response = super().get(request, *args, **kwargs)
         user = request.user
         deve_configurar_horarios = False
-        if user.tipo_usuario == 'ADMIN':
+        if getattr(user, 'tipo_usuario', '') == 'EMPREENDEDOR': # Atualizado de ADMIN para EMPREENDEDOR
             if hasattr(user, 'horarios_funcionamento') and not user.horarios_funcionamento.exists():
                 deve_configurar_horarios = True
         response.data['deve_configurar_horarios'] = deve_configurar_horarios
@@ -127,39 +133,30 @@ class ClienteListView(generics.ListAPIView):
         return Response(data)
 
 class EmpreendedorListView(generics.ListAPIView):
-    permission_classes = [permissions.AllowAny] # Aberto para o cliente encontrar lojas
+    permission_classes = [permissions.AllowAny] 
     serializer_class = UserRegistrationSerializer 
     def get_queryset(self):
-        return User.objects.filter(tipo_usuario='ADMIN')
+        return User.objects.filter(tipo_usuario='EMPREENDEDOR') # Atualizado de ADMIN para EMPREENDEDOR
 
 # --- 7. VIEWSETS DO ONBOARDING E VITRINE ---
 
 class ServicoViewSet(viewsets.ModelViewSet):
-    """
-    CRUD de Serviços. Ajustado para permitir que clientes vejam a vitrine.
-    """
     serializer_class = ServicoSerializer
 
     def get_permissions(self):
-        # Permite que qualquer pessoa veja os serviços (Vitrine)
         if self.action in ['list', 'retrieve']:
             return [permissions.AllowAny()]
-        # Apenas usuários logados podem criar/editar/deletar
         return [permissions.IsAuthenticated()]
 
     def get_queryset(self):
-        # 1. Filtro por Empreendedor (Para o Cliente ver uma loja específica)
-        # Exemplo de chamada: api/servicos/?empreendedor_id=5
         empreendedor_id = self.request.query_params.get('empreendedor_id')
         if empreendedor_id:
             return Servico.objects.filter(criado_por_id=empreendedor_id)
 
-        # 2. Visão do Empreendedor logado no seu próprio painel de controle
         user = self.request.user
-        if user.is_authenticated and getattr(user, 'tipo_usuario', None) == 'ADMIN':
+        if user.is_authenticated and getattr(user, 'tipo_usuario', None) == 'EMPREENDEDOR':
             return Servico.objects.filter(criado_por=user)
         
-        # 3. Visão Geral: Se for um cliente navegando sem filtro, mostra serviços ativos
         return Servico.objects.all()
 
     def perform_create(self, serializer):
@@ -173,38 +170,31 @@ class HorarioConfigViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(usuario=self.request.user)
 
-# --- 8. DASHBOARD (PAINEL PRINCIPAL BLINDADO) ---
+# --- 8. DASHBOARD ---
 class DashboardView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
-        from django.db.models import Sum
-        from datetime import datetime # Usando o datetime simples do Python!
+        from datetime import datetime
         
         user = request.user
         
-        if getattr(user, 'tipo_usuario', 'CLIENTE') != 'ADMIN':
+        if getattr(user, 'tipo_usuario', 'CLIENTE') != 'EMPREENDEDOR':
             return Response(
                 {"detail": "Acesso negado. Apenas empreendedores têm acesso ao dashboard."}, 
                 status=status.HTTP_403_FORBIDDEN
             )
 
-        # Pega a data de hoje simples, respeitando o seu USE_TZ = False
         hoje = datetime.now().date()
         mes_atual = hoje.month
         ano_atual = hoje.year
 
-        # Coleta as informações de perfil do usuário (empreendedor)
         nome_usuario = getattr(user, 'nome_completo', None) or getattr(user, 'first_name', None) or user.username
         foto_url = None
         if hasattr(user, 'foto') and user.foto:
             foto_url = request.build_absolute_uri(user.foto.url)
 
         try:
-            from agendamentos.models import Agendamento, Despesa
-            
-            # --- 1. CÁLCULOS FINANCEIROS ---
-            
             entradas_mes_query = Agendamento.objects.filter(
                 servicos__criado_por=user,
                 status='CONCLUIDO',
@@ -240,8 +230,6 @@ class DashboardView(APIView):
 
             balanco_total = float(entradas_mes) - float(despesas)
 
-            # --- 2. ÚLTIMOS AGENDAMENTOS ---
-            
             proximos_agendamentos = Agendamento.objects.filter(
                 servicos__criado_por=user,
                 data_hora_inicio__date__gte=hoje
@@ -294,3 +282,57 @@ class DashboardView(APIView):
                 "error_message": str(e),
                 "detail": "Erro interno capturado no views.py do servidor."
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+# --- 9. RECUPERAÇÃO DE SENHA (NOVAS VIEWS) ---
+
+class SolicitarRecuperacaoSenhaView(APIView):
+    def post(self, request):
+        email = request.data.get('email')
+        
+        try:
+            user = User.objects.get(email=email)
+            
+            # Gera um código aleatório de 6 dígitos
+            codigo = str(random.randint(100000, 999999))
+            user.codigo_recuperacao = codigo
+            user.save()
+            
+            # Dispara o e-mail (Substitua o remetente pelo configurado no settings.py)
+            send_mail(
+                'Recuperação de Senha - Confia+',
+                f'Olá {user.nome_completo or user.username}! \n\nRecebemos um pedido para redefinir a sua senha.\nO seu código de verificação é: {codigo}\n\nSe não foi você que solicitou, ignore esta mensagem.',
+                settings.DEFAULT_FROM_EMAIL, # <--- AJUSTE AQUI SEU E-MAIL
+                [user.email],
+                fail_silently=False,
+            )
+            
+            return Response({"mensagem": "Se o e-mail estiver cadastrado, enviaremos um código."}, status=status.HTTP_200_OK)
+            
+        except User.DoesNotExist:
+            return Response({"mensagem": "Se o e-mail estiver cadastrado, enviaremos um código."}, status=status.HTTP_200_OK)
+
+class RedefinirSenhaView(APIView):
+    def post(self, request):
+        email = request.data.get('email')
+        codigo_digitado = request.data.get('codigo')
+        nova_senha = request.data.get('nova_senha')
+        
+        try:
+            user = User.objects.get(email=email)
+            
+            if user.codigo_recuperacao != codigo_digitado or not codigo_digitado:
+                return Response({"erro": "Código inválido ou expirado."}, status=status.HTTP_400_BAD_REQUEST)
+            
+            try:
+                validate_password(nova_senha, user)
+            except DjangoValidationError as e:
+                return Response({"erro": list(e.messages)}, status=status.HTTP_400_BAD_REQUEST)
+                
+            user.set_password(nova_senha)
+            user.codigo_recuperacao = None
+            user.save()
+            
+            return Response({"mensagem": "Senha redefinida com sucesso! Faça login."}, status=status.HTTP_200_OK)
+                
+        except User.DoesNotExist:
+            return Response({"erro": "Usuário não encontrado."}, status=status.HTTP_404_NOT_FOUND)
