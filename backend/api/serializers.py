@@ -1,3 +1,4 @@
+import re
 from rest_framework import serializers
 from rest_framework.validators import UniqueValidator
 from django.contrib.auth import get_user_model
@@ -5,6 +6,10 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from django.db.models import Avg, Sum
 from django.utils import timezone
 import datetime
+
+# Novos imports para as validações de senha e erros
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError as DjangoValidationError
 
 # --- IMPORTS PROTEGIDOS DOS MODELOS ---
 try:
@@ -15,7 +20,7 @@ except ImportError:
 
 User = get_user_model() 
 
-# --- 1. SERIALIZER DE CADASTRO (O QUE ESTAVA DANDO ERRO) ---
+# --- 1. SERIALIZER DE CADASTRO (BLINDADO) ---
 class UserRegistrationSerializer(serializers.ModelSerializer):
     email = serializers.EmailField(
         required=True,
@@ -38,8 +43,33 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
             'nome_completo', 'telefone', 'tipo_usuario', 'foto', 'capa',
             'descricao', 'endereco', 'bairro', 'cidade', 'setup_concluido'
         ) 
-        extra_kwargs = {'username': {'required': True}}
+        extra_kwargs = {
+            'username': {'required': True},
+            'nome_completo': {'required': True},
+            'telefone': {'required': True}
+        }
 
+    # Validação do Telefone (DDD + 9 Obrigatórios)
+    def validate_telefone(self, value):
+        numero_limpo = re.sub(r'\D', '', value)
+        
+        if len(numero_limpo) != 11:
+            raise serializers.ValidationError("O telefone deve conter o DDD e o dígito 9. Exemplo: (84) 99999-9999")
+        
+        if numero_limpo[2] != '9':
+            raise serializers.ValidationError("O número de telefone deve iniciar com o dígito 9 após o DDD.")
+            
+        return value
+
+    # Validação da Senha (Bloqueia senhas apenas numéricas ou fracas)
+    def validate_password(self, value):
+        try:
+            validate_password(value)
+        except DjangoValidationError as e:
+            raise serializers.ValidationError(list(e.messages))
+        return value
+
+    # Validação Geral (Senhas iguais e campos em branco)
     def validate(self, attrs):
         if attrs.get('password') != attrs.get('password_confirm'):
             raise serializers.ValidationError({"password": "As senhas não correspondem."})
@@ -51,6 +81,9 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
             username=validated_data['username'],
             email=validated_data['email'],
             password=validated_data['password'],
+            # Adicionados nome e telefone para serem salvos corretamente
+            nome_completo=validated_data.get('nome_completo'),
+            telefone=validated_data.get('telefone'),
             tipo_usuario=validated_data.get('tipo_usuario', 'CLIENTE'),
             setup_concluido=False
         )
@@ -95,7 +128,6 @@ class AgendamentoSerializer(serializers.ModelSerializer):
     servicos_detalhes = ServicoSerializer(source='servicos', many=True, read_only=True)
     cliente_nome = serializers.ReadOnlyField(source='cliente.nome_completo')
     
-    # Este campo 'financeiro' é o que preenche o saldo na sua tabela do frontend
     financeiro = serializers.SerializerMethodField()
 
     servicos = serializers.PrimaryKeyRelatedField(
@@ -108,7 +140,6 @@ class AgendamentoSerializer(serializers.ModelSerializer):
         read_only_fields = ['data_hora_fim', 'cliente', 'status', 'criado_em']
 
     def get_financeiro(self, obj):
-        """Calcula o saldo real buscando os pagamentos no app financeiro."""
         try:
             from financeiro.models import Pagamento
             total_servicos = sum(s.preco for s in obj.servicos.all())
@@ -133,7 +164,6 @@ class AgendamentoSerializer(serializers.ModelSerializer):
         duracao_total = sum([s.duracao_minutos for s in servicos_solicitados])
         fim_solicitado = inicio_solicitado + datetime.timedelta(minutes=duracao_total)
         
-        # Validação de conflito de horário
         conflitos = Agendamento.objects.filter(
             servicos__criado_por=servicos_solicitados[0].criado_por,
             status__in=['PENDENTE', 'CONFIRMADO'],
@@ -155,7 +185,6 @@ class AgendamentoSerializer(serializers.ModelSerializer):
         agendamento = Agendamento.objects.create(data_hora_fim=fim, **validated_data)
         agendamento.servicos.set(servicos)
         
-        # Gera automaticamente a Transação no app Financeiro
         from financeiro.models import Transacao
         Transacao.objects.create(agendamento=agendamento)
         
