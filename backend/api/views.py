@@ -7,7 +7,7 @@ from django.db.models import Count, Q, Sum
 from django.utils import timezone
 from django.conf import settings
 
-# Novos imports para a Recuperação de Senha
+# Imports para a Recuperação de Senha
 import random
 from django.core.mail import send_mail
 from django.contrib.auth.password_validation import validate_password
@@ -24,7 +24,7 @@ from .serializers import (
 )
 
 try:
-    from agendamentos.models import Agendamento, HorarioFuncionamento, Despesa # Adicionado Despesa
+    from agendamentos.models import Agendamento, HorarioFuncionamento, Despesa
     from servicos.models import Servico
 except ImportError:
     pass
@@ -82,7 +82,7 @@ class UserMeView(generics.RetrieveUpdateAPIView):
         response = super().get(request, *args, **kwargs)
         user = request.user
         deve_configurar_horarios = False
-        if getattr(user, 'tipo_usuario', '') == 'EMPREENDEDOR': # Atualizado de ADMIN para EMPREENDEDOR
+        if getattr(user, 'tipo_usuario', '') == 'EMPREENDEDOR':
             if hasattr(user, 'horarios_funcionamento') and not user.horarios_funcionamento.exists():
                 deve_configurar_horarios = True
         response.data['deve_configurar_horarios'] = deve_configurar_horarios
@@ -136,7 +136,7 @@ class EmpreendedorListView(generics.ListAPIView):
     permission_classes = [permissions.AllowAny] 
     serializer_class = UserRegistrationSerializer 
     def get_queryset(self):
-        return User.objects.filter(tipo_usuario='EMPREENDEDOR') # Atualizado de ADMIN para EMPREENDEDOR
+        return User.objects.filter(tipo_usuario='EMPREENDEDOR')
 
 # --- 7. VIEWSETS DO ONBOARDING E VITRINE ---
 
@@ -283,56 +283,80 @@ class DashboardView(APIView):
                 "detail": "Erro interno capturado no views.py do servidor."
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-# --- 9. RECUPERAÇÃO DE SENHA (NOVAS VIEWS) ---
+
+# --- 9. RECUPERAÇÃO DE SENHA ---
 
 class SolicitarRecuperacaoSenhaView(APIView):
+    # ✅ CORRIGIDO: AllowAny para permitir acesso sem autenticação
+    permission_classes = [permissions.AllowAny]
+
     def post(self, request):
         email = request.data.get('email')
-        
+
         try:
             user = User.objects.get(email=email)
-            
+
             # Gera um código aleatório de 6 dígitos
             codigo = str(random.randint(100000, 999999))
             user.codigo_recuperacao = codigo
             user.save()
-            
-            # Dispara o e-mail (Substitua o remetente pelo configurado no settings.py)
-            send_mail(
-                'Recuperação de Senha - Confia+',
-                f'Olá {user.nome_completo or user.username}! \n\nRecebemos um pedido para redefinir a sua senha.\nO seu código de verificação é: {codigo}\n\nSe não foi você que solicitou, ignore esta mensagem.',
-                settings.DEFAULT_FROM_EMAIL, # <--- AJUSTE AQUI SEU E-MAIL
-                [user.email],
-                fail_silently=False,
-            )
-            
-            return Response({"mensagem": "Se o e-mail estiver cadastrado, enviaremos um código."}, status=status.HTTP_200_OK)
-            
+
+            # ✅ CORRIGIDO: send_mail dentro de try/except para capturar erros de e-mail
+            try:
+                send_mail(
+                    'Recuperação de Senha - Confia+',
+                    f'Olá {user.nome_completo or user.username}!\n\nRecebemos um pedido para redefinir a sua senha.\nO seu código de verificação é: {codigo}\n\nSe não foi você que solicitou, ignore esta mensagem.',
+                    settings.DEFAULT_FROM_EMAIL,
+                    [user.email],
+                    fail_silently=False,
+                )
+            except Exception as email_error:
+                print(f"[ERRO E-MAIL] {email_error}")
+                return Response(
+                    {"erro": "Falha ao enviar e-mail. Verifique a configuração do servidor de e-mail."},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+
         except User.DoesNotExist:
-            return Response({"mensagem": "Se o e-mail estiver cadastrado, enviaremos um código."}, status=status.HTTP_200_OK)
+            pass  # Não revelamos se o e-mail existe ou não
+
+        return Response(
+            {"mensagem": "Se o e-mail estiver cadastrado, enviaremos um código."},
+            status=status.HTTP_200_OK
+        )
+
 
 class RedefinirSenhaView(APIView):
+    # ✅ CORRIGIDO: AllowAny para permitir acesso sem autenticação
+    permission_classes = [permissions.AllowAny]
+
     def post(self, request):
         email = request.data.get('email')
         codigo_digitado = request.data.get('codigo')
         nova_senha = request.data.get('nova_senha')
-        
+
         try:
             user = User.objects.get(email=email)
-            
-            if user.codigo_recuperacao != codigo_digitado or not codigo_digitado:
-                return Response({"erro": "Código inválido ou expirado."}, status=status.HTTP_400_BAD_REQUEST)
-            
+
+            if not codigo_digitado or user.codigo_recuperacao != codigo_digitado:
+                return Response(
+                    {"erro": "Código inválido ou expirado."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
             try:
                 validate_password(nova_senha, user)
             except DjangoValidationError as e:
                 return Response({"erro": list(e.messages)}, status=status.HTTP_400_BAD_REQUEST)
-                
+
             user.set_password(nova_senha)
             user.codigo_recuperacao = None
             user.save()
-            
-            return Response({"mensagem": "Senha redefinida com sucesso! Faça login."}, status=status.HTTP_200_OK)
-                
+
+            return Response(
+                {"mensagem": "Senha redefinida com sucesso! Faça login."},
+                status=status.HTTP_200_OK
+            )
+
         except User.DoesNotExist:
             return Response({"erro": "Usuário não encontrado."}, status=status.HTTP_404_NOT_FOUND)

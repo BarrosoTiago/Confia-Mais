@@ -31,8 +31,7 @@ export default function RecuperarSenha() {
         
         try {
             // ATUALIZADO PARA A NOVA ROTA DO DJANGO
-            await api.post('https://confiaplus-api.onrender.com/api/recuperar-senha/solicitar/', { email });
-            setStep(2);
+            await api.post('/recuperar-senha/solicitar/', { email });               setStep(2);
             setMsg('E-mail enviado! Verifique sua caixa de entrada.');
         } catch (err) {
             setError('E-mail não encontrado ou erro no sistema.');
