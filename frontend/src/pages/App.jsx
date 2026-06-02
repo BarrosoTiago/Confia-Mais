@@ -50,12 +50,12 @@ const PrivateRoute = ({ children, role }) => {
   }
 
   // Se a rota for só para ADMIN e o usuário não for, manda para vitrine
-  if (role === 'ADMIN' && user.tipo_usuario !== 'ADMIN') {
+  if (role === 'ADMIN' && user.tipo_usuario !== 'EMPREENDEDOR') {
     return <Navigate to="/vitrine" />;
   }
   
   // Se a rota for só para CLIENTE e o usuário for ADMIN, manda para o dashboard
-  if (role === 'CLIENTE' && user.tipo_usuario === 'ADMIN') {
+  if (role === 'CLIENTE' && user.tipo_usuario === 'EMPREENDEDOR') {
     return <Navigate to="/admin-dashboard" />;
   }
 
