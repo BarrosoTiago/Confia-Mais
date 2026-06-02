@@ -6,11 +6,10 @@ from django.contrib.auth import get_user_model
 from django.db.models import Count, Q, Sum
 from django.utils import timezone
 from django.conf import settings
-import resend
 
 # Imports para a Recuperação de Senha
 import random
-from django.core.mail import send_mail
+import requests # <--- ADICIONADO PARA O BREVO
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
 
@@ -285,10 +284,9 @@ class DashboardView(APIView):
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-# --- 9. RECUPERAÇÃO DE SENHA ---
+# --- 9. RECUPERAÇÃO DE SENHA (VIA BREVO API) ---
 
 class SolicitarRecuperacaoSenhaView(APIView):
-    # ✅ CORRIGIDO: AllowAny para permitir acesso sem autenticação
     permission_classes = [permissions.AllowAny]
 
     def post(self, request):
@@ -302,21 +300,40 @@ class SolicitarRecuperacaoSenhaView(APIView):
             user.codigo_recuperacao = codigo
             user.save()
 
-            # ✅ CORRIGIDO: send_mail dentro de try/except para capturar erros de e-mail
+            # Disparo HTTP direto para a API do Brevo
             try:
-                resend.api_key = settings.RESEND_API_KEY  # ← adicione essa linha
-                resend.Emails.send({
-                    "from": "Confia+ <onboarding@resend.dev>",
-                    "to": [user.email],
+                url = "https://api.brevo.com/v3/smtp/email"
+                
+                payload = {
+                    "sender": {
+                        "name": "Equipe Confia+",
+                        "email": "sistemaconfiamais@gmail.com"
+                    },
+                    "to": [{"email": user.email}],
                     "subject": "Recuperação de Senha - Confia+",
-                    "text": (
-                        f"Olá {user.nome_completo or user.username}!\n\n"
-                        f"Seu código de verificação é: {codigo}\n\n"
-                        "Se não foi você, ignore esta mensagem."
+                    "htmlContent": (
+                        f"<html><body>"
+                        f"<h2>Olá, {user.nome_completo or user.username}!</h2>"
+                        f"<p>Seu código de verificação para redefinir a senha é: <strong>{codigo}</strong></p>"
+                        f"<br><p>Se você não solicitou isso, pode ignorar esta mensagem com segurança.</p>"
+                        f"</body></html>"
                     )
-                })
+                }
+                
+                headers = {
+                    "accept": "application/json",
+                    "api-key": getattr(settings, 'BREVO_API_KEY', ''),
+                    "content-type": "application/json"
+                }
+
+                resposta = requests.post(url, json=payload, headers=headers)
+                resposta.raise_for_status() # Força cair no except se houver falha de autorização no Brevo
+
             except Exception as email_error:
-                print(f"[ERRO E-MAIL] {email_error}")
+                print(f"[ERRO E-MAIL BREVO] {email_error}")
+                if 'resposta' in locals():
+                    print(f"Detalhe do erro do Brevo: {resposta.text}")
+                    
                 return Response(
                     {"erro": "Falha ao enviar e-mail. Verifique a configuração do servidor de e-mail."},
                     status=status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -332,7 +349,6 @@ class SolicitarRecuperacaoSenhaView(APIView):
 
 
 class RedefinirSenhaView(APIView):
-    # ✅ CORRIGIDO: AllowAny para permitir acesso sem autenticação
     permission_classes = [permissions.AllowAny]
 
     def post(self, request):
