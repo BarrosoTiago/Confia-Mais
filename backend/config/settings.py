@@ -4,6 +4,9 @@ from datetime import timedelta
 from dotenv import load_dotenv 
 from decouple import config
 import dj_database_url
+import cloudinary
+import cloudinary.uploader
+import cloudinary.api
 
 # 1. DIRETÓRIOS BASE
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -45,9 +48,19 @@ INSTALLED_APPS = [
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
+    'cloudinary_storage',
     'django.contrib.staticfiles',
+    'cloudinary',
     'django_rest_passwordreset',
 ]
+
+CLOUDINARY_STORAGE = {
+    'CLOUD_NAME': 'dpwhneuwb',
+    'API_KEY': '865462457757318',
+    'API_SECRET': 'S66C4EJGEufl-ewjnkwH51awdmk'
+}
+
+DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
 
 # 4. MIDDLEWARES (Com a inclusão estratégica do WhiteNoise para arquivos estáticos) [cite: 421]
 MIDDLEWARE = [

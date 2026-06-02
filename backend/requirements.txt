@@ -3,8 +3,10 @@ brotli==1.2.0
 certifi==2026.5.20
 charset-normalizer==3.4.7
 click==8.4.0
+cloudinary==1.44.2
 dj-database-url==3.1.0
 Django==5.2.7
+django-cloudinary-storage==0.3.0
 django-cors-headers==4.9.0
 django-rest-passwordreset==1.5.0
 djangorestframework==3.16.1
@@ -20,6 +22,7 @@ python-decouple==3.8
 python-dotenv==1.2.1
 requests==2.34.2
 resend==2.30.1
+six==1.17.0
 sqlparse==0.5.3
 typing_extensions==4.15.0
 tzdata==2025.2
