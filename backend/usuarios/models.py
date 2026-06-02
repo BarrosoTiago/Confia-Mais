@@ -2,15 +2,15 @@ from django.contrib.auth.models import AbstractUser
 from django.db import models
 
 class Usuario(AbstractUser):
-    # 1. Definição dos Tipos de Usuário
+    # 1. Definição dos Tipos de Usuário (Separamos Empreendedor de Desenvolvedor)
     TIPO_CHOICES = (
-        ('ADMIN', 'Administrador (Empreendedor)'),
+        ('EMPREENDEDOR', 'Empreendedor'), # Mudamos de ADMIN para EMPREENDEDOR
         ('CLIENTE', 'Cliente'),
     )
 
     # 2. Campos Originais
     tipo_usuario = models.CharField(
-        max_length=10, 
+        max_length=15, # Aumentei o tamanho para caber a palavra 'EMPREENDEDOR'
         choices=TIPO_CHOICES, 
         default='CLIENTE',
         verbose_name="Tipo de Usuário"
@@ -24,24 +24,18 @@ class Usuario(AbstractUser):
     capa = models.ImageField(upload_to='capas/', blank=True, null=True, verbose_name="Imagem de Capa")
 
     # 4. LOCALIZAÇÃO E SOBRE 📍
-    # Descrição para o cliente conhecer a loja
     descricao = models.TextField(blank=True, null=True, verbose_name="Sobre a Loja/Bio")
-    
-    # Endereço para o cliente saber onde ir
     endereco = models.CharField(max_length=255, blank=True, null=True, verbose_name="Endereço (Rua e Número)")
     bairro = models.CharField(max_length=100, blank=True, null=True, verbose_name="Bairro")
     cidade = models.CharField(max_length=100, blank=True, null=True, verbose_name="Cidade")
 
-    # 5. CONTROLE DE ONBOARDING (NOVO CAMPO) 🚀
-    # Define se o empreendedor já passou pelo roteiro inicial de configuração
+    # 5. CONTROLE DE ONBOARDING E ACESSO 🚀
     setup_concluido = models.BooleanField(default=False, verbose_name="Setup Inicial Concluído")
-
-    def save(self, *args, **kwargs):
-        # Lógica extra: Se for ADMIN, garante acesso ao painel admin do Django
-        if self.tipo_usuario == 'ADMIN':
-            self.is_staff = True
-            self.is_superuser = True
-        super().save(*args, **kwargs)
-
+    codigo_recuperacao = models.CharField(max_length=6, blank=True, null=True, verbose_name="Código de Recuperação")
+    
+    # NOVOS CAMPOS: VERIFICAÇÃO DE E-MAIL
+    email_verificado = models.BooleanField(default=False, verbose_name="E-mail Verificado")
+    codigo_verificacao = models.CharField(max_length=6, blank=True, null=True, verbose_name="Código de Verificação")
+    
     def __str__(self):
         return f"{self.username} ({self.get_tipo_usuario_display()})"

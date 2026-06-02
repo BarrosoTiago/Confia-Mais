@@ -4,7 +4,7 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import AnimatedBackground from '../components/AnimatedBackground';
 import OnboardingHeader from '../components/OnboardingHeader';
-import { FaStore, FaCamera, FaSave, FaArrowRight, FaMapMarkerAlt, FaPhone, FaInfoCircle } from 'react-icons/fa';
+import { FaStore, FaCamera, FaSave, FaArrowRight, FaArrowLeft, FaMapMarkerAlt, FaPhone, FaInfoCircle } from 'react-icons/fa';
 
 export default function PerfilLoja() {
     const navigate = useNavigate();
@@ -83,9 +83,8 @@ export default function PerfilLoja() {
             if (fotoFile) data.append('foto', fotoFile);
             if (capaFile) data.append('capa', capaFile);
 
-            await api.patch('/auth/users/me/', data, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            });
+            // SOLUÇÃO DAS IMAGENS: Deixamos o Axios gerenciar o Content-Type sozinho para não quebrar o FormData
+            await api.patch('/auth/users/me/', data);
 
             if (isOnboarding) {
                 // ROTEIRO: Passo 1 OK -> Vai para Passo 2 (Horários)
@@ -173,11 +172,25 @@ export default function PerfilLoja() {
                     .icon-input-wrapper .input-icon { position: absolute; top: 50%; left: 15px; transform: translateY(-50%); color: #ADB5BD; pointer-events: none; }
                     .icon-input-wrapper .custom-input { padding-left: 40px; } /* Espaço pro ícone */
 
+                    /* Botões de Ação */
+                    .action-buttons { 
+                        display: flex; gap: 15px; margin-top: 40px; 
+                    }
+                    
+                    .btn-outline-back {
+                        background: transparent; color: #002B55; border: 2px solid #E9ECEF;
+                        padding: 14px 20px; border-radius: 30px; font-weight: 700; font-size: 1rem;
+                        transition: 0.3s; display: flex; align-items: center; justify-content: center; gap: 8px;
+                        flex: 1; /* Divide o espaço com o botão de salvar */
+                    }
+                    .btn-outline-back:hover { background: #F8F9FA; border-color: #002B55; }
+
                     .btn-save { 
-                        background: #002B55; color: white; border: none; padding: 14px 30px; 
+                        background: #002B55; color: white; border: none; padding: 14px 20px; 
                         border-radius: 30px; font-weight: 700; font-size: 1rem;
-                        transition: 0.3s; width: 100%; box-shadow: 0 10px 25px rgba(0, 43, 85, 0.25);
+                        transition: 0.3s; box-shadow: 0 10px 25px rgba(0, 43, 85, 0.25);
                         display: flex; align-items: center; justify-content: center; gap: 10px;
+                        flex: 2; /* Fica um pouco maior que o botão de voltar */
                     }
                     .btn-save:hover { background: #004080; transform: translateY(-3px); box-shadow: 0 15px 35px rgba(0, 43, 85, 0.35); }
                     .btn-save:disabled { background: #CBD5E1; transform: none; box-shadow: none; cursor: not-allowed; }
@@ -186,6 +199,8 @@ export default function PerfilLoja() {
                         .form-container { padding: 70px 20px 30px 20px; }
                         .cover-area { height: 180px; }
                         .avatar-area { width: 110px; height: 110px; top: 120px; }
+                        .action-buttons { flex-direction: column-reverse; } /* Empilha os botões no celular */
+                        .btn-outline-back, .btn-save { width: 100%; }
                     }
                 `}</style>
 
@@ -213,7 +228,7 @@ export default function PerfilLoja() {
                                 {fotoPreview ? (
                                     <img src={fotoPreview} alt="Logo" className="avatar-img" />
                                 ) : (
-                                    <div className="avatar-img d-flex align-items-center justify-content-center text-muted h1 bg-white">
+                                    <div className="avatar-img d-flex align-items-center justify-content-center text-muted h1 bg-white m-0">
                                         <FaStore style={{opacity: 0.3}} />
                                     </div>
                                 )}
@@ -296,8 +311,18 @@ export default function PerfilLoja() {
                                 </Col>
                             </Row>
 
-                            {/* BOTÃO INTELIGENTE */}
-                            <div className="mt-5">
+                            {/* BOTÕES DE AÇÃO (Voltar e Salvar) */}
+                            <div className="action-buttons">
+                                {!isOnboarding && (
+                                    <button 
+                                        type="button" 
+                                        className="btn-outline-back" 
+                                        onClick={() => navigate('/admin-dashboard')}
+                                    >
+                                        <FaArrowLeft /> Voltar ao Painel
+                                    </button>
+                                )}
+                                
                                 <button type="submit" className="btn-save" disabled={loading}>
                                     {loading ? <Spinner size="sm" animation="border" variant="light"/> : (
                                         isOnboarding 

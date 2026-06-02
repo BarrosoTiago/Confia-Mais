@@ -14,10 +14,11 @@ import Financeiro from "./Financeiro";
 import Despesas from "./Despesas";
 import Agendamentos from "./Agendamentos";
 import RecuperarSenha from "./RecuperarSenha"; 
+import VerificarEmail from "./VerificarEmail"; // <--- NOVO IMPORT AQUI
 import Vitrine from "./Vitrine";
 
 // --- TELA DE ONBOARDING (Passo a Passo Inicial) ---
-import Onboarding from "./Onboarding"; // <--- NOVO IMPORT
+import Onboarding from "./Onboarding";
 
 // --- ÁREA DE CONTA & PERFIL ---
 import PerfilLoja from "./PerfilLoja";             
@@ -49,12 +50,12 @@ const PrivateRoute = ({ children, role }) => {
   }
 
   // Se a rota for só para ADMIN e o usuário não for, manda para vitrine
-  if (role === 'ADMIN' && user.tipo_usuario !== 'ADMIN') {
+  if (role === 'ADMIN' && user.tipo_usuario !== 'EMPREENDEDOR') {
     return <Navigate to="/vitrine" />;
   }
   
   // Se a rota for só para CLIENTE e o usuário for ADMIN, manda para o dashboard
-  if (role === 'CLIENTE' && user.tipo_usuario === 'ADMIN') {
+  if (role === 'CLIENTE' && user.tipo_usuario === 'EMPREENDEDOR') {
     return <Navigate to="/admin-dashboard" />;
   }
 
@@ -102,6 +103,7 @@ export default function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/recuperar-senha" element={<RecuperarSenha />} />
+          <Route path="/verificar-email" element={<VerificarEmail />} /> {/* <--- NOVA ROTA AQUI */}
 
           {/* --- Rotas do ADMIN (Empreendedor) --- */}
           

@@ -4,6 +4,9 @@ from datetime import timedelta
 from dotenv import load_dotenv 
 from decouple import config
 import dj_database_url
+import cloudinary
+import cloudinary.uploader
+import cloudinary.api
 
 # 1. DIRETÓRIOS BASE
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -45,9 +48,19 @@ INSTALLED_APPS = [
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
+    'cloudinary_storage',
     'django.contrib.staticfiles',
+    'cloudinary',
     'django_rest_passwordreset',
 ]
+
+CLOUDINARY_STORAGE = {
+    'CLOUD_NAME': os.getenv('CLOUDINARY_CLOUD_NAME'),
+    'API_KEY': os.getenv('CLOUDINARY_API_KEY'),
+    'API_SECRET': os.getenv('CLOUDINARY_API_SECRET')
+}
+
+DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
 
 # 4. MIDDLEWARES (Com a inclusão estratégica do WhiteNoise para arquivos estáticos) [cite: 421]
 MIDDLEWARE = [
@@ -179,6 +192,8 @@ EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
+RESEND_API_KEY = os.getenv('RESEND_API_KEY')
+BREVO_API_KEY = os.getenv('BREVO_API_KEY')
 
 EMAIL_HOST_USER = os.getenv('EMAIL_USER')
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_PASSWORD')
