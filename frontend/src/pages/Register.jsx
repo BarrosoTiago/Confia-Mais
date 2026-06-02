@@ -120,7 +120,7 @@ export default function Register() {
         try {
             const dadosCompletos = {
                 ...formData,
-                tipo_usuario: role === 'client' ? 'CLIENTE' : 'ADMIN'
+                tipo_usuario: role === 'client' ? 'CLIENTE' : 'EMPREENDEDOR'
             };
 
             await register(dadosCompletos); 
