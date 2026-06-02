@@ -36,7 +36,7 @@ export default function Login() {
       console.log("Login realizado. Usuário:", user.username, "| Setup:", user.setup_concluido);
 
       // 3. Lógica de Redirecionamento (Roteiro Inteligente)
-      if (user.tipo_usuario === 'ADMIN') {
+      if (user.tipo_usuario === 'EMPREENDEDOR') {
           if (user.setup_concluido === true) {
               // Se já configurou tudo -> Vai para o Dashboard
               navigate('/admin-dashboard');
