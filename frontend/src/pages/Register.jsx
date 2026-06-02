@@ -118,20 +118,22 @@ export default function Register() {
         setError('');
 
         try {
-        const dadosCompletos = {
-            ...formData,
-            tipo_usuario: role === 'client' ? 'CLIENTE' : 'ADMIN'
-        };
+            const dadosCompletos = {
+                ...formData,
+                tipo_usuario: role === 'client' ? 'CLIENTE' : 'ADMIN'
+            };
 
-        await register(dadosCompletos); 
-        alert("Cadastro realizado com sucesso!");
-        navigate('/login'); 
+            await register(dadosCompletos); 
+            
+            // Redireciona para a tela de verificação enviando o e-mail preenchido "escondido"
+            navigate('/verificar-email', { state: { email: formData.email } }); 
+            
         } catch (err) {
-        // Trata o erro vindo do backend (que configuramos no AuthContext)
-        const msg = typeof err === 'object' ? Object.values(err).flat()[0] : 'Erro ao criar conta.';
-        setError(msg);
+            // Trata o erro vindo do backend (que configuramos no AuthContext)
+            const msg = typeof err === 'object' ? Object.values(err).flat()[0] : 'Erro ao criar conta.';
+            setError(msg);
         } finally {
-        setLoading(false);
+            setLoading(false);
         }
     };
 

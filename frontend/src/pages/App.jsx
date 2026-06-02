@@ -14,10 +14,11 @@ import Financeiro from "./Financeiro";
 import Despesas from "./Despesas";
 import Agendamentos from "./Agendamentos";
 import RecuperarSenha from "./RecuperarSenha"; 
+import VerificarEmail from "./VerificarEmail"; // <--- NOVO IMPORT AQUI
 import Vitrine from "./Vitrine";
 
 // --- TELA DE ONBOARDING (Passo a Passo Inicial) ---
-import Onboarding from "./Onboarding"; // <--- NOVO IMPORT
+import Onboarding from "./Onboarding";
 
 // --- ÁREA DE CONTA & PERFIL ---
 import PerfilLoja from "./PerfilLoja";             
@@ -102,6 +103,7 @@ export default function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/recuperar-senha" element={<RecuperarSenha />} />
+          <Route path="/verificar-email" element={<VerificarEmail />} /> {/* <--- NOVA ROTA AQUI */}
 
           {/* --- Rotas do ADMIN (Empreendedor) --- */}
           

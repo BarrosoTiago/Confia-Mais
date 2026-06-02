@@ -7,9 +7,9 @@ from django.db.models import Count, Q, Sum
 from django.utils import timezone
 from django.conf import settings
 
-# Imports para a Recuperação de Senha
+# Imports
 import random
-import requests # <--- ADICIONADO PARA O BREVO
+import requests
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
 
@@ -42,6 +42,30 @@ class UserRegistrationView(generics.CreateAPIView):
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
         
+        # 1. Gera o código de 6 dígitos
+        codigo = str(random.randint(100000, 999999))
+        user.codigo_verificacao = codigo
+        user.save()
+
+        # 2. Dispara o e-mail de Boas-Vindas via Brevo
+        try:
+            url = "https://api.brevo.com/v3/smtp/email"
+            payload = {
+                "sender": {"name": "Equipe Confia+", "email": "emilyamorim964@gmail.com"},
+                "to": [{"email": user.email}],
+                "subject": "Bem-vindo ao Confia+! Verifique seu e-mail",
+                "htmlContent": f"<html><body><h2>Olá, {user.username}!</h2><p>Falta pouco para acessar o seu painel.</p><p>Seu código de verificação é: <strong>{codigo}</strong></p></body></html>"
+            }
+            headers = {
+                "accept": "application/json",
+                "api-key": getattr(settings, 'BREVO_API_KEY', ''),
+                "content-type": "application/json"
+            }
+            resposta = requests.post(url, json=payload, headers=headers)
+            resposta.raise_for_status()
+        except Exception as e:
+            print(f"[ERRO E-MAIL DE CADASTRO] {e}")
+
         return Response({
             "user": {
                 "id": user.id,
@@ -50,14 +74,54 @@ class UserRegistrationView(generics.CreateAPIView):
                 "tipo_usuario": getattr(user, 'tipo_usuario', 'CLIENTE'),
                 "setup_concluido": False
             },
-            "message": "Usuário registrado com sucesso!"
+            "message": "Usuário registrado! Enviamos um código para o seu e-mail."
         }, status=status.HTTP_201_CREATED)
+
+# --- 1.5 VERIFICAÇÃO DE E-MAIL ---
+class VerificarEmailView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        email = request.data.get('email')
+        codigo_digitado = request.data.get('codigo')
+
+        try:
+            user = User.objects.get(email=email)
+
+            if user.email_verificado:
+                return Response({"mensagem": "Este e-mail já está verificado!"}, status=status.HTTP_400_BAD_REQUEST)
+
+            if not codigo_digitado or user.codigo_verificacao != codigo_digitado:
+                return Response({"erro": "Código inválido ou incorreto."}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Tudo certo! Marca como verificado e limpa o código.
+            user.email_verificado = True
+            user.codigo_verificacao = None
+            user.save()
+
+            return Response({"mensagem": "E-mail verificado com sucesso! Você já pode fazer login."}, status=status.HTTP_200_OK)
+
+        except User.DoesNotExist:
+            return Response({"erro": "Usuário não encontrado."}, status=status.HTTP_404_NOT_FOUND)
 
 # --- 2. LOGIN ---
 class CustomLoginView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer 
 
     def post(self, request, *args, **kwargs):
+        email = request.data.get('email')
+        
+        # Bloqueia a porta se o e-mail não estiver verificado
+        try:
+            user = User.objects.get(email=email)
+            if not user.email_verificado:
+                return Response(
+                    {"erro": "email_nao_verificado", "mensagem": "Por favor, verifique seu e-mail antes de entrar."}, 
+                    status=status.HTTP_403_FORBIDDEN
+                )
+        except User.DoesNotExist:
+            pass # Deixa seguir para o Django dar o erro padrão
+
         response = super().post(request, *args, **kwargs)
         if response.status_code == 200:
             access_token = response.data.get('access')
@@ -285,7 +349,6 @@ class DashboardView(APIView):
 
 
 # --- 9. RECUPERAÇÃO DE SENHA (VIA BREVO API) ---
-
 class SolicitarRecuperacaoSenhaView(APIView):
     permission_classes = [permissions.AllowAny]
 
@@ -327,7 +390,7 @@ class SolicitarRecuperacaoSenhaView(APIView):
                 }
 
                 resposta = requests.post(url, json=payload, headers=headers)
-                resposta.raise_for_status() # Força cair no except se houver falha de autorização no Brevo
+                resposta.raise_for_status()
 
             except Exception as email_error:
                 print(f"[ERRO E-MAIL BREVO] {email_error}")
@@ -340,7 +403,7 @@ class SolicitarRecuperacaoSenhaView(APIView):
                 )
 
         except User.DoesNotExist:
-            pass  # Não revelamos se o e-mail existe ou não
+            pass  
 
         return Response(
             {"mensagem": "Se o e-mail estiver cadastrado, enviaremos um código."},

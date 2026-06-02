@@ -32,8 +32,10 @@ class Usuario(AbstractUser):
     # 5. CONTROLE DE ONBOARDING E ACESSO 🚀
     setup_concluido = models.BooleanField(default=False, verbose_name="Setup Inicial Concluído")
     codigo_recuperacao = models.CharField(max_length=6, blank=True, null=True, verbose_name="Código de Recuperação")
-
-    # REMOVEMOS A FUNÇÃO save() QUE DAVA PODERES MÁXIMOS AO EMPREENDEDOR.
-
+    
+    # NOVOS CAMPOS: VERIFICAÇÃO DE E-MAIL
+    email_verificado = models.BooleanField(default=False, verbose_name="E-mail Verificado")
+    codigo_verificacao = models.CharField(max_length=6, blank=True, null=True, verbose_name="Código de Verificação")
+    
     def __str__(self):
         return f"{self.username} ({self.get_tipo_usuario_display()})"

@@ -35,8 +35,9 @@ from .views import (
     ServicoViewSet, 
     HorarioConfigViewSet,
     DashboardView,
-    SolicitarRecuperacaoSenhaView, # <--- ADICIONADO AQUI
-    RedefinirSenhaView             # <--- ADICIONADO AQUI
+    SolicitarRecuperacaoSenhaView,
+    RedefinirSenhaView,
+    VerificarEmailView # <--- NOVA VIEW ADICIONADA AQUI
 )
 
 router = DefaultRouter()
@@ -67,6 +68,7 @@ urlpatterns = [
     
     # --- AUTENTICAÇÃO ---
     path('auth/register/', UserRegistrationView.as_view(), name='register'),
+    path('auth/verificar-email/', VerificarEmailView.as_view(), name='verificar_email'), # <--- NOVA ROTA ADICIONADA AQUI
     path('auth/login/', CustomLoginView.as_view(), name='login'),
     path('auth/users/me/', UserMeView.as_view(), name='user_me'),
     path('auth/users/delete/', DeleteAccountView.as_view(), name='delete_account'),
@@ -79,8 +81,6 @@ urlpatterns = [
     # --- SENHA (ROTAS NOVAS CORRIGIDAS) 🔐 ---
     path('recuperar-senha/solicitar/', SolicitarRecuperacaoSenhaView.as_view(), name='solicitar-recuperacao'),
     path('recuperar-senha/redefinir/', RedefinirSenhaView.as_view(), name='redefinir-senha'),
-    
-    # Opcional: Se quiser remover a biblioteca antiga de vez, você pode até apagar ela do INSTALLED_APPS no settings.py.
     
     # --- CRUD PADRÃO ---
     path('', include(router.urls)),

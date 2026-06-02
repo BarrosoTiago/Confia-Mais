@@ -42,7 +42,6 @@ export default function Login() {
               navigate('/admin-dashboard');
           } else {
               // Se NÃO configurou -> Vai para o Perfil com modo Onboarding ativado
-              // Isso inicia o fluxo: Perfil -> Horários -> Serviços
               navigate('/admin/perfil?onboarding=true');
           }
       } else {
@@ -52,7 +51,17 @@ export default function Login() {
 
     } catch (err) {
       console.error(err);
-      setError('Usuário ou senha incorretos.');
+      
+      // --- NOVA TRAVA DE SEGURANÇA AQUI 👇 ---
+      if (err.response?.status === 403 && err.response?.data?.erro === 'email_nao_verificado') {
+          // Captura o bloqueio do Django e manda para a tela de código
+          // Passamos formData.username porque o usuário costuma usar o e-mail no campo de login
+          navigate('/verificar-email', { state: { email: formData.username } }); 
+      } else {
+          setError('Usuário ou senha incorretos.');
+      }
+      // ----------------------------------------
+
     } finally {
       setLoading(false);
     }
