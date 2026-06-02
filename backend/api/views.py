@@ -137,6 +137,7 @@ class CustomLoginView(TokenObtainPairView):
 class UserMeView(generics.RetrieveUpdateAPIView):
     permission_classes = [permissions.IsAuthenticated]
     serializer_class = UserUpdateSerializer
+    # O segredo para as fotos: estes parsers ensinam o Django a ler o arquivo
     parser_classes = (MultiPartParser, FormParser, JSONParser)
 
     def get_object(self):
@@ -144,11 +145,19 @@ class UserMeView(generics.RetrieveUpdateAPIView):
 
     def get(self, request, *args, **kwargs):
         response = super().get(request, *args, **kwargs)
-        user = request.user
+        user = self.request.user
+        
         deve_configurar_horarios = False
         if getattr(user, 'tipo_usuario', '') == 'EMPREENDEDOR':
             if hasattr(user, 'horarios_funcionamento') and not user.horarios_funcionamento.exists():
                 deve_configurar_horarios = True
+        
+        # Garante que as URLs das fotos venham completas
+        if user.foto:
+            response.data['foto'] = request.build_absolute_uri(user.foto.url)
+        if user.capa:
+            response.data['capa'] = request.build_absolute_uri(user.capa.url)
+            
         response.data['deve_configurar_horarios'] = deve_configurar_horarios
         return response
 
