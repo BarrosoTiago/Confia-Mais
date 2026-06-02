@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import api from '../../services/api'; // Ajuste o caminho da sua configuração do axios
+import api from '../services/api'; // Ajuste o caminho da sua configuração do axios
 
 const VerificarEmail = () => {
     const [codigo, setCodigo] = useState('');
