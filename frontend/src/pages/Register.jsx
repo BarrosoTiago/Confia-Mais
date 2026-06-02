@@ -125,11 +125,11 @@ export default function Register() {
 
             await register(dadosCompletos); 
             
-            // Redireciona para a tela de verificação enviando o e-mail preenchido "escondido"
+            // Redireciona para a tela de verificação
             navigate('/verificar-email', { state: { email: formData.email } }); 
             
         } catch (err) {
-            // Trata o erro vindo do backend (que configuramos no AuthContext)
+            // Trata o erro vindo do backend
             const msg = typeof err === 'object' ? Object.values(err).flat()[0] : 'Erro ao criar conta.';
             setError(msg);
         } finally {
