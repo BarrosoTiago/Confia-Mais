@@ -307,7 +307,7 @@ class SolicitarRecuperacaoSenhaView(APIView):
                 payload = {
                     "sender": {
                         "name": "Equipe Confia+",
-                        "email": "sistemaconfiamais@gmail.com"
+                        "email": "emilyamorim964@gmail.com"
                     },
                     "to": [{"email": user.email}],
                     "subject": "Recuperação de Senha - Confia+",
