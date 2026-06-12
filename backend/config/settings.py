@@ -27,7 +27,7 @@ if not SECRET_KEY:
 # O DEBUG se torna False automaticamente se o projeto estiver rodando no Render [cite: 807, 810]
 DEBUG = 'RENDER' not in os.environ
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1']
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', '*']
 RENDER_EXTERNAL_HOSTNAME = os.environ.get('RENDER_EXTERNAL_HOSTNAME')
 if RENDER_EXTERNAL_HOSTNAME:
     ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME) 
@@ -200,3 +200,37 @@ EMAIL_HOST_PASSWORD = os.getenv('EMAIL_PASSWORD')
 DEFAULT_FROM_EMAIL = f'Equipe Confia + <{EMAIL_HOST_USER}>'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# --- LOGS DETALHADOS PARA DIAGNÓSTICO DE ERROS ---
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': 'INFO',
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': True,
+        },
+        'rest_framework': {
+            'handlers': ['console'],
+            'level': 'DEBUG',  # Ativa o modo mais detalhado para o REST Framework
+            'propagate': True,
+        },
+    },
+}

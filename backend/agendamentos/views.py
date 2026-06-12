@@ -1,3 +1,4 @@
+import threading  # <-- Novo import para o disparo assíncrono
 from rest_framework import viewsets, permissions, status, views, generics
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -7,29 +8,28 @@ from datetime import datetime, timedelta
 from django.core.mail import send_mail
 from django.conf import settings
 
+import time
+
 # --- 1. IMPORT DOS MODELOS ---
-# Removidos Pagamento e Despesa, que agora moram no app 'financeiro'
 from .models import (
     Agendamento, HorarioFuncionamento, Avaliacao, Anotacao
 )
 from servicos.models import Servico, Categoria
 
 # --- 2. IMPORT DOS SERIALIZERS ---
-# AgendamentoSerializer e HorarioConfigSerializer vêm da pasta API ou local
 from .serializers import (
-    AgendamentoSerializer, # Agora importado localmente
+    AgendamentoSerializer, 
     AnotacaoSerializer,
     AvaliacaoSerializer,
     AvaliacaoPublicaSerializer,
-    HorarioSerializer # Substituindo o HorarioConfigSerializer se necessário
+    HorarioSerializer 
 )
 
 # --- 3. VIEWSETS PRINCIPAIS ---
 
 class AgendamentoViewSet(viewsets.ModelViewSet):
     """
-    Gerencia os agendamentos. A lógica financeira agora é calculada 
-    dinamicamente pelo Serializer consultando o app Financeiro.
+    Gerencia os agendamentos de forma otimizada.
     """
     serializer_class = AgendamentoSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -37,38 +37,71 @@ class AgendamentoViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         queryset = Agendamento.objects.all()
+        
         if user.tipo_usuario == 'ADMIN':
-            return queryset.filter(servicos__criado_por=user).distinct().order_by('-data_hora_inicio')
+            # ADMIN vê: Agendamentos dos seus serviços OU agendamentos que ele mesmo registrou
+            return queryset.filter(
+                Q(servicos__criado_por=user) | Q(cliente=user)
+            ).distinct().order_by('-data_hora_inicio')
+            
+        # CLIENTE vê apenas os próprios agendamentos
         return queryset.filter(cliente=user).distinct().order_by('-data_hora_inicio')
 
     def perform_create(self, serializer):
+        print("\n⏱️ ====== INÍCIO DO PROCESSO DE AGENDAMENTO ======")
+        t_inicio = time.time()
+        
         user = self.request.user
         if user.tipo_usuario == 'ADMIN':
             cliente_id = self.request.data.get('cliente')
+            print(f"⏱️ [Marcar 1] Tipo ADMIN. Tempo decorrido: {time.time() - t_inicio:.4f}s")
+            # Se o admin não selecionou cliente, salva para ele mesmo
             agendamento = serializer.save(cliente_id=cliente_id if cliente_id else user.id)
         else:
+            print(f"⏱️ [Marcar 1] Tipo CLIENTE. Tempo decorrido: {time.time() - t_inicio:.4f}s")
             agendamento = serializer.save(cliente=user)
 
-        try:
-             self.enviar_emails(agendamento, user)
-        except Exception as e:
-             print(f"Erro ao enviar e-mail: {e}")
+        print(f"⏱️ [Marcar 2] Banco de dados salvou o agendamento. Tempo decorrido: {time.time() - t_inicio:.4f}s")
 
-    def enviar_emails(self, agendamento, user):
-        servicos = agendamento.servicos.all()
-        if not servicos: return 
-        email_empreendedor = servicos[0].criado_por.email
-        data_str = agendamento.data_hora_inicio.strftime('%d/%m às %H:%M')
-        servicos_nomes = ", ".join([s.nome for s in servicos])
-        
-        if email_empreendedor:
-            send_mail(
-                subject=f"🔔 Novo Agendamento: {user.nome_completo or user.username}",
-                message=f"Cliente: {user.nome_completo}\nServiços: {servicos_nomes}\nData: {data_str}",
-                from_email=settings.DEFAULT_FROM_EMAIL,
-                recipient_list=[email_empreendedor], 
-                fail_silently=True, 
+        # Dispara o e-mail em uma thread separada (Não bloqueia o cliente/admin)
+        try:
+            email_thread = threading.Thread(
+                target=self.enviar_emails_background, 
+                args=(agendamento.id, user.nome_completo or user.username)
             )
+            email_thread.start()
+            print(f"⏱️ [Marcar 3] Thread de e-mail disparada. Tempo decorrido: {time.time() - t_inicio:.4f}s")
+        except Exception as e:
+            print(f"❌ Erro ao iniciar thread de e-mail: {e}")
+
+        print("⏱️ ====== FIM DO PERFORME_CREATE ======\n")
+
+    def enviar_emails_background(self, agendamento_id, usuario_nome):
+        """
+        Executa a busca dos dados e a comunicação com o SMTP em segundo plano.
+        """
+        try:
+            agendamento = Agendamento.objects.get(id=agendamento_id)
+            servicos = agendamento.servicos.all()
+            if not servicos: 
+                return 
+                
+            # Verifica se o criador do serviço existe antes de buscar o e-mail
+            primeiro_servico = servicos[0]
+            if primeiro_servico.criado_por and primeiro_servico.criado_por.email:
+                email_empreendedor = primeiro_servico.criado_por.email
+                data_str = agendamento.data_hora_inicio.strftime('%d/%m às %H:%M')
+                servicos_nomes = ", ".join([s.nome for s in servicos])
+                
+                send_mail(
+                    subject=f"🔔 Novo Agendamento: {usuario_nome}",
+                    message=f"Cliente: {usuario_nome}\nServiços: {servicos_nomes}\nData: {data_str}",
+                    from_email=settings.DEFAULT_FROM_EMAIL,
+                    recipient_list=[email_empreendedor], 
+                    fail_silently=True, 
+                )
+        except Exception as e:
+            print(f"Erro ao enviar e-mail em background: {e}")
 
 class HorarioViewSet(viewsets.ModelViewSet):
     serializer_class = HorarioSerializer
@@ -78,18 +111,17 @@ class HorarioViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(usuario=self.request.user)
 
+
 class AnotacaoViewSet(viewsets.ModelViewSet):
     serializer_class = AnotacaoSerializer
     permission_classes = [permissions.IsAuthenticated]
     def get_queryset(self):
         return Anotacao.objects.all().order_by('-data_criacao')
 
+
 # --- 4. VIEWS DE UTILIDADE E DISPONIBILIDADE ---
 
 class HorarioDisponivelView(APIView):
-    """
-    Lógica de geração de slots de horários vagos.
-    """
     permission_classes = [permissions.AllowAny]
 
     def get(self, request):
@@ -126,6 +158,12 @@ class HorarioDisponivelView(APIView):
         almoco_ini = datetime.combine(data_obj, config.almoco_inicio) if config.almoco_inicio else None
         almoco_fim = datetime.combine(data_obj, config.almoco_fim) if config.almoco_fim else None
 
+        # Otimização de queries acopladas usando filtros diretos na base de dados
+        agendamentos_conflitantes = Agendamento.objects.filter(
+            servicos__criado_por=dono,
+            status__in=['PENDENTE', 'CONFIRMADO']
+        )
+
         while atual + timedelta(minutes=duracao_minutos) <= fim_dia:
             slot_fim = atual + timedelta(minutes=duracao_minutos)
             eh_almoco = False
@@ -133,9 +171,7 @@ class HorarioDisponivelView(APIView):
                 if atual < almoco_fim and slot_fim > almoco_ini:
                     eh_almoco = True
             
-            conflito = Agendamento.objects.filter(
-                servicos__criado_por=dono,
-                status__in=['PENDENTE', 'CONFIRMADO'],
+            conflito = agendamentos_conflitantes.filter(
                 data_hora_inicio__lt=slot_fim,
                 data_hora_fim__gt=atual
             ).exists()
@@ -146,6 +182,7 @@ class HorarioDisponivelView(APIView):
             atual += timedelta(minutes=30)
 
         return Response(slots)
+
 
 class AvaliarAgendamentoView(APIView):
     permission_classes = [permissions.IsAuthenticated]
@@ -159,6 +196,7 @@ class AvaliarAgendamentoView(APIView):
             return Response(serializer.errors, status=400)
         except:
             return Response({"error": "Não encontrado"}, status=404)
+
 
 class AvaliacoesLojaView(generics.ListAPIView):
     serializer_class = AvaliacaoPublicaSerializer

@@ -112,3 +112,41 @@ class CalculadoraViewSet(viewsets.ModelViewSet):
     
     def perform_create(self, serializer): 
         serializer.save(usuario=self.request.user)
+
+
+class EntradasMesView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        agora = timezone.now()
+        inicio_mes = agora.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+        pagamentos_user = Pagamento.objects.filter(
+            transacao__agendamento__servicos__criado_por=user
+        ).distinct()
+
+        pagamentos_do_mes = pagamentos_user.filter(
+            data_pagamento__gte=inicio_mes
+        ).order_by('-data_pagamento')
+
+        total_entradas_mes = pagamentos_do_mes.aggregate(total=Sum('valor'))['total'] or 0
+
+        detalhes_pagamentos = []
+        for p in pagamentos_do_mes:
+            agendamento = p.transacao.agendamento
+            detalhes_pagamentos.append({
+                "id": p.id,
+                "valor": float(p.valor),
+                "data_pagamento": p.data_pagamento.strftime('%d/%m/%Y %H:%M'),
+                "forma_pagamento": p.get_forma_pagamento_display(), 
+                "observacao": p.observacao or "",
+                "cliente": agendamento.cliente.username if hasattr(agendamento, 'cliente') and agendamento.cliente else "Cliente"
+            })
+
+        return Response({
+            "mes_referencia": agora.strftime('%B/%Y'), 
+            "total_acumulado_mes": float(total_entradas_mes),
+            "quantidade_entradas": pagamentos_do_mes.count(),
+            "entradas": detalhes_pagamentos
+        }, status=status.HTTP_OK)

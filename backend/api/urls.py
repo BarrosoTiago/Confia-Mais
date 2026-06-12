@@ -4,6 +4,7 @@ from rest_framework.routers import DefaultRouter
 # --- 1. IMPORT DAS VIEWS DO APP FINANCEIRO (DINHEIRO REAL) ---
 from financeiro.views import (
     FinanceiroDashboardView,
+    EntradasMesView,
     TransacaoViewSet,
     PagamentoViewSet,
     DespesaViewSet,
@@ -60,6 +61,7 @@ router.register(r'categorias', CategoriaViewSet, basename='categoria')
 urlpatterns = [
     # --- FINANCEIRO & DASHBOARD ---
     path('financeiro/transacoes/dashboard/', FinanceiroDashboardView.as_view(), name='financeiro_dashboard'),
+    path('financeiro/entradas-mes/', EntradasMesView.as_view(), name='entradas_mes_detalhe'),
     path('horarios/disponiveis/', HorarioDisponivelView.as_view(), name='horarios_disponiveis'),
     
     # --- AVALIAÇÕES ---

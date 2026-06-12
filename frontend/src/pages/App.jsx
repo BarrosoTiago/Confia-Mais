@@ -17,6 +17,8 @@ import RecuperarSenha from "./RecuperarSenha";
 import VerificarEmail from "./VerificarEmail"; // <--- NOVO IMPORT AQUI
 import Vitrine from "./Vitrine";
 
+import EntradasMes from "./EntradasMes";
+
 // --- TELA DE ONBOARDING (Passo a Passo Inicial) ---
 import Onboarding from "./Onboarding";
 
@@ -124,6 +126,11 @@ export default function App() {
           <Route path="/admin/financeiro" element={
             <PrivateRoute role="ADMIN"><Financeiro /></PrivateRoute>
           } />
+
+          <Route path="/admin/financeiro/entradas-mes" element={
+            <PrivateRoute role="ADMIN"><EntradasMes /></PrivateRoute>
+          } />
+          
           <Route path="/admin/despesas" element={
             <PrivateRoute role="ADMIN"><Despesas /></PrivateRoute>
           } />

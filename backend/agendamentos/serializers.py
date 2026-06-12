@@ -51,41 +51,34 @@ class AgendamentoSerializer(serializers.ModelSerializer):
     def to_representation(self, instance):
         representation = super().to_representation(instance)
         
-        # --- LÓGICA FINANCEIRA SINCRONIZADA ---
-        transacao = Transacao.objects.filter(agendamento=instance).first()
-        
+        # --- OTIMIZAÇÃO: CÁLCULOS SÓ SE O AGENDAMENTO FOR CONFIRMADO ---
         total_servico = sum([s.preco for s in instance.servicos.all()])
         total_pago = 0
-        data_ultima_confirmacao = None
-        
-        if transacao:
-            # 1. Soma real dos pagamentos confirmados no app Financeiro
-            total_pago = transacao.pagamentos.aggregate(Sum('valor'))['valor__sum'] or 0
-            
-            # 2. Captura a data/hora do último pagamento realizado
-            ultimo_pagamento = transacao.pagamentos.order_by('-data_pagamento').first()
-            if ultimo_pagamento:
-                data_ultima_confirmacao = ultimo_pagamento.data_pagamento
-        
-        # --- NOVA REGRA DE NEGÓCIO ---
-        # O valor "restante" só existe se o agendamento for CONFIRMADO.
-        # Se for PENDENTE, o sistema não assume que esse dinheiro "virá" ainda.
-        if instance.status == 'CONFIRMADO':
-            restante = round(total_servico - total_pago, 2)
-        else:
-            # Se ainda for apenas um pedido, o restante "previsto" é 0
-            # Mas mantemos o total_pago caso o cliente tenha enviado um sinal/antecipação
-            restante = 0
-
-        # 3. Definição do Status de Pagamento
+        restante = 0
         status_pagamento = 'PENDENTE'
-        if total_servico > 0:
-            if instance.status == 'CONFIRMADO' and restante <= 0:
-                status_pagamento = 'QUITADO'
-            elif total_pago > 0:
-                status_pagamento = 'PARCIAL'
+        data_ultima_confirmacao = None
 
-        # Objeto financeiro injetado na resposta para o React
+        if instance.status == 'CONFIRMADO':
+            # Só executa queries pesadas no banco se o agendamento já passou da fase pendente
+            transacao = Transacao.objects.filter(agendamento=instance).first()
+            if transacao:
+                total_pago = transacao.pagamentos.aggregate(Sum('valor'))['valor__sum'] or 0
+                ultimo_pagamento = transacao.pagamentos.order_by('-data_pagamento').first()
+                if ultimo_pagamento:
+                    data_ultima_confirmacao = ultimo_pagamento.data_pagamento
+            
+            restante = round(total_servico - total_pago, 2)
+            if total_servico > 0:
+                if restante <= 0:
+                    status_pagamento = 'QUITADO'
+                elif total_pago > 0:
+                    status_pagamento = 'PARCIAL'
+        else:
+            # Agendamento PENDENTE (Recém-criado pelo cliente): 
+            # Evita ir ao banco buscar transações que ainda não existem
+            restante = float(total_servico)
+
+        # Objeto financeiro injetado de forma segura e veloz
         representation['financeiro'] = {
             'total': float(total_servico),
             'pago': float(total_pago),
@@ -109,6 +102,7 @@ class AgendamentoSerializer(serializers.ModelSerializer):
             representation['cliente_telefone'] = instance.cliente.telefone or ""
         except:
             representation['cliente_nome'] = "Desconhecido"
+            
             
         return representation
 

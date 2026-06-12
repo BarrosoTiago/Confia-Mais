@@ -204,9 +204,10 @@ export default function AdminDashboard() {
                     </div>
                 </div>
               );
-          case 'receita_mes':
+        case 'receita_mes':
               return (
-                <div onClick={() => !editMode && navigate('/admin/financeiro')} className="h-100 d-flex flex-column justify-content-between p-1">
+                /* REDIRECIONAMENTO CORRIGIDO PARA O NOVO SUBMÓDULO ANALÍTICO */
+                <div onClick={() => !editMode && navigate('/admin/financeiro/entradas-mes')} className="h-100 d-flex flex-column justify-content-between p-1">
                     <div className="d-flex justify-content-between align-items-center mb-2">
                          <div className="icon-box-finance icon-blue"><FaRegCalendarCheck /></div>
                          <FaExpandArrowsAlt className="card-action-icon" />

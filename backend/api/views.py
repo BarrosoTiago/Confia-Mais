@@ -36,6 +36,7 @@ class UserRegistrationView(generics.CreateAPIView):
     queryset = User.objects.all()
     serializer_class = UserRegistrationSerializer
     permission_classes = [permissions.AllowAny] 
+    authentication_classes = ()
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -80,6 +81,7 @@ class UserRegistrationView(generics.CreateAPIView):
 # --- 1.5 VERIFICAÇÃO DE E-MAIL ---
 class VerificarEmailView(APIView):
     permission_classes = [permissions.AllowAny]
+    authentication_classes = ()
 
     def post(self, request):
         email = request.data.get('email')
@@ -148,6 +150,7 @@ class UserMeView(generics.RetrieveUpdateAPIView):
         user = self.request.user
         
         deve_configurar_horarios = False
+
         if getattr(user, 'tipo_usuario', '') == 'EMPREENDEDOR':
             if hasattr(user, 'horarios_funcionamento') and not user.horarios_funcionamento.exists():
                 deve_configurar_horarios = True
@@ -251,7 +254,7 @@ class DashboardView(APIView):
         from datetime import datetime
         
         user = request.user
-        
+
         if getattr(user, 'tipo_usuario', 'CLIENTE') != 'EMPREENDEDOR':
             return Response(
                 {"detail": "Acesso negado. Apenas empreendedores têm acesso ao dashboard."}, 
