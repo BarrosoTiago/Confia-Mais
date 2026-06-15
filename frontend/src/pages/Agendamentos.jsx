@@ -59,7 +59,7 @@ export default function Agendamentos() {
     }
   }
 
-async function carregarHorariosDinâmicos() {
+  async function carregarHorariosDinâmicos() {
     // Se não houver serviço ou data, limpa a lista e para a execução
     if (!servicosSelecionados.length || !dataSelecionada) {
       setHorariosDisponiveis([]);
@@ -75,7 +75,8 @@ async function carregarHorariosDinâmicos() {
       const dia = String(dataSelecionada.getDate()).padStart(2, '0');
       const dataFormatada = `${ano}-${mes}-${dia}`;
 
-      const response = await api.get(`/agendamentos/horarios-disponiveis/`, {
+      // ---> ROTA CORRIGIDA AQUI: /horarios/disponiveis/ <---
+      const response = await api.get(`/horarios/disponiveis/`, {
         params: {
           servico_id: servicoId,
           data: dataFormatada
@@ -90,10 +91,10 @@ async function carregarHorariosDinâmicos() {
     }
   }
 
-    useEffect(() => {
-        carregarHorariosDinâmicos();
-    }, [dataSelecionada, JSON.stringify(servicosSelecionados)]); 
-    // O JSON.stringify garante que o React perceba mudanças dentro do Array de serviços
+  useEffect(() => {
+      carregarHorariosDinâmicos();
+  }, [dataSelecionada, JSON.stringify(servicosSelecionados)]); 
+  // O JSON.stringify garante que o React perceba mudanças dentro do Array de serviços
 
   const handleWhatsApp = (agenda) => {
     if (!agenda.cliente_telefone) return alert("Cliente sem telefone cadastrado.");
@@ -195,7 +196,9 @@ async function carregarHorariosDinâmicos() {
         .btn-back:hover { background: white; color: #002B55; }
 
         .search-card { background: white; padding: 18px 30px; border-radius: 15px; border: 2px solid #E9ECEF; box-shadow: 0 10px 20px rgba(0,0,0,0.05); display: flex; gap: 20px; margin-bottom: 20px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
-        .custom-input { border: none; background: #F1F3F5; padding: 10px 15px; border-radius: 7px; flex-grow: 1; outline: none; min-width: 200px; }
+        .custom-input { border: none; background: #F1F3F5; padding: 10px 15px; border-radius: 7px; flex-grow: 1; outline: none; min-width: 200px; color: #1A202C }
+        .custom-input option { color: #1A202C; background: #FFFFFF }
+
 
         .filter-pill { padding: 12px 20px; border: 1px solid #E9ECEF; border-radius: 20px; font-size: 0.8rem; font-weight: 600; cursor: pointer; transition: 0.2s; border: 1px solid transparent; white-space: nowrap; }
         .filter-pill.active { display: flex; gap: 5px; background: #002B55; color: white; font-size: 1rem; }
