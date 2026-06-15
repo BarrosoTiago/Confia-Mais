@@ -59,7 +59,7 @@ export default function Agendamentos() {
     }
   }
 
-async function carregarHorariosDinâmicos() {
+  async function carregarHorariosDinâmicos() {
     // Se não houver serviço ou data, limpa a lista e para a execução
     if (!servicosSelecionados.length || !dataSelecionada) {
       setHorariosDisponiveis([]);
@@ -75,7 +75,8 @@ async function carregarHorariosDinâmicos() {
       const dia = String(dataSelecionada.getDate()).padStart(2, '0');
       const dataFormatada = `${ano}-${mes}-${dia}`;
 
-      const response = await api.get(`/agendamentos/horarios-disponiveis/`, {
+      // ---> ROTA CORRIGIDA AQUI: /horarios/disponiveis/ <---
+      const response = await api.get(`/horarios/disponiveis/`, {
         params: {
           servico_id: servicoId,
           data: dataFormatada
@@ -90,10 +91,10 @@ async function carregarHorariosDinâmicos() {
     }
   }
 
-    useEffect(() => {
-        carregarHorariosDinâmicos();
-    }, [dataSelecionada, JSON.stringify(servicosSelecionados)]); 
-    // O JSON.stringify garante que o React perceba mudanças dentro do Array de serviços
+  useEffect(() => {
+      carregarHorariosDinâmicos();
+  }, [dataSelecionada, JSON.stringify(servicosSelecionados)]); 
+  // O JSON.stringify garante que o React perceba mudanças dentro do Array de serviços
 
   const handleWhatsApp = (agenda) => {
     if (!agenda.cliente_telefone) return alert("Cliente sem telefone cadastrado.");
