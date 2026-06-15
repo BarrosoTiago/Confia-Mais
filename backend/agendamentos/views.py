@@ -38,8 +38,9 @@ class AgendamentoViewSet(viewsets.ModelViewSet):
         user = self.request.user
         queryset = Agendamento.objects.all()
         
-        if user.tipo_usuario == 'ADMIN':
-            # ADMIN vê: Agendamentos dos seus serviços OU agendamentos que ele mesmo registrou
+        # AQUI FOI CORRIGIDO: Checando se é EMPREENDEDOR ou ADMIN (caso tenha mantido os dois)
+        if user.tipo_usuario in ['EMPREENDEDOR', 'ADMIN']:
+            # Empreendedor vê: Agendamentos dos seus serviços OU agendamentos que ele mesmo fez como cliente
             return queryset.filter(
                 Q(servicos__criado_por=user) | Q(cliente=user)
             ).distinct().order_by('-data_hora_inicio')
@@ -52,10 +53,11 @@ class AgendamentoViewSet(viewsets.ModelViewSet):
         t_inicio = time.time()
         
         user = self.request.user
-        if user.tipo_usuario == 'ADMIN':
+        
+        # AQUI FOI CORRIGIDO TAMBÉM!
+        if user.tipo_usuario in ['EMPREENDEDOR', 'ADMIN']:
             cliente_id = self.request.data.get('cliente')
-            print(f"⏱️ [Marcar 1] Tipo ADMIN. Tempo decorrido: {time.time() - t_inicio:.4f}s")
-            # Se o admin não selecionou cliente, salva para ele mesmo
+            print(f"⏱️ [Marcar 1] Tipo EMPREENDEDOR. Tempo decorrido: {time.time() - t_inicio:.4f}s")
             agendamento = serializer.save(cliente_id=cliente_id if cliente_id else user.id)
         else:
             print(f"⏱️ [Marcar 1] Tipo CLIENTE. Tempo decorrido: {time.time() - t_inicio:.4f}s")
