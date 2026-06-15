@@ -176,7 +176,7 @@ AUTH_USER_MODEL = 'usuarios.Usuario'
 
 
 # 10. ARQUIVOS ESTÁTICOS E ARMAZENAMENTO EM PRODUÇÃO
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles') 
 
 # Ativa a compressão e cache otimizado do WhiteNoise em produção [cite: 485]
