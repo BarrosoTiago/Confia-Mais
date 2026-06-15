@@ -14,44 +14,42 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Carrega o arquivo .env em ambiente de desenvolvimento local
 load_dotenv()
 
-# 2. DIRETRIZES DE SEGURANÇA E AMBIENTE (Unificadas para Produção/Render)
+# 2. DIRETRIZES DE SEGURANÇA E AMBIENTE
 SECRET_KEY = os.getenv('SECRET_KEY')
 
-# Dica de segurança mantida: se estiver local e sem chave, o sistema avisa.
-# No Render, ele usará a chave definida nas Variáveis de Ambiente.
 if not SECRET_KEY:
     if 'RENDER' in os.environ:
         raise ValueError("Faltou configurar a SECRET_KEY no painel do Render!")
     SECRET_KEY = 'chave-padrao-caso-falhe-em-desenvolvimento'
 
-# O DEBUG se torna False automaticamente se o projeto estiver rodando no Render [cite: 807, 810]
 DEBUG = 'RENDER' not in os.environ
 
 ALLOWED_HOSTS = ['localhost', '127.0.0.1', '*']
 RENDER_EXTERNAL_HOSTNAME = os.environ.get('RENDER_EXTERNAL_HOSTNAME')
 if RENDER_EXTERNAL_HOSTNAME:
-    ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME) 
+    ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
 
 
 # 3. APLICATIVOS INSTALADOS
+# ATENÇÃO: django.contrib.admin deve vir antes do cloudinary_storage
 INSTALLED_APPS = [
-    'rest_framework_simplejwt',
-    'rest_framework',
-    'corsheaders',
-    'api',
-    'usuarios',
-    'servicos',
-    'financeiro',
-    'agendamentos',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
-    'cloudinary_storage',
     'django.contrib.staticfiles',
+    'rest_framework_simplejwt',
+    'rest_framework',
+    'corsheaders',
+    'cloudinary_storage',
     'cloudinary',
     'django_rest_passwordreset',
+    'api',
+    'usuarios',
+    'servicos',
+    'financeiro',
+    'agendamentos',
 ]
 
 CLOUDINARY_STORAGE = {
@@ -60,13 +58,16 @@ CLOUDINARY_STORAGE = {
     'API_SECRET': os.getenv('CLOUDINARY_API_SECRET')
 }
 
+# Cloudinary APENAS para arquivos de mídia (uploads de usuário)
+# Arquivos estáticos ficam com WhiteNoise
 DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
 
-# 4. MIDDLEWARES (Com a inclusão estratégica do WhiteNoise para arquivos estáticos) [cite: 421]
+# 4. MIDDLEWARES
+# ATENÇÃO: SecurityMiddleware deve ser o 1º, WhiteNoise imediatamente após
 MIDDLEWARE = [
-    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware',  # Inserido logo após o SecurityMiddleware [cite: 465, 466]
+    'whitenoise.middleware.WhiteNoiseMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -96,18 +97,15 @@ WSGI_APPLICATION = 'config.wsgi.application'
 
 
 # 5. CONFIGURAÇÃO DO CORS
-CORS_ALLOW_ALL_ORIGINS = False 
+CORS_ALLOW_ALL_ORIGINS = False
 
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://localhost:5173",
     "https://confia-mais.onrender.com",
-    
-    # Quando criar o serviço do frontend no Render, adicione a URL dele aqui:
-    # "https://confia-mais-frontend.onrender.com"
 ]
 
-CORS_ALLOW_CREDENTIALS = True 
+CORS_ALLOW_CREDENTIALS = True
 
 CORS_ALLOW_HEADERS = [
     'Authorization',
@@ -115,18 +113,17 @@ CORS_ALLOW_HEADERS = [
 ]
 
 
-# 6. BANCO DE DADOS (PostgreSQL adaptado para alternar entre local e nuvem) [cite: 420]
+# 6. BANCO DE DADOS
 DATABASES = {
     'default': dj_database_url.config(
-        # Lê a variável DATABASE_URL do Render; se não achar, usa o fallback local [cite: 430, 825]
-        default=os.environ.get('DATABASE_URL', 'postgresql://postgres:postgres@localhost:5432/confiaplus'), 
+        default=os.environ.get('DATABASE_URL', 'postgresql://postgres:postgres@localhost:5432/confiaplus'),
         conn_max_age=600,
         conn_health_checks=True,
     )
 }
 
 
-# 7. VALIDATÓRIOS DE SENHA
+# 7. VALIDADORES DE SENHA
 AUTH_PASSWORD_VALIDATORS = [
     {
         'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
@@ -158,36 +155,34 @@ SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=5),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
     "ROTATE_REFRESH_TOKENS": True,
-    "BLACKLIST_AFTER_ROTATION": True, 
+    "BLACKLIST_AFTER_ROTATION": True,
     "AUTH_HEADER_TYPES": ("Bearer",),
 }
 
 
-# 9. LOCALIZAÇÃO E SUCURSAL DE USUÁRIO
+# 9. LOCALIZAÇÃO
 LANGUAGE_CODE = 'pt-br'
-
 TIME_ZONE = 'America/Sao_Paulo'
-
 USE_I18N = True
-
 USE_TZ = False
 
 AUTH_USER_MODEL = 'usuarios.Usuario'
 
 
-# 10. ARQUIVOS ESTÁTICOS E ARMAZENAMENTO EM PRODUÇÃO
+# 10. ARQUIVOS ESTÁTICOS (WhiteNoise) E MÍDIA (Cloudinary)
 STATIC_URL = '/static/'
-STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles') 
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+STATICFILES_DIRS = []  # sem diretórios extras; evita conflito
 
-# Ativa a compressão e cache otimizado do WhiteNoise em produção [cite: 485]
-if not DEBUG:
-    STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage' 
+# WhiteNoise serve os estáticos em produção com compressão e cache
+# Definido fora do bloco if DEBUG para garantir que sempre seja aplicado
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 
-# 11. CONFIGURAÇÃO DE E-MAIL (PROTEGIDA)
+# 11. CONFIGURAÇÃO DE E-MAIL
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
@@ -201,7 +196,8 @@ DEFAULT_FROM_EMAIL = f'Equipe Confia + <{EMAIL_HOST_USER}>'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# --- LOGS DETALHADOS PARA DIAGNÓSTICO DE ERROS ---
+
+# 12. LOGS
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
@@ -229,7 +225,7 @@ LOGGING = {
         },
         'rest_framework': {
             'handlers': ['console'],
-            'level': 'DEBUG',  # Ativa o modo mais detalhado para o REST Framework
+            'level': 'DEBUG',
             'propagate': True,
         },
     },
