@@ -3,13 +3,13 @@ import { Container, Table, Button, Row, Col, Spinner, Form, Badge } from 'react-
 import api from '../services/api';
 import { useNavigate } from 'react-router-dom';
 import AnimatedBackground from '../components/AnimatedBackground';
+// Componentes do Recharts para construir um gráfico de área moderno e responsivo
+import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import { 
   FaArrowLeft, 
   FaSearch, 
   FaFilter, 
   FaMoneyBillWave, 
-  FaCreditCard, 
-  FaCoins,
   FaClock, 
   FaCheckCircle 
 } from 'react-icons/fa';
@@ -17,59 +17,38 @@ import {
 export default function EntradasMes() {
   const navigate = useNavigate();
   
-  const [pagamentos, setPagamentos] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [periodoAtivo, setPeriodoAtivo] = useState('mes');
+  const [dadosPeriodo, setDadosPeriodo] = useState({
+    texto_referencia: '',
+    total_acumulado: 0,
+    quantidade_entradas: 0,
+    dados_grafico: [],
+    entradas: []
+  });
+
   const [searchTerm, setSearchTerm] = useState('');
   const [filterForma, setFilterForma] = useState('TODOS');
-  
-  // Estados para os mini-cards do mês corrente
-  const [receitaMes, setReceitaMes] = useState(0);
-  const [totalTransacoesMes, setTotalTransacoesMes] = useState(0);
 
   useEffect(() => {
-    fetchDadosMensais();
-  }, []);
+    fetchDadosPeriodo();
+  }, [periodoAtivo]);
 
-  async function fetchDadosMensais() {
+  async function fetchDadosPeriodo() {
     try {
       setLoading(true);
-      
-      // 1. Busca o valor total consolidado do mês no dashboard financeiro
-      const resDashboard = await api.get('/financeiro/dashboard/');
-      if (resDashboard.data) {
-        setReceitaMes(resDashboard.data.receita_mes || 0);
+      // Rota corrigida adicionando o prefixo /api/ mapeado no Django
+      const response = await api.get(`/api/financeiro/entradas-periodo/?periodo=${periodoAtivo}`);
+      if (response.data) {
+        setDadosPeriodo(response.data);
       }
-
-      // 2. Busca todas as transações (pagamentos) efetuadas
-      const resPagamentos = await api.get('/pagamentos/');
-      const dadosBrutos = Array.isArray(resPagamentos.data) ? resPagamentos.data : [];
-      
-      // Pegamos o mês e ano atual para filtrar estritamente as entradas deste mês no Front-end
-      const hoje = new Date();
-      const mesAtual = hoje.getMonth();
-      const anoAtual = hoje.getFullYear();
-
-      const transacoesDoMes = dadosBrutos.filter(pag => {
-        const dataPag = new Date(pag.data_pagamento || pag.created_at || pag.data);
-        return dataPag.getMonth() === mesAtual && dataPag.getFullYear() === anoAtual;
-      });
-
-      // Ordena por data mais recente
-      transacoesDoMes.sort((a, b) => 
-        new Date(b.data_pagamento || b.created_at || b.data) - new Date(a.data_pagamento || a.created_at || a.data)
-      );
-
-      setPagamentos(transacoesDoMes);
-      setTotalTransacoesMes(transacoesDoMes.length);
-
     } catch (err) {
-      console.error("Erro ao carregar entradas do mês:", err);
+      console.error(`Erro ao carregar entradas por ${periodoAtivo}:`, err);
     } finally {
       setLoading(false);
     }
   }
 
-  // Utilitários de Formatação
   const formatMoney = (val) => {
     if (val === undefined || val === null || isNaN(val)) return 'R$ 0,00';
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
@@ -85,46 +64,107 @@ export default function EntradasMes() {
     } catch (e) { return '--/--'; }
   };
 
-  // Retorna um Badge estilizado dinamicamente de acordo com a forma de pagamento cadastrada no backend
-  const getFormaBadge = (forma) => {
-    switch(forma) {
-      case 'PIX':
-        return <Badge bg="info" className="text-dark py-1 px-2 fw-semibold">Pix</Badge>;
-      case 'DINHEIRO':
-        return <Badge bg="success" className="py-1 px-2 fw-semibold">Dinheiro</Badge>;
-      case 'CARTAO_CREDITO':
-        return <Badge bg="primary" className="py-1 px-2 fw-semibold">Crédito</Badge>;
-      case 'CARTAO_DEBITO':
-        return <Badge bg="secondary" className="py-1 px-2 fw-semibold">Débito</Badge>;
-      default:
-        return <Badge bg="light" text="dark" className="py-1 px-2">{forma || 'Outro'}</Badge>;
+  const getTituloDinamico = () => {
+    switch (periodoAtivo) {
+      case 'dia': return 'Entradas do Dia';
+      case 'semana': return 'Entradas da Semana';
+      case 'mes': return 'Entradas do Mês';
+      case 'ano': return 'Entradas do Ano';
+      default: return 'Entradas do Negócio';
     }
   };
 
-  // Filtragem combinada (Termo de Busca por Cliente + Select de Forma de Pagamento)
-  const pagamentosFiltrados = pagamentos.filter(pag => {
+  const getFormaBadge = (forma) => {
+    switch(forma) {
+      case 'PIX': return <Badge bg="info" className="text-dark py-1 px-2 fw-semibold">Pix</Badge>;
+      case 'DINHEIRO': return <Badge bg="success" className="py-1 px-2 fw-semibold">Dinheiro</Badge>;
+      case 'CARTAO_CREDITO': return <Badge bg="primary" className="py-1 px-2 fw-semibold">Crédito</Badge>;
+      case 'CARTAO_DEBITO': return <Badge bg="secondary" className="py-1 px-2 fw-semibold">Débito</Badge>;
+      default: return <Badge bg="light" text="dark" className="py-1 px-2">{forma || 'Outro'}</Badge>;
+    }
+  };
+
+  // 1. FILTRAGEM SIMULTÂNEA DA LISTA DE ENTRADAS
+  const pagamentosFiltrados = (dadosPeriodo.entradas || []).filter(pag => {
     const term = searchTerm.toLowerCase();
-    
-    // Suporta se o backend trouxer o nome do cliente direto no objeto ou através do agendamento expandido
-    const clienteNome = (pag.cliente_nome || pag.agendamento_detalhes?.cliente_nome || 'Cliente').toLowerCase();
+    const clienteNome = (pag.cliente || 'Cliente').toLowerCase();
     const observacao = (pag.observacao || '').toLowerCase();
     
     const matchesSearch = clienteNome.includes(term) || observacao.includes(term);
-    const matchesForma = filterForma === 'TODOS' || pag.forma_pagamento === filterForma || pag.forma === filterForma;
+    const matchesForma = filterForma === 'TODOS' || pag.forma_pagamento === filterForma;
 
     return matchesSearch && matchesForma;
   });
 
-  if (loading) {
-    return (
-      <>
-        <AnimatedBackground />
-        <div style={{ height: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center', background: 'transparent' }}>
-          <Spinner animation="border" style={{ color: 'white' }} />
+  // 2. CÁLCULO DOS CARDS DINÂMICOS BASEADO NO FILTRO ATUAL
+  const totalFiltradoAcumulado = pagamentosFiltrados.reduce((acc, curr) => acc + curr.valor, 0);
+  const quantidadeFiltrada = pagamentosFiltrados.length;
+
+  // 3. RECONSTRUÇÃO DINÂMICA DO GRÁFICO BASEADO NO FILTRO SELECIONADO
+  const getDadosGraficoFiltrados = () => {
+    if (filterForma === 'TODOS' && searchTerm === '') {
+      return dadosPeriodo.dados_grafico || [];
+    }
+
+    // Cria a estrutura base limpa espelhando o eixo X vindo do backend
+    const mapaEstrutura = {};
+    if (dadosPeriodo.dados_grafico) {
+      dadosPeriodo.dados_grafico.forEach(ponto => {
+        mapaEstrutura[ponto.label] = 0;
+      });
+    }
+
+    // Aloca cada entrada filtrada dentro do seu respectivo ponto temporal
+    pagamentosFiltrados.forEach(pag => {
+      const dtPagamento = new Date(pag.data_pagamento);
+      let chave = '';
+
+      if (periodoAtivo === 'dia') {
+        // Correção aplicada: Agrupa dinamicamente nos blocos de 4h configurados no Django
+        const hora = dtPagamento.getHours();
+        const blocoHora = Math.floor(hora / 4) * 4;
+        chave = `${blocoHora.toString().padStart(2, '0')}:00`;
+      } else if (periodoAtivo === 'semana') {
+        const mapeamentoDias = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+        const dataFormatada = pag.data_pagamento.includes('T') ? pag.data_pagamento : `${pag.data_pagamento}T00:00:00`;
+        const diaIndex = new Date(dataFormatada).getDay();
+        chave = mapeamentoDias[diaIndex];
+      } else if (periodoAtivo === 'ano') {
+        const meses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+        chave = meses[dtPagamento.getMonth()];
+      } else { // mes
+        const diaDoMes = dtPagamento.getDate();
+        if (diaDoMes <= 7) chave = 'Semana 1';
+        else if (diaDoMes <= 14) chave = 'Semana 2';
+        else if (diaDoMes <= 21) chave = 'Semana 3';
+        else if (diaDoMes <= 28) chave = 'Semana 4';
+        else chave = 'Semana 5';
+      }
+
+      if (mapaEstrutura[chave] !== undefined) {
+        mapaEstrutura[chave] += pag.valor;
+      }
+    });
+
+    // Retorna formatado pro Recharts
+    return Object.keys(mapaEstrutura).map(label => ({
+      label: label,
+      valor: Number(mapaEstrutura[label].toFixed(2))
+    }));
+  };
+
+  // Customização do balão de informação do gráfico ao passar o mouse (Tooltip)
+  const CustomTooltip = ({ active, payload }) => {
+    if (active && payload && payload.length) {
+      return (
+        <div style={{ background: '#002B55', color: 'white', padding: '10px 15px', borderRadius: '10px', boxShadow: '0 4px 15px rgba(0,0,0,0.15)', fontSize: '0.85rem' }}>
+          <p style={{ margin: 0, fontWeight: 600 }}>{payload[0].payload.label}</p>
+          <p style={{ margin: 0, color: '#2DCE89', fontWeight: 700 }}>{formatMoney(payload[0].value)}</p>
         </div>
-      </>
-    );
-  }
+      );
+    }
+    return null;
+  };
 
   return (
     <>
@@ -145,6 +185,13 @@ export default function EntradasMes() {
           
           .title-group h1 { font-family: 'Libre Baskerville', serif; font-weight: 700; font-size: 1.6rem; color: #002B55; margin: 0; }
           .title-group span { font-size: 0.85rem; color: #8898AA; }
+          
+          .tabs-periodo { background: #F4F6F9; padding: 6px; border-radius: 30px; border: 1px solid #E9ECEF; }
+          .tabs-periodo .btn-tab { border: none; background: transparent; color: #525F7F; font-weight: 600; font-size: 0.9rem; padding: 8px 22px; border-radius: 24px; transition: all 0.3s ease; }
+          .tabs-periodo .btn-tab.active { background: white; color: #002B55; box-shadow: 0 4px 10px rgba(0,0,0,0.08); }
+          
+          .chart-panel { background: white; border-radius: 20px; padding: 25px; box-shadow: 0 10px 30px rgba(0,43,85,0.04); margin-bottom: 30px; }
+          .chart-panel h3 { font-size: 1rem; font-weight: 700; color: #002B55; margin-bottom: 20px; text-transform: uppercase; letter-spacing: 0.5px; }
           
           .filters-panel { background: white; border-radius: 16px; padding: 20px; box-shadow: 0 4px 15px rgba(0,43,85,0.02); margin-bottom: 25px; }
           
@@ -177,120 +224,172 @@ export default function EntradasMes() {
                 <FaArrowLeft />
               </button>
               <div className="title-group">
-                <h1>Entradas do Mês</h1>
-                <span>Detalhamento analítico de receitas recebidas</span>
+                <h1>{getTituloDinamico()}</h1>
+                <span>Análise de receitas por faturamento temporal ({dadosPeriodo.texto_referencia})</span>
               </div>
+            </div>
+
+            {/* Abas */}
+            <div className="tabs-periodo">
+              <button className={`btn-tab ${periodoAtivo === 'dia' ? 'active' : ''}`} onClick={() => setPeriodoAtivo('dia')}>Dia</button>
+              <button className={`btn-tab ${periodoAtivo === 'semana' ? 'active' : ''}`} onClick={() => setPeriodoAtivo('semana')}>Semana</button>
+              <button className={`btn-tab ${periodoAtivo === 'mes' ? 'active' : ''}`} onClick={() => setPeriodoAtivo('mes')}>Mês</button>
+              <button className={`btn-tab ${periodoAtivo === 'ano' ? 'active' : ''}`} onClick={() => setPeriodoAtivo('ano')}>Ano</button>
             </div>
           </div>
 
-          {/* Cards de Resumo Rápido */}
-          <div className="stats-grid">
-            <div className="mini-stat-card theme-green">
-              <div className="mini-icon-circle"><FaCheckCircle /></div>
-              <div className="mini-stat-info">
-                <span>Faturamento Mensal (Líquido)</span>
-                <h4>{formatMoney(receitaMes)}</h4>
-              </div>
+          {loading ? (
+            <div className="d-flex justify-content-center align-items-center py-5">
+              <Spinner animation="border" style={{ color: 'white' }} />
             </div>
-            <div className="mini-stat-card theme-blue">
-              <div className="mini-icon-circle"><FaMoneyBillWave /></div>
-              <div className="mini-stat-info">
-                <span>Total de Recebimentos</span>
-                <h4>{totalTransacoesMes} transações</h4>
+          ) : (
+            <>
+              {/* Cards de Resumo Reativos */}
+              <div className="stats-grid">
+                <div className="mini-stat-card theme-green">
+                  <div className="mini-icon-circle"><FaCheckCircle /></div>
+                  <div className="mini-stat-info">
+                    <span>Faturamento Filtrado ({dadosPeriodo.label_periodo || 'Mês'})</span>
+                    <h4>{formatMoney(totalFiltradoAcumulado)}</h4>
+                  </div>
+                </div>
+                <div className="mini-stat-card theme-blue">
+                  <div className="mini-icon-circle"><FaMoneyBillWave /></div>
+                  <div className="mini-stat-info">
+                    <span>Total de Recebimentos</span>
+                    <h4>{quantidadeFiltrada} transações</h4>
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
 
-          {/* Painel de Filtros Avançados */}
-          <div className="filters-panel">
-            <Row className="g-3 align-items-center">
-              <Col md={7}>
-                <Form.Group className="position-relative m-0">
-                  <FaSearch style={{ position: 'absolute', left: '15px', top: '50%', transform: 'translateY(-50%)', color: '#adb5bd' }} />
-                  <Form.Control 
-                    type="text" 
-                    placeholder="Buscar por cliente ou observação..." 
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    style={{ paddingLeft: '42px', borderRadius: '30px', background: '#F8F9FA', border: '1px solid #E9ECEF' }}
-                  />
-                </Form.Group>
-              </Col>
-              <Col md={5}>
-                <Form.Group className="d-flex align-items-center m-0 gap-2">
-                  <span className="text-muted small fw-bold text-nowrap"><FaFilter /> Forma:</span>
-                  <Form.Select 
-                    value={filterForma} 
-                    onChange={(e) => setFilterForma(e.target.value)}
-                    style={{ borderRadius: '30px', background: '#F8F9FA', border: '1px solid #E9ECEF' }}
-                  >
-                    <option value="TODOS">Todas as Formas</option>
-                    <option value="PIX">Pix</option>
-                    <option value="DINHEIRO">Dinheiro</option>
-                    <option value="CARTAO_CREDITO">Cartão de Crédito</option>
-                    <option value="CARTAO_DEBITO">Cartão de Débito</option>
-                  </Form.Select>
-                </Form.Group>
-              </Col>
-            </Row>
-          </div>
+              {/* GRÁFICO DE ENTRADAS DINÂMICO */}
+              <div className="chart-panel">
+                <h3>Fluxo de Entradas Monetárias</h3>
+                <div style={{ width: '100%', height: 300 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart
+                      data={getDadosGraficoFiltrados()}
+                      margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+                    >
+                      <defs>
+                        <linearGradient id="colorValor" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#2DCE89" stopOpacity={0.4}/>
+                          <stop offset="95%" stopColor="#2DCE89" stopOpacity={0.0}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E9ECEF" />
+                      <XAxis 
+                        dataKey="label" 
+                        axisLine={false} 
+                        tickLine={false} 
+                        tick={{ fill: '#8898AA', fontSize: 12, fontWeight: 500 }}
+                      />
+                      <YAxis 
+                        axisLine={false} 
+                        tickLine={false} 
+                        tick={{ fill: '#8898AA', fontSize: 11 }}
+                        tickFormatter={(v) => `R$ ${v}`}
+                      />
+                      <Tooltip content={<CustomTooltip />} />
+                      <Area 
+                        type="monotone" 
+                        dataKey="valor" 
+                        stroke="#2DCE89" 
+                        strokeWidth={3}
+                        fillOpacity={1} 
+                        fill="url(#colorValor)" 
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
 
-          {/* Tabela de Lançamentos Analíticos */}
-          <div className="table-panel">
-            <Table className="entries-table mb-0" responsive>
-              <thead>
-                <tr>
-                  <th>Cliente</th>
-                  <th>Data do Recebimento</th>
-                  <th>Forma</th>
-                  <th>Observação / Detalhe</th>
-                  <th className="text-end">Valor Recebido</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pagamentosFiltrados.length === 0 ? (
-                  <tr>
-                    <td colSpan="5" className="text-center py-5 text-muted">
-                      Nenhum recebimento registrado para os filtros aplicados neste mês.
-                    </td>
-                  </tr>
-                ) : (
-                  pagamentosFiltrados.map((pag) => {
-                    const nomeCliente = pag.cliente_nome || pag.agendamento_detalhes?.cliente_nome || 'Cliente';
-                    const dataFormatada = formatDateTime(pag.data_pagamento || pag.created_at || pag.data);
-                    const formaDePagamento = pag.forma_pagamento || pag.forma;
+              {/* Filtros */}
+              <div className="filters-panel">
+                <Row className="g-3 align-items-center">
+                  <Col md={7}>
+                    <Form.Group className="position-relative m-0">
+                      <FaSearch style={{ position: 'absolute', left: '15px', top: '50%', transform: 'translateY(-50%)', color: '#adb5bd' }} />
+                      <Form.Control 
+                        type="text" 
+                        placeholder="Buscar por cliente ou observação..." 
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        style={{ paddingLeft: '42px', borderRadius: '30px', background: '#F8F9FA', border: '1px solid #E9ECEF' }}
+                      />
+                    </Form.Group>
+                  </Col>
+                  <Col md={5}>
+                    <Form.Group className="d-flex align-items-center m-0 gap-2">
+                      <span className="text-muted small fw-bold text-nowrap"><FaFilter /> Forma:</span>
+                      <Form.Select 
+                        value={filterForma} 
+                        onChange={(e) => setFilterForma(e.target.value)}
+                        style={{ borderRadius: '30px', background: '#F8F9FA', border: '1px solid #E9ECEF' }}
+                      >
+                        <option value="TODOS">Todas as Formas</option>
+                        <option value="PIX">Pix</option>
+                        <option value="DINHEIRO">Dinheiro</option>
+                        <option value="CARTAO_CREDITO">Cartão de Crédito</option>
+                        <option value="CARTAO_DEBITO">Cartão de Débito</option>
+                      </Form.Select>
+                    </Form.Group>
+                  </Col>
+                </Row>
+              </div>
 
-                    return (
-                      <tr key={pag.id}>
-                        <td>
-                          <div className="d-flex align-items-center gap-3">
-                            <div className="avatar-circle">{nomeCliente.charAt(0).toUpperCase()}</div>
-                            <div className="client-title">{nomeCliente}</div>
-                          </div>
-                        </td>
-                        <td>
-                          <div className="text-muted small d-flex align-items-center gap-2">
-                            <FaClock size={12} /> {dataFormatada}
-                          </div>
-                        </td>
-                        <td>
-                          {getFormaBadge(formaDePagamento)}
-                        </td>
-                        <td>
-                          <span className="text-muted small italic">
-                            {pag.observacao ? pag.observacao : <span className="text-light-muted">Sem observações</span>}
-                          </span>
-                        </td>
-                        <td className="text-end">
-                          <span className="val-positive">+{formatMoney(pag.valor)}</span>
+              {/* Tabela */}
+              <div className="table-panel">
+                <Table className="entries-table mb-0" responsive>
+                  <thead>
+                    <tr>
+                      <th>Cliente</th>
+                      <th>Data do Recebimento</th>
+                      <th>Forma</th>
+                      <th>Observação / Detalhes</th>
+                      <th className="text-end">Valor Recebido</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pagamentosFiltrados.length === 0 ? (
+                      <tr>
+                        <td colSpan="5" className="text-center py-5 text-muted">
+                          Nenhum recebimento registrado para os critérios selecionados.
                         </td>
                       </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </Table>
-          </div>
+                    ) : (
+                      pagamentosFiltrados.map((pag) => (
+                        <tr key={pag.id}>
+                          <td>
+                            <div className="d-flex align-items-center gap-3">
+                              <div className="avatar-circle">{(pag.cliente || 'C').charAt(0).toUpperCase()}</div>
+                              <div className="client-title">{pag.cliente || 'Cliente'}</div>
+                            </div>
+                          </td>
+                          <td>
+                            <div className="text-muted small d-flex align-items-center gap-2">
+                              <FaClock size={12} /> {formatDateTime(pag.data_pagamento)}
+                            </div>
+                          </td>
+                          <td>
+                            {getFormaBadge(pag.forma_pagamento)}
+                          </td>
+                          <td>
+                            <span className="text-muted small italic">
+                              {pag.observacao ? pag.observacao : <span className="text-light-muted">Sem observações</span>}
+                            </span>
+                          </td>
+                          <td className="text-end">
+                            <span className="val-positive">+{formatMoney(pag.valor)}</span>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </Table>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </>

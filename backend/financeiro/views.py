@@ -114,39 +114,171 @@ class CalculadoraViewSet(viewsets.ModelViewSet):
         serializer.save(usuario=self.request.user)
 
 
-class EntradasMesView(APIView):
+class EntradasPeriodoView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
         user = request.user
+        periodo = request.query_params.get('periodo', 'mes').lower()
         agora = timezone.now()
-        inicio_mes = agora.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        hoje = agora.date()
+        
+        dados_grafico_dict = collections.OrderedDict()
+        
+        if periodo == 'dia':
+            data_inicio = agora.replace(hour=0, minute=0, second=0, microsecond=0)
+            texto_referencia = hoje.strftime('%d/%m/%Y')
+            label_periodo = "Dia"
+            for h in [0, 4, 8, 12, 16, 20]:
+                dados_grafico_dict[f"{h:02d}:00"] = 0
+        elif periodo == 'semana':
+            inicio_semana = hoje - timedelta(days=hoje.weekday())
+            data_inicio = timezone.make_aware(timezone.datetime.combine(inicio_semana, timezone.datetime.min.time()))
+            texto_referencia = f"Semana de {inicio_semana.strftime('%d/%m')} a {hoje.strftime('%d/%m/%Y')}"
+            label_periodo = "Semana"
+            for d in ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom']:
+                dados_grafico_dict[d] = 0
+        elif periodo == 'ano':
+            data_inicio = agora.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+            texto_referencia = agora.strftime('%Y')
+            label_periodo = "Ano"
+            for m in ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']:
+                dados_grafico_dict[m] = 0
+        else:
+            data_inicio = agora.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            texto_referencia = agora.strftime('%B/%Y')
+            label_periodo = "Mês"
+            for s in ['Semana 1', 'Semana 2', 'Semana 3', 'Semana 4', 'Semana 5']:
+                dados_grafico_dict[s] = 0
 
         pagamentos_user = Pagamento.objects.filter(
             transacao__agendamento__servicos__criado_por=user
         ).distinct()
 
-        pagamentos_do_mes = pagamentos_user.filter(
-            data_pagamento__gte=inicio_mes
-        ).order_by('-data_pagamento')
-
-        total_entradas_mes = pagamentos_do_mes.aggregate(total=Sum('valor'))['total'] or 0
+        pagamentos_filtrados = pagamentos_user.filter(data_pagamento__gte=data_inicio).order_by('-data_pagamento')
+        total_acumulado = pagamentos_filtrados.aggregate(total=Sum('valor'))['total'] or 0
 
         detalhes_pagamentos = []
-        for p in pagamentos_do_mes:
+        for p in pagamentos_filtrados:
+            valor_float = float(p.valor)
+            dt = p.data_pagamento
             agendamento = p.transacao.agendamento
+            
             detalhes_pagamentos.append({
                 "id": p.id,
-                "valor": float(p.valor),
-                "data_pagamento": p.data_pagamento.strftime('%d/%m/%Y %H:%M'),
-                "forma_pagamento": p.get_forma_pagamento_display(), 
+                "valor": valor_float,
+                "data_pagamento": dt.isoformat(),
+                "forma_pagamento": p.forma_pagamento, 
                 "observacao": p.observacao or "",
-                "cliente": agendamento.cliente.username if hasattr(agendamento, 'cliente') and agendamento.cliente else "Cliente"
+                "cliente": agendamento.cliente.nome_completo or agendamento.cliente.username if hasattr(agendamento, 'cliente') and agendamento.cliente else "Cliente"
             })
 
+            if periodo == 'dia':
+                chave = f"{(dt.hour // 4) * 4:02d}:00"
+                if chave in dados_grafico_dict: dados_grafico_dict[chave] += valor_float
+            elif periodo == 'semana':
+                dias_semana = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom']
+                chave = dias_semana[dt.weekday()]
+                if chave in dados_grafico_dict: dados_grafico_dict[chave] += valor_float
+            elif periodo == 'ano':
+                meses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
+                chave = meses[dt.month - 1]
+                if chave in dados_grafico_dict: dados_grafico_dict[chave] += valor_float
+            else:
+                dia_do_mes = dt.day
+                chave = 'Semana 1' if dia_do_mes <= 7 else 'Semana 2' if dia_do_mes <= 14 else 'Semana 3' if dia_do_mes <= 21 else 'Semana 4' if dia_do_mes <= 28 else 'Semana 5'
+                dados_grafico_dict[chave] += valor_float
+
+        dados_grafico_formatados = [{"label": k, "valor": round(v, 2)} for k, v in dados_grafico_dict.items()]
+
         return Response({
-            "mes_referencia": agora.strftime('%B/%Y'), 
-            "total_acumulado_mes": float(total_entradas_mes),
-            "quantidade_entradas": pagamentos_do_mes.count(),
+            "periodo_selecionado": periodo,
+            "label_periodo": label_periodo,
+            "texto_referencia": texto_referencia, 
+            "total_acumulado": float(total_acumulado),
+            "quantidade_entradas": pagamentos_filtrados.count(),
+            "dados_grafico": dados_grafico_formatados,
             "entradas": detalhes_pagamentos
+        }, status=status.HTTP_OK)
+
+class DespesasPeriodoView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        periodo = request.query_params.get('periodo', 'mes').lower()
+        agora = timezone.now()
+        hoje = agora.date()
+        
+        dados_grafico_dict = collections.OrderedDict()
+        
+        if periodo == 'dia':
+            data_inicio = hoje
+            texto_referencia = hoje.strftime('%d/%m/%Y')
+            label_periodo = "Dia"
+            for h in [0, 4, 8, 12, 16, 20]: dados_grafico_dict[f"{h:02d}:00"] = 0
+        elif periodo == 'semana':
+            inicio_semana = hoje - timedelta(days=hoje.weekday())
+            data_inicio = inicio_semana
+            texto_referencia = f"Semana de {inicio_semana.strftime('%d/%m')} a {hoje.strftime('%d/%m/%Y')}"
+            label_periodo = "Semana"
+            for d in ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom']: dados_grafico_dict[d] = 0
+        elif periodo == 'ano':
+            data_inicio = hoje.replace(month=1, day=1)
+            texto_referencia = hoje.strftime('%Y')
+            label_periodo = "Ano"
+            for m in ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']: dados_grafico_dict[m] = 0
+        else:
+            data_inicio = hoje.replace(day=1)
+            texto_referencia = agora.strftime('%B/%Y')
+            label_periodo = "Mês"
+            for s in ['Semana 1', 'Semana 2', 'Semana 3', 'Semana 4', 'Semana 5']: dados_grafico_dict[s] = 0
+
+        despesas_query = Despesa.objects.filter(usuario=user)
+
+        if periodo == 'dia':
+            despesas_filtradas = despesas_query.filter(data_despesa=data_inicio).order_by('-data_despesa')
+        else:
+            despesas_filtradas = despesas_query.filter(data_despesa__gte=data_inicio).order_by('-data_despesa')
+
+        total_acumulado = despesas_filtradas.aggregate(total=Sum('valor'))['total'] or 0
+
+        detalhes_despesas = []
+        for d in despesas_filtradas:
+            valor_float = float(d.valor)
+            dt_despesa = d.data_despesa
+            
+            detalhes_despesas.append({
+                "id": d.id,
+                "descricao": d.descricao,
+                "valor": valor_float,
+                "data_despesa": dt_despesa.isoformat(),
+                "categoria": d.categoria or "FIXA"
+            })
+
+            if periodo == 'dia':
+                dados_grafico_dict["12:00"] += valor_float
+            elif periodo == 'semana':
+                dias_semana = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom']
+                chave = dias_semana[dt_despesa.weekday()]
+                if chave in dados_grafico_dict: dados_grafico_dict[chave] += valor_float
+            elif periodo == 'ano':
+                meses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
+                chave = meses[dt_despesa.month - 1]
+                if chave in dados_grafico_dict: dados_grafico_dict[chave] += valor_float
+            else:
+                dia_do_mes = dt_despesa.day
+                chave = 'Semana 1' if dia_do_mes <= 7 else 'Semana 2' if dia_do_mes <= 14 else 'Semana 3' if dia_do_mes <= 21 else 'Semana 4' if dia_do_mes <= 28 else 'Semana 5'
+                if chave in dados_grafico_dict: dados_grafico_dict[chave] += valor_float
+
+        dados_grafico_formatados = [{"label": k, "valor": round(v, 2)} for k, v in dados_grafico_dict.items()]
+
+        return Response({
+            "periodo_selecionado": periodo,
+            "label_periodo": label_periodo,
+            "texto_referencia": texto_referencia, 
+            "total_acumulado": float(total_acumulado),
+            "quantidade_despesas": despesas_filtradas.count(),
+            "dados_grafico": dados_grafico_formatados,
+            "despesas": detalhes_despesas
         }, status=status.HTTP_OK)
