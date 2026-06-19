@@ -41,6 +41,8 @@ def usuario_existente(dados_novo_usuario):
 # 2. TESTES DE BASE DE DADOS (Models)
 # ==========================================
 
+
+
 @pytest.mark.django_db
 def test_criacao_usuario_criptografia(dados_novo_usuario):
     # 1. Fazemos uma cópia para não estragar a fixture original
