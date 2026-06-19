@@ -1,5 +1,6 @@
 from pathlib import Path
 import os
+import sys
 from datetime import timedelta
 from dotenv import load_dotenv 
 from decouple import config
@@ -236,3 +237,17 @@ LOGGING = {
         },
     },
 }
+
+# ==========================================
+# CONFIGURAÇÃO EXCLUSIVA PARA TESTES
+# ==========================================
+# Se o comando executado for o Pytest, forçamos o uso do SQLite local
+# para não poluir nem travar no banco de dados da nuvem.
+
+if 'pytest' in sys.modules or 'test' in sys.argv:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db_test.sqlite3',
+        }
+    }
