@@ -57,6 +57,7 @@ INSTALLED_APPS = [
     'servicos',
     'financeiro',
     'agendamentos',
+    'iot.apps.IotConfig',
 ]
 
 CLOUDINARY_STORAGE = {

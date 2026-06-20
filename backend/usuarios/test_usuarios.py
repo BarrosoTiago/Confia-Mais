@@ -20,9 +20,9 @@ def dados_novo_usuario():
         "username": "maria_teste",
         "email": "maria@teste.com",
         "password": "senha_segura_123",
-        "password_confirm": "senha_segura_123", # <--- ADICIONADO
-        "nome_completo": "Maria da Silva",      # <--- ADICIONADO
-        "telefone": "84999999999",              # <--- ADICIONADO
+        "password_confirm": "senha_segura_123", 
+        "nome_completo": "Maria da Silva",      
+        "telefone": "84999999999",              
         "tipo_usuario": "CLIENTE"
     }
 

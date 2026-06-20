@@ -17,6 +17,7 @@ h11==0.16.0
 idna==3.17
 iniconfig==2.3.0
 packaging==26.2
+paho-mqtt==2.1.0
 pillow==12.0.0
 pluggy==1.6.0
 psycopg2-binary==2.9.12
