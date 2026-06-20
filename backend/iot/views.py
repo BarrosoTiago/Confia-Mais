@@ -41,9 +41,9 @@ class SelecionarAtendimentoAtivoView(APIView):
                 try:
                     agendamento = Agendamento.objects.get(
                         id=agendamento_id,
-                        cliente=empreendedor,
+                        empreendedor=request.user,  # garante que é agendamento do seu negócio
                     )
-                    nome_cliente = agendamento.cliente.get_full_name() or agendamento.cliente.username
+                    nome_cliente = agendamento.nome_cliente  # usa a property
                 except Agendamento.DoesNotExist:
                     return Response(
                         {"erro": "Agendamento não encontrado para este usuário."},
