@@ -30,59 +30,69 @@ class SelecionarAtendimentoAtivoView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        empreendedor = request.user
-        agendamento_id = request.data.get("agendamento_id")
-        nome_cliente = request.data.get("nome_cliente", "").strip()
+        import traceback
+        try:
+            empreendedor = request.user
+            agendamento_id = request.data.get("agendamento_id")
+            nome_cliente = request.data.get("nome_cliente", "").strip()
 
-        agendamento = None
-        if agendamento_id:
-            try:
-                agendamento = Agendamento.objects.get(
-                    id=agendamento_id,
-                    usuario=empreendedor,  # garante isolamento entre empreendedores
-                )
-                nome_cliente = agendamento.cliente_nome  # ajuste ao seu campo real
-            except Agendamento.DoesNotExist:
+            agendamento = None
+            if agendamento_id:
+                try:
+                    agendamento = Agendamento.objects.get(
+                        id=agendamento_id,
+                        usuario=empreendedor,
+                    )
+                    nome_cliente = agendamento.cliente_nome
+                except Agendamento.DoesNotExist:
+                    return Response(
+                        {"erro": "Agendamento não encontrado para este usuário."},
+                        status=status.HTTP_404_NOT_FOUND,
+                    )
+            elif not nome_cliente:
                 return Response(
-                    {"erro": "Agendamento não encontrado para este usuário."},
-                    status=status.HTTP_404_NOT_FOUND,
+                    {"erro": "Informe agendamento_id ou nome_cliente."},
+                    status=status.HTTP_400_BAD_REQUEST,
                 )
-        elif not nome_cliente:
-            return Response(
-                {"erro": "Informe agendamento_id ou nome_cliente para um walk-in."},
-                status=status.HTTP_400_BAD_REQUEST,
+
+            AtendimentoAtivo.objects.filter(
+                empreendedor=empreendedor, is_ativo=True
+            ).update(is_ativo=False, finalizado_em=timezone.now())
+
+            contexto = AtendimentoAtivo.objects.create(
+                empreendedor=empreendedor,
+                agendamento=agendamento,
+                nome_cliente_exibicao=nome_cliente,
+                is_ativo=True,
             )
 
-        # Encerra qualquer contexto ativo anterior (segurança extra,
-        # além da constraint de unicidade no banco)
-        AtendimentoAtivo.objects.filter(
-            empreendedor=empreendedor, is_ativo=True
-        ).update(is_ativo=False, finalizado_em=timezone.now())
+            publicar_atendimento_ativo(
+                empreendedor_id=empreendedor.id,
+                nome_cliente=nome_cliente,
+                contexto_id=contexto.id,
+            )
 
-        contexto = AtendimentoAtivo.objects.create(
-            empreendedor=empreendedor,
-            agendamento=agendamento,
-            nome_cliente_exibicao=nome_cliente,
-            is_ativo=True,
-        )
+            return Response(
+                {
+                    "id": contexto.id,
+                    "nome_cliente_exibicao": contexto.nome_cliente_exibicao,
+                    "agendamento_id": agendamento.id if agendamento else None,
+                    "mensagem": "Painel atualizado. Pode iniciar o atendimento no teclado.",
+                },
+                status=status.HTTP_201_CREATED,
+            )
 
-        # Publica no MQTT — o ESP32 assina este tópico e atualiza o LCD
-        publicar_atendimento_ativo(
-            empreendedor_id=empreendedor.id,
-            nome_cliente=nome_cliente,
-            contexto_id=contexto.id,
-        )
-
-        return Response(
-            {
-                "id": contexto.id,
-                "nome_cliente_exibicao": contexto.nome_cliente_exibicao,
-                "agendamento_id": agendamento.id if agendamento else None,
-                "mensagem": "Painel atualizado. Pode iniciar o atendimento no teclado.",
-            },
-            status=status.HTTP_201_CREATED,
-        )
-
+        except Exception as e:
+            # Mostra o erro EXATO no terminal e retorna no body da resposta
+            tb = traceback.format_exc()
+            print("=" * 60)
+            print("ERRO NA VIEW IoT:")
+            print(tb)
+            print("=" * 60)
+            return Response(
+                {"erro": str(e), "traceback": tb},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
 class CancelarAtendimentoAtivoView(APIView):
     """
