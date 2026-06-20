@@ -13,21 +13,22 @@ TOPICO_SERVICO_INICIO      = "confia/servico/inicio"
 TOPICO_PAGAMENTO_CONCLUSAO = "confia/pagamento/conclusao"
 TOPICO_SERVICO_CANCELAR    = "confia/servico/cancelar"
 
-EMPREENDEDOR_ID_PROTOTIPO = 1
+# Fallback caso o payload não envie empreendedor_id
+EMPREENDEDOR_ID_FALLBACK = 1
 
-# Mapeamento do payload do ESP32 para os choices do modelo
 FORMA_MAP = {
     "PIX":      "PIX",
     "DINHEIRO": "DINHEIRO",
-    "CARTAO":   "CARTAO_CREDITO",  # ESP32 não distingue débito/crédito
+    "CARTAO":   "CARTAO_CREDITO",
     "FIADO":    "FIADO",
 }
 
 
-def _buscar_contexto_ativo(empreendedor_id: int) -> AtendimentoAtivo | None:
-    return AtendimentoAtivo.objects.filter(
-        empreendedor_id=empreendedor_id, is_ativo=True
-    ).first()
+def _buscar_contexto_ativo(empreendedor_id: int = None) -> AtendimentoAtivo | None:
+    qs = AtendimentoAtivo.objects.filter(is_ativo=True)
+    if empreendedor_id:
+        qs = qs.filter(empreendedor_id=empreendedor_id)
+    return qs.first()
 
 
 def _on_connect(client, userdata, flags, rc):
@@ -60,20 +61,22 @@ def _on_message(client, userdata, msg):
             _processar_cancelamento(payload)
     except Exception:
         logger.exception(f"Erro ao processar mensagem do tópico {topico}")
-        publicar_alerta(EMPREENDEDOR_ID_PROTOTIPO, "Erro no servidor")
+        empreendedor_id = payload.get("empreendedor_id", EMPREENDEDOR_ID_FALLBACK)
+        publicar_alerta(empreendedor_id, "Erro no servidor")
 
 
 def _processar_inicio_servico(payload: dict):
-    contexto = _buscar_contexto_ativo(EMPREENDEDOR_ID_PROTOTIPO)
+    empreendedor_id = payload.get("empreendedor_id", EMPREENDEDOR_ID_FALLBACK)
+    contexto = _buscar_contexto_ativo(empreendedor_id)
 
     if not contexto:
-        logger.warning("Inicio recebido sem AtendimentoAtivo definido!")
-        publicar_alerta(EMPREENDEDOR_ID_PROTOTIPO, "Selecione um cliente")
+        logger.warning(f"Inicio recebido sem AtendimentoAtivo para empreendedor_id={empreendedor_id}")
+        publicar_alerta(empreendedor_id, "Selecione um cliente")
         return
 
     if contexto.agendamento:
         agendamento = contexto.agendamento
-        agendamento.status = "CONFIRMADO"  # ou EM_ATENDIMENTO se existir no seu model
+        agendamento.status = "CONFIRMADO"
         agendamento.save(update_fields=["status"])
         logger.info(f"Agendamento {agendamento.id} → atendimento iniciado")
     else:
@@ -83,14 +86,16 @@ def _processar_inicio_servico(payload: dict):
 def _processar_pagamento_concluido(payload: dict):
     from financeiro.models import Transacao, Pagamento
 
-    contexto = _buscar_contexto_ativo(EMPREENDEDOR_ID_PROTOTIPO)
+    empreendedor_id = payload.get("empreendedor_id", EMPREENDEDOR_ID_FALLBACK)
+    contexto = _buscar_contexto_ativo(empreendedor_id)
+
     if not contexto:
-        logger.warning("Pagamento recebido sem AtendimentoAtivo definido!")
-        publicar_alerta(EMPREENDEDOR_ID_PROTOTIPO, "Contexto perdido")
+        logger.warning(f"Pagamento recebido sem AtendimentoAtivo para empreendedor_id={empreendedor_id}")
+        publicar_alerta(empreendedor_id, "Contexto perdido")
         return
 
     forma_raw = payload.get("forma", "DINHEIRO")
-    forma     = FORMA_MAP.get(forma_raw, "DINHEIRO")  # fallback seguro
+    forma     = FORMA_MAP.get(forma_raw, "DINHEIRO")
     valor     = float(payload.get("valor", 0.0))
 
     agendamento = contexto.agendamento
@@ -106,8 +111,8 @@ def _processar_pagamento_concluido(payload: dict):
             defaults={"valor_total": valor, "status_pagamento": "PENDENTE"},
         )
 
+        # 3) Registra o Pagamento
         if forma == "FIADO":
-            # Fiado: registra o pagamento mas marca como pendente
             Pagamento.objects.create(
                 transacao=transacao,
                 valor=valor,
@@ -118,7 +123,6 @@ def _processar_pagamento_concluido(payload: dict):
             transacao.save(update_fields=["status_pagamento"])
             logger.info(f"Fiado registrado: R$ {valor} — agendamento {agendamento.id}")
         else:
-            # PIX, DINHEIRO, CARTAO_CREDITO
             Pagamento.objects.create(
                 transacao=transacao,
                 valor=valor,
@@ -141,23 +145,33 @@ def _processar_pagamento_concluido(payload: dict):
                 f"({transacao.status_pagamento}) — agendamento {agendamento.id}"
             )
     else:
-        logger.info(f"Walk-in concluído: {contexto.nome_cliente_exibicao} — R$ {valor} ({forma_raw})")
+        logger.info(
+            f"Walk-in concluído: {contexto.nome_cliente_exibicao} "
+            f"— R$ {valor} ({forma_raw})"
+        )
 
-    # 3) Libera o painel
+    # 4) Libera o painel
     contexto.is_ativo = False
     contexto.finalizado_em = timezone.now()
     contexto.save(update_fields=["is_ativo", "finalizado_em"])
-    publicar_atendimento_limpo(EMPREENDEDOR_ID_PROTOTIPO)
+    publicar_atendimento_limpo(empreendedor_id)
 
 
 def _processar_cancelamento(payload: dict):
-    contexto = _buscar_contexto_ativo(EMPREENDEDOR_ID_PROTOTIPO)
+    empreendedor_id = payload.get("empreendedor_id", EMPREENDEDOR_ID_FALLBACK)
+    contexto = _buscar_contexto_ativo(empreendedor_id)
 
-    if contexto and contexto.agendamento:
+    if not contexto:
+        logger.warning(f"Cancelamento recebido sem AtendimentoAtivo para empreendedor_id={empreendedor_id}")
+        return
+
+    if contexto.agendamento:
         agendamento = contexto.agendamento
         agendamento.status = "PENDENTE"
         agendamento.save(update_fields=["status"])
         logger.info(f"Agendamento {agendamento.id} revertido para PENDENTE")
+    else:
+        logger.info(f"Walk-in cancelado: {contexto.nome_cliente_exibicao}")
 
 
 def iniciar_consumer():
