@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Container, Table, Button, Row, Col, Spinner, Form, Badge } from 'react-bootstrap';
 import api from '../services/api';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom'; // Adicionado useLocation
 import AnimatedBackground from '../components/AnimatedBackground';
-// Componentes do Recharts para construir um gráfico de área moderno e responsivo
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import { 
   FaArrowLeft, 
@@ -16,9 +15,14 @@ import {
 
 export default function EntradasMes() {
   const navigate = useNavigate();
+  const location = useLocation(); // Captura a URL atual para sincronizar o estado inicial
   
   const [loading, setLoading] = useState(true);
-  const [periodoAtivo, setPeriodoAtivo] = useState('mes');
+  
+  const [periodoAtivo, setPeriodoAtivo] = useState(() => {
+    return location.state?.periodo || 'mes';
+  });
+
   const [dadosPeriodo, setDadosPeriodo] = useState({
     texto_referencia: '',
     total_acumulado: 0,
@@ -31,6 +35,21 @@ export default function EntradasMes() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterForma, setFilterForma] = useState('TODOS');
 
+useEffect(() => {
+    const periodoVindoDoMenu = location.state?.periodo;
+    if (periodoVindoDoMenu && periodoVindoDoMenu !== periodoAtivo) {
+      setPeriodoAtivo(periodoVindoDoMenu);
+    }
+  }, [location.state, periodoAtivo]);
+
+  // Sincroniza o estado caso o usuário mude de opção usando o menu de contexto com a página já aberta
+  useEffect(() => {
+    if (location.pathname.endsWith('entradas-dia')) setPeriodoAtivo('dia');
+    else if (location.pathname.endsWith('entradas-semana')) setPeriodoAtivo('semana');
+    else if (location.pathname.endsWith('entradas-ano')) setPeriodoAtivo('ano');
+    else setPeriodoAtivo('mes');
+  }, [location.pathname]);
+
   useEffect(() => {
     fetchDadosPeriodo();
   }, [periodoAtivo]);
@@ -38,7 +57,6 @@ export default function EntradasMes() {
   async function fetchDadosPeriodo() {
     try {
       setLoading(true);
-      // Rota corrigida adicionando o prefixo /api/ mapeado no Django
       const response = await api.get(`/api/financeiro/entradas-periodo/?periodo=${periodoAtivo}`);
       if (response.data) {
         setDadosPeriodo(response.data);
@@ -85,7 +103,6 @@ export default function EntradasMes() {
     }
   };
 
-  // 1. FILTRAGEM SIMULTÂNEA DA LISTA DE ENTRADAS
   const pagamentosFiltrados = (dadosPeriodo.entradas || []).filter(pag => {
     const term = searchTerm.toLowerCase();
     const clienteNome = (pag.cliente || 'Cliente').toLowerCase();
@@ -97,17 +114,14 @@ export default function EntradasMes() {
     return matchesSearch && matchesForma;
   });
 
-  // 2. CÁLCULO DOS CARDS DINÂMICOS BASEADO NO FILTRO ATUAL
   const totalFiltradoAcumulado = pagamentosFiltrados.reduce((acc, curr) => acc + curr.valor, 0);
   const quantidadeFiltrada = pagamentosFiltrados.length;
 
-  // 3. RECONSTRUÇÃO DINÂMICA DO GRÁFICO BASEADO NO FILTRO SELECIONADO
   const getDadosGraficoFiltrados = () => {
     if (filterForma === 'TODOS' && searchTerm === '') {
       return dadosPeriodo.dados_grafico || [];
     }
 
-    // Cria a estrutura base limpa espelhando o eixo X vindo do backend
     const mapaEstrutura = {};
     if (dadosPeriodo.dados_grafico) {
       dadosPeriodo.dados_grafico.forEach(ponto => {
@@ -115,13 +129,11 @@ export default function EntradasMes() {
       });
     }
 
-    // Aloca cada entrada filtrada dentro do seu respectivo ponto temporal
     pagamentosFiltrados.forEach(pag => {
       const dtPagamento = new Date(pag.data_pagamento);
       let chave = '';
 
       if (periodoAtivo === 'dia') {
-        // Correção aplicada: Agrupa dinamicamente nos blocos de 4h configurados no Django
         const hora = dtPagamento.getHours();
         const blocoHora = Math.floor(hora / 4) * 4;
         chave = `${blocoHora.toString().padStart(2, '0')}:00`;
@@ -133,7 +145,7 @@ export default function EntradasMes() {
       } else if (periodoAtivo === 'ano') {
         const meses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
         chave = meses[dtPagamento.getMonth()];
-      } else { // mes
+      } else { 
         const diaDoMes = dtPagamento.getDate();
         if (diaDoMes <= 7) chave = 'Semana 1';
         else if (diaDoMes <= 14) chave = 'Semana 2';
@@ -147,14 +159,12 @@ export default function EntradasMes() {
       }
     });
 
-    // Retorna formatado pro Recharts
     return Object.keys(mapaEstrutura).map(label => ({
       label: label,
       valor: Number(mapaEstrutura[label].toFixed(2))
     }));
   };
 
-  // Customização do balão de informação do gráfico ao passar o mouse (Tooltip)
   const CustomTooltip = ({ active, payload }) => {
     if (active && payload && payload.length) {
       return (
@@ -165,6 +175,12 @@ export default function EntradasMes() {
       );
     }
     return null;
+  };
+
+  const handleTabChange = (periodo) => {
+    setPeriodoAtivo(periodo);
+    // Atualiza a "bagagem" interna do histórico para que se o usuário atualizar a página, ela permaneça na aba certa
+    navigate('/admin/financeiro/entradas-mes', { state: { periodo }, replace: true });
   };
 
   return (
@@ -218,10 +234,14 @@ export default function EntradasMes() {
         `}</style>
 
         <div className="container-limit">
-          {/* Cabeçalho Superior */}
           <div className="custom-header">
             <div className="header-left-side">
-              <button className="btn-back-dashboard" onClick={() => navigate('/admin-dashboard')} title="Voltar ao Painel">
+              {/* CORRIGIDO: Rota alterada para '/admin', retornando com segurança ao painel principal */}
+              <button 
+                className="btn-back-dashboard" 
+                onClick={() => navigate(-1)} // <--- ALTERADO AQUI: Volta exatamente para a tela anterior
+                title="Voltar ao Painel"
+              >
                 <FaArrowLeft />
               </button>
               <div className="title-group">
@@ -230,12 +250,12 @@ export default function EntradasMes() {
               </div>
             </div>
 
-            {/* Abas */}
+            {/* CORRIGIDO: Chamando handleTabChange para manter URL e estado sincronizados */}
             <div className="tabs-periodo">
-              <button className={`btn-tab ${periodoAtivo === 'dia' ? 'active' : ''}`} onClick={() => setPeriodoAtivo('dia')}>Dia</button>
-              <button className={`btn-tab ${periodoAtivo === 'semana' ? 'active' : ''}`} onClick={() => setPeriodoAtivo('semana')}>Semana</button>
-              <button className={`btn-tab ${periodoAtivo === 'mes' ? 'active' : ''}`} onClick={() => setPeriodoAtivo('mes')}>Mês</button>
-              <button className={`btn-tab ${periodoAtivo === 'ano' ? 'active' : ''}`} onClick={() => setPeriodoAtivo('ano')}>Ano</button>
+              <button className={`btn-tab ${periodoAtivo === 'dia' ? 'active' : ''}`} onClick={() => handleTabChange('dia')}>Dia</button>
+              <button className={`btn-tab ${periodoAtivo === 'semana' ? 'active' : ''}`} onClick={() => handleTabChange('semana')}>Semana</button>
+              <button className={`btn-tab ${periodoAtivo === 'mes' ? 'active' : ''}`} onClick={() => handleTabChange('mes')}>Mês</button>
+              <button className={`btn-tab ${periodoAtivo === 'ano' ? 'active' : ''}`} onClick={() => handleTabChange('ano')}>Ano</button>
             </div>
           </div>
 
@@ -245,7 +265,6 @@ export default function EntradasMes() {
             </div>
           ) : (
             <>
-              {/* Cards de Resumo Reativos */}
               <div className="stats-grid">
                 <div className="mini-stat-card theme-green">
                   <div className="mini-icon-circle"><FaCheckCircle /></div>
@@ -263,7 +282,6 @@ export default function EntradasMes() {
                 </div>
               </div>
 
-              {/* GRÁFICO DE ENTRADAS DINÂMICO */}
               <div className="chart-panel">
                 <h3>Fluxo de Entradas Monetárias</h3>
                 <div style={{ width: '100%', height: 300 }}>
@@ -305,7 +323,6 @@ export default function EntradasMes() {
                 </div>
               </div>
 
-              {/* Filtros */}
               <div className="filters-panel">
                 <Row className="g-3 align-items-center">
                   <Col md={7}>
@@ -339,7 +356,6 @@ export default function EntradasMes() {
                 </Row>
               </div>
 
-              {/* Tabela */}
               <div className="table-panel">
                 <Table className="entries-table mb-0" responsive>
                   <thead>

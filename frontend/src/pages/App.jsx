@@ -17,6 +17,9 @@ import RecuperarSenha from "./RecuperarSenha";
 import VerificarEmail from "./VerificarEmail"; // <--- NOVO IMPORT AQUI
 import Vitrine from "./Vitrine";
 
+import SaudeFinanceira from './SaudeFinanceira';
+import Inadimplencia from "./Inadimplencia";
+
 import EntradasMes from "./EntradasMes";
 
 // --- TELA DE ONBOARDING (Passo a Passo Inicial) ---
@@ -108,6 +111,7 @@ export default function App() {
           <Route path="/verificar-email" element={<VerificarEmail />} /> {/* <--- NOVA ROTA AQUI */}
 
           {/* --- Rotas do ADMIN (Empreendedor) --- */}
+
           
           {/* ROTA DE ONBOARDING (PRIMEIRO ACESSO) */}
           <Route path="/onboarding" element={
@@ -127,8 +131,16 @@ export default function App() {
             <PrivateRoute role="ADMIN"><Financeiro /></PrivateRoute>
           } />
 
+          <Route path="/admin/financeiro/saude-financeira" element={
+            <PrivateRoute role="ADMIN"><SaudeFinanceira /></PrivateRoute>
+          } />
+
           <Route path="/admin/financeiro/entradas-mes" element={
             <PrivateRoute role="ADMIN"><EntradasMes /></PrivateRoute>
+          } />
+
+          <Route path="/admin/inadimplencia" element={
+            <PrivateRoute role="ADMIN"><Inadimplencia /></PrivateRoute>
           } />
           
           <Route path="/admin/despesas" element={

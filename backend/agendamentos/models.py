@@ -92,43 +92,6 @@ class Avaliacao(models.Model):
     def __str__(self):
         return f"Nota {self.nota} para {self.agendamento}"
 
-# --- NOVO MODELO: DESPESA (Faltava este!) 💸 ---
-class Despesa(models.Model):
-    usuario = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        related_name='minhas_despesas'
-    )
-    descricao = models.CharField(max_length=200, verbose_name="Descrição")
-    valor = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Valor (R$)")
-    data = models.DateField(verbose_name="Data do Pagamento")
-    
-    CATEGORIA_CHOICES = (
-        ('FIXA', 'Fixa (Aluguel, Internet)'),
-        ('VARIAVEL', 'Variável (Produtos, Extras)'),
-        ('INVESTIMENTO', 'Investimento'),
-    )
-    categoria = models.CharField(max_length=20, choices=CATEGORIA_CHOICES, default='VARIAVEL')
-
-    def __str__(self):
-        return f"{self.descricao} - R$ {self.valor}"
-
-# --- NOVO MODELO: PAGAMENTOS RECEBIDOS 💰 ---
-class Pagamento(models.Model):
-    agendamento = models.ForeignKey(Agendamento, on_delete=models.CASCADE, related_name='pagamentos')
-    valor = models.DecimalField(max_digits=10, decimal_places=2)
-    forma = models.CharField(max_length=50, choices=[
-        ('PIX', 'Pix'),
-        ('DINHEIRO', 'Dinheiro'),
-        ('CARTAO_CREDITO', 'Cartão Crédito'),
-        ('CARTAO_DEBITO', 'Cartão Débito'),
-        ('FIADO', 'Fiado / Pendente')
-    ], default='DINHEIRO')
-    data = models.DateTimeField(auto_now_add=True)
-    observacao = models.CharField(max_length=200, blank=True, null=True)
-
-    def __str__(self):
-        return f"R$ {self.valor} ({self.forma})"
 
 class Anotacao(models.Model):
     titulo = models.CharField(max_length=100, blank=True, default="Lembrete")

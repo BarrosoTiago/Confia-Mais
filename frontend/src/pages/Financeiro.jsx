@@ -20,6 +20,7 @@ export default function Financeiro() {
   const [resumo, setResumo] = useState({ aReceber: 0, recebido: 0, total: 0 });
   const [receitaMes, setReceitaMes] = useState(0);
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [selectedAgenda, setSelectedAgenda] = useState(null);
   const [historicoPagamentos, setHistoricoPagamentos] = useState([]);
@@ -152,17 +153,37 @@ export default function Financeiro() {
       }
   };
 
-  async function handleSavePayment(e) {
+async function handleSavePayment(e) {
     e.preventDefault();
-    if(!selectedAgenda) return;
+    if(!selectedAgenda || isSubmitting) return;
 
     const valorNumerico = parseFloat(pagamentoForm.valor);
-    if (isNaN(valorNumerico)) {
-        alert("Por favor, insira um valor válido.");
+    if (isNaN(valorNumerico) || valorNumerico <= 0) {
+        alert("Por favor, insira um valor válido maior que zero.");
+        return;
+    }
+
+    // CORREÇÃO CRÍTICA DO FRONTEND: 
+    // Buscamos o valor total direto do objeto financeiro injetado no agendamento, 
+    // ou calculamos usando a propriedade correta: 'servicos_detalhes'
+    const totalServicos = parseFloat(selectedAgenda.financeiro?.total) || 
+                          selectedAgenda.servicos_detalhes?.reduce((acc, s) => acc + parseFloat(s.preco), 0) || 0;
+                          
+    const totalPagoAteAgora = historicoPagamentos?.reduce((acc, p) => acc + parseFloat(p.valor), 0) || 0;
+    
+    // Se estiver editando um pagamento, o valor antigo dele não pode jogar o teto para baixo
+    const valorIgnorarEdicao = editingId ? (historicoPagamentos.find(p => p.id === editingId)?.valor || 0) : 0;
+    const saldoRestante = totalServicos - (totalPagoAteAgora - parseFloat(valorIgnorarEdicao));
+
+    if (valorNumerico > saldoRestante) {
+        alert(`Operação cancelada! O valor do pagamento (R$ ${valorNumerico.toFixed(2)}) não pode ser maior do que o saldo restante a pagar (R$ ${saldoRestante.toFixed(2)}).`);
         return;
     }
 
     try {
+        setIsSubmitting(true);
+        
+        // CORREÇÃO DE CONTEXTO: O Serializer do Django espera receber a FK no campo 'agendamento'
         const payload = {
             agendamento: selectedAgenda.id,
             valor: valorNumerico,
@@ -176,36 +197,29 @@ export default function Financeiro() {
             await api.post('/pagamentos/', payload);
         }
         
-        await loadHistorico(selectedAgenda.id);
-        await loadData(); 
-        await loadDashboardStats();
+        await Promise.all([
+            loadHistorico(selectedAgenda.id),
+            loadData(),
+            loadDashboardStats()
+        ]);
         
         setEditingId(null);
         setPagamentoForm({ valor: '', forma_pagamento: 'PIX', observacao: '' });
         setShowModal(false);
         alert("Pagamento processado com sucesso!");
-
     } catch (error) {
         console.error("Erro ao salvar:", error);
-        if (error.response?.data && typeof error.response.data === 'object') {
-            const msg = Object.entries(error.response.data).map(([k, v]) => `${k}: ${v}`).join('\n');
-            alert("Erro de validação:\n" + msg);
+        if (error.response?.data?.valor) {
+            alert(error.response.data.valor[0] || error.response.data.valor);
+        } else if (error.response?.data?.erro) {
+            alert(error.response.data.erro);
         } else {
-            alert("Erro interno no servidor.");
+            alert("Não foi possível processar o pagamento. Verifique as restrições de valores.");
         }
+    } finally {
+        setIsSubmitting(false);
     }
-  }
-
-  if (loading) {
-    return (
-      <>
-        <AnimatedBackground />
-        <div style={{height: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center', background: 'transparent'}}>
-          <Spinner animation="border" style={{color: 'white'}} />
-        </div>
-      </>
-    );
-  }
+}
 
   return (
     <>
@@ -429,13 +443,24 @@ export default function Financeiro() {
                                 </Form.Group>
 
                                 <div className="d-flex justify-content-end mt-3">
-                                    <Button type="submit" size="sm" 
+                                    <Button 
+                                        type="submit" 
+                                        size="sm" 
+                                        disabled={isSubmitting} // Desabilita visualmente o botão
                                         style={{
                                             background: editingId ? '#FB6340' : '#002B55', 
-                                            border:'none', borderRadius:'20px', padding:'8px 20px'
+                                            border:'none', borderRadius:'20px', padding:'8px 20px',
+                                            opacity: isSubmitting ? 0.7 : 1
                                         }}
                                     >
-                                        {editingId ? "Salvar Alteração" : "Confirmar Pagamento"}
+                                        {isSubmitting ? (
+                                            <>
+                                                <Spinner animation="border" size="sm" className="me-2" />
+                                                Processando...
+                                            </>
+                                        ) : (
+                                            editingId ? "Salvar Alteração" : "Confirmar Pagamento"
+                                        )}
                                     </Button>
                                 </div>
                             </Form>

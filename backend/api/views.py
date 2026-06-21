@@ -2,6 +2,9 @@ from rest_framework import generics, permissions, status, viewsets
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.views import TokenObtainPairView
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework.permissions import IsAuthenticated  # ← ADICIONAR ESTA LINHA
+from rest_framework_simplejwt.exceptions import TokenError
 from django.contrib.auth import get_user_model
 from django.db.models import Count, Q, Sum
 from django.utils import timezone
@@ -24,7 +27,8 @@ from .serializers import (
 )
 
 try:
-    from agendamentos.models import Agendamento, HorarioFuncionamento, Despesa
+    from agendamentos.models import Agendamento, HorarioFuncionamento
+    from financeiro.models import Despesa
     from servicos.models import Servico
 except ImportError:
     pass
@@ -185,11 +189,20 @@ class DeleteAccountView(APIView):
 
 # --- 5. LOGOUT ---
 class LogoutView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
-    def post(self, request, *args, **kwargs):
-        response = Response({"message": "Logout realizado."}, status=status.HTTP_200_OK)
-        response.delete_cookie('refresh_token')
-        return response
+    permission_classes = [IsAuthenticated]
+ 
+    def post(self, request):
+        refresh_token = request.data.get('refresh')
+ 
+        if refresh_token:
+            try:
+                token = RefreshToken(refresh_token)
+                token.blacklist()  # invalida server-side
+            except TokenError:
+                # Token já expirado ou inválido — tudo bem, logout prossegue
+                pass
+ 
+        return Response({'detail': 'Logout realizado com sucesso.'}, status=status.HTTP_200_OK)
 
 # --- 6. LISTAS ---
 class ClienteListView(generics.ListAPIView):
@@ -299,8 +312,8 @@ class DashboardView(APIView):
 
             despesas_query = Despesa.objects.filter(
                 usuario=user,
-                data__month=mes_atual,
-                data__year=ano_atual
+                data_despesa__month=mes_atual,
+                data_despesa__year=ano_atual
             ).aggregate(total=Sum('valor'))
             despesas = despesas_query['total'] or 0.00
 
