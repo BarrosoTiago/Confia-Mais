@@ -45,11 +45,20 @@ class SelecionarAtendimentoAtivoView(APIView):
                         id=agendamento_id,
                         empreendedor=request.user,  # garante que é agendamento do seu negócio
                     )
-                    nome_cliente = agendamento.nome_cliente  # usa a property
+                    nome_cliente = agendamento.nome_cliente
                     
-                    # Captura o valor do serviço se existir
-                    if getattr(agendamento, 'servico', None) and agendamento.servico.preco:
-                        valor_total = float(agendamento.servico.preco)
+                    # --- A BUSCA CORRETA PELO PREÇO (SOMANDO A LISTA) ---
+                    # Como um agendamento pode ter múltiplos serviços (ManyToMany),
+                    # nós somamos o preço de todos eles.
+                    if hasattr(agendamento, 'servicos'):
+                        # Pega todos os serviços atrelados e soma os preços
+                        soma = sum(float(s.preco) for s in agendamento.servicos.all() if getattr(s, 'preco', None))
+                        if soma > 0:
+                            valor_total = soma
+                            
+                    # Fallback (Plano B): Se o valor ainda for zero, tenta pegar direto do agendamento
+                    if valor_total == 0.0 and hasattr(agendamento, 'valor_total') and agendamento.valor_total:
+                        valor_total = float(agendamento.valor_total)
                         
                 except Agendamento.DoesNotExist:
                     return Response(
