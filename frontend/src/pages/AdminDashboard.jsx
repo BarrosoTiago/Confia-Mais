@@ -15,7 +15,7 @@ import {
   FaSignOutAlt, FaExpandArrowsAlt, 
   FaCalendarAlt, FaMoneyBillWave, FaCheck, FaTimes, FaInfo, FaCircle,
   FaListOl, FaCalculator, FaStickyNote, FaHeart, FaRegCalendarCheck,
-  FaGripVertical, FaPen, FaArrowUp, FaFileInvoiceDollar, FaCog
+  FaGripVertical, FaPen, FaArrowUp, FaFileInvoiceDollar, FaCog, FaChartPie
 } from 'react-icons/fa';
 import { IoMdClose } from 'react-icons/io';
 import { Spinner, Alert, Badge, Modal, Button } from 'react-bootstrap';
@@ -87,6 +87,16 @@ export default function AdminDashboard() {
   const [showPagamentoModal, setShowPagamentoModal] = useState(false);
   const [agendamentoParaConcluir, setAgendamentoParaConcluir] = useState(null);
 
+  // --- ESTADO DO MENU DE CONTEXTO ---
+  const [contextMenu, setContextMenu] = useState({ visible: false, x: 0, y: 0 });
+
+  // Fecha o menu de contexto ao clicar em qualquer outro lugar da tela
+  useEffect(() => {
+    const closeMenu = () => setContextMenu({ visible: false, x: 0, y: 0 });
+    window.addEventListener('click', closeMenu);
+    return () => window.removeEventListener('click', closeMenu);
+  }, []);
+
   useEffect(() => {
     const savedOrder = localStorage.getItem('dashboard_order_v2');
     if (savedOrder) {
@@ -133,7 +143,7 @@ export default function AdminDashboard() {
     }
   }
 
-    async function handleStatusChange(id, novoStatus) {
+  async function handleStatusChange(id, novoStatus) {
         if (novoStatus === 'CANCELADO' && !window.confirm("Deseja realmente cancelar?")) return;
         
         if (novoStatus === 'CONCLUIDO') {
@@ -149,12 +159,12 @@ export default function AdminDashboard() {
         } catch (error) {
             alert("Erro ao atualizar status.");
         }
-    }
+  }
 
-    async function confirmarPagamentoEConcluir() {
+  async function confirmarPagamentoEConcluir() {
         setShowPagamentoModal(false);
         navigate('/admin/financeiro', { state: { agendamentoId: agendamentoParaConcluir?.id } });
-    }
+  }
 
   const handleLogout = () => { logout(); navigate("/login"); };
 
@@ -204,10 +214,34 @@ export default function AdminDashboard() {
                     </div>
                 </div>
               );
-        case 'receita_mes':
+    case 'receita_mes':
               return (
-                /* REDIRECIONAMENTO CORRIGIDO PARA O NOVO SUBMÓDULO ANALÍTICO */
-                <div onClick={() => !editMode && navigate('/admin/financeiro/entradas-mes')} className="h-100 d-flex flex-column justify-content-between p-1">
+                <div 
+                  onClick={(e) => {
+                      if (editMode) return;
+                      
+                      // Bloqueia se o clique veio de dentro do menu flutuante
+                      if (e.target.closest('.custom-context-menu')) {
+                          e.stopPropagation();
+                          return;
+                      }
+                      
+                      navigate('/admin/financeiro/entradas-mes'); 
+                  }} 
+                  onContextMenu={(e) => {
+                      if (editMode) return; 
+                      e.preventDefault(); 
+                      e.stopPropagation(); // Evita que o window feche o menu no ato do clique
+                      
+                      setContextMenu({
+                          visible: true,
+                          x: e.clientX,
+                          y: e.clientY
+                      });
+                  }}
+                  className="h-100 d-flex flex-column justify-content-between p-1"
+                  style={{ position: 'relative' }}
+                >
                     <div className="d-flex justify-content-between align-items-center mb-2">
                          <div className="icon-box-finance icon-blue"><FaRegCalendarCheck /></div>
                          <FaExpandArrowsAlt className="card-action-icon" />
@@ -218,29 +252,32 @@ export default function AdminDashboard() {
                     </div>
                 </div>
               );
-          case 'fiado':
-              return (
-                  <div onClick={() => !editMode && navigate('/admin/agendamentos')} className="h-100 d-flex flex-column justify-content-between p-1">
-                    <div className="d-flex justify-content-between align-items-center mb-2">
-                        <div className="d-flex align-items-center gap-2">
-                             <div className="icon-box-finance" style={{backgroundColor: '#FFEDD5', color: '#F97316'}}>
-                                <FaFileInvoiceDollar />
-                             </div>
-                             <span className="card-label-bold">A Receber</span>
+        case 'fiado':
+            return (
+                <div 
+                    onClick={() => !editMode && navigate('/admin/inadimplencia')} 
+                    className="h-100 d-flex flex-column justify-content-between p-1"
+                >
+                <div className="d-flex justify-content-between align-items-center mb-2">
+                    <div className="d-flex align-items-center gap-2">
+                        <div className="icon-box-finance" style={{backgroundColor: '#FFEDD5', color: '#F97316'}}>
+                            <FaFileInvoiceDollar />
                         </div>
-                        <FaExpandArrowsAlt className="card-action-icon" />
+                        <span className="card-label-bold">A Receber</span>
                     </div>
-                    <div className="flex-grow-1 d-flex flex-column justify-content-center">
-                        <span className="card-label mb-1">Total Pendente</span>
-                        <h3 className="card-value-lg" style={{color: '#F97316'}}>{formatMoney(dadosFinanceiros.fiado)}</h3>
-                        <div className="mt-2 d-flex align-items-center gap-2">
-                            <span style={{fontSize: '0.75rem', fontWeight: 600, color: '#94A3B8', background: '#F1F5F9', padding: '2px 8px', borderRadius: '10px'}}>
-                                {pendentes} {pendentes === 1 ? 'cliente' : 'clientes'}
-                            </span>
-                        </div>
+                    <FaExpandArrowsAlt className="card-action-icon" />
+                </div>
+                <div className="flex-grow-1 d-flex flex-column justify-content-center">
+                    <span className="card-label mb-1">Total Pendente</span>
+                    <h3 className="card-value-lg" style={{color: '#F97316'}}>{formatMoney(dadosFinanceiros.fiado)}</h3>
+                    <div className="mt-2 d-flex align-items-center gap-2">
+                        <span style={{fontSize: '0.75rem', fontWeight: 600, color: '#94A3B8', background: '#F1F5F9', padding: '2px 8px', borderRadius: '10px'}}>
+                            {pendentes} {pendentes === 1 ? 'cliente' : 'clientes'}
+                        </span>
                     </div>
-                  </div>
-              );
+                </div>
+                </div>
+            );
           case 'servicos_top':
               return (
                   <div onClick={() => !editMode && navigate('/admin/servicos')} className="h-100 d-flex flex-column justify-content-between p-1">
@@ -503,6 +540,48 @@ export default function AdminDashboard() {
         
         .menu-separator { height: 2px; background-color: #BBB; width: 50px; margin: 20px 0 30px 0; }
 
+        /* --- ESTILIZAÇÃO DO MENU DE CONTEXTO --- */
+        .custom-context-menu {
+            position: fixed;
+            background: rgba(255, 255, 255, 0.98);
+            backdrop-filter: blur(8px);
+            border: 1px solid #E2E8F0;
+            box-shadow: 0 10px 25px rgba(0, 43, 85, 0.15);
+            border-radius: 12px;
+            padding: 6px;
+            width: 180px;
+            z-index: 99999; /* Garante que fique acima de qualquer dnd-kit ou card */
+            animation: fadeInContext 0.15s ease;
+        }
+
+        .context-menu-item {
+            padding: 10px 14px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #334155;
+            cursor: pointer;
+            border-radius: 8px;
+            transition: all 0.2s ease;
+            text-align: left;
+        }
+
+        .context-menu-item:hover {
+            background-color: #E0F2FE;
+            color: var(--col-sky);
+        }
+
+        .context-menu-item.active-item {
+            background-color: #F1F5F9;
+            color: var(--col-navy);
+            cursor: default;
+            opacity: 0.7;
+        }
+
+        @keyframes fadeInContext {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
         .entrepreneur-section { margin-top: auto; display: flex; flex-direction: column; align-items: center; gap: 5px; padding-top: 30px; border-top: 1px solid #CCC; cursor: pointer; }
         .logo-circle { width: 65px; height: 65px; border-radius: 50%; background: white; border: 1px solid var(--col-navy); display: flex; align-items: center; justify-content: center; overflow: hidden; margin-bottom: 8px; }
         .logo-initials { font-weight: 700; color: var(--col-navy); font-size: 2rem; font-family: 'Libre Baskerville', serif; }
@@ -572,7 +651,8 @@ export default function AdminDashboard() {
             <div className="menu-section-title">MEU NEGÓCIO</div>
             <div className="menu-item" onClick={() => navigate('/admin/financeiro')}><FaChartLine /> REGISTROS</div>
             <div className="menu-item" onClick={() => navigate('/admin/despesas')}><FaMoneyBillWave /> DESPESAS</div>
-            <div className="menu-item" onClick={() => navigate('/admin/calculadora')}><FaCalculator /> SAÚDE FINANCEIRA</div>
+            <div className="menu-item" onClick={() => navigate('/admin/calculadora')}><FaCalculator /> CALCULADORA</div>
+            <div className="menu-item" onClick={() => navigate('/admin/financeiro/saude-financeira')}><FaChartPie /> SAÚDE FINANCEIRA</div>
             
             <div className="entrepreneur-section" onClick={() => navigate('/admin/perfil')}>
                 <div className="logo-circle">
@@ -664,7 +744,7 @@ export default function AdminDashboard() {
       <Modal show={showPagamentoModal} onHide={() => setShowPagamentoModal(false)} centered size="sm">
           <Modal.Header closeButton className="border-0 pb-0"></Modal.Header>
           <Modal.Body className="text-center pt-0 pb-4">
-              <div style={{width:60, height:60, background:'#DCFCE7', borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 20px auto'}}>
+              <div style={{width:60, height:60, background:'#DCFCE7', borderRadius:'50%', display:'flex', alignItems:'center', justifycontent:'center', margin:'0 auto 20px auto'}}>
                   <FaMoneyBillWave size={24} color="#16A34A" />
               </div>
               <h5 className="fw-bold mb-2">Confirmar Pagamento?</h5>
@@ -681,6 +761,48 @@ export default function AdminDashboard() {
               </div>
           </Modal.Body>
       </Modal>
+
+      {contextMenu.visible && (
+          <div 
+              className="custom-context-menu"
+              style={{ 
+                  top: contextMenu.y, 
+                  left: contextMenu.x 
+              }}
+              onClick={(e) => e.stopPropagation()} 
+              onContextMenu={(e) => e.preventDefault()}
+          >
+              <div className="context-menu-item" onClick={(e) => { 
+                  e.stopPropagation(); 
+                  navigate('/admin/financeiro/entradas-mes', { state: { periodo: 'dia' } }); 
+                  setContextMenu({ visible: false, x: 0, y: 0 }); 
+              }}>
+                  Entradas do Dia
+              </div>
+              <div className="context-menu-item" onClick={(e) => { 
+                  e.stopPropagation(); 
+                  navigate('/admin/financeiro/entradas-mes', { state: { periodo: 'semana' } }); 
+                  setContextMenu({ visible: false, x: 0, y: 0 }); 
+              }}>
+                  Entradas da Semana
+              </div>
+              <div className="context-menu-item" onClick={(e) => { 
+                  e.stopPropagation(); 
+                  navigate('/admin/financeiro/entradas-mes', { state: { periodo: 'mes' } }); 
+                  setContextMenu({ visible: false, x: 0, y: 0 }); 
+              }}>
+                  Entradas do Mês
+              </div>
+              <div className="context-menu-item" onClick={(e) => { 
+                  e.stopPropagation(); 
+                  navigate('/admin/financeiro/entradas-mes', { state: { periodo: 'ano' } }); 
+                  setContextMenu({ visible: false, x: 0, y: 0 }); 
+              }}>
+                  Entradas do Ano
+              </div>
+          </div>
+      )}
+
     </div>
     </>
   );

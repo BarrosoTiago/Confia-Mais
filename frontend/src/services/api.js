@@ -1,7 +1,8 @@
 import axios from 'axios';
 
+const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 const api = axios.create({
-  baseURL: 'https://confiaplus-api.onrender.com/api',
+  baseURL: isLocalhost ? 'http://127.0.0.1:8000/api' : 'https://confiaplus-api.onrender.com/api',
 });
 
 let isRefreshing = false;
@@ -64,7 +65,7 @@ api.interceptors.response.use(
       if (refreshToken) {
         try {
           // Rota padrão do Simple JWT configurada no seu Backend
-          const refreshUrl = 'https://confiaplus-api.onrender.com/api/token/refresh/';
+          const refreshUrl = isLocalhost ? 'http://127.0.0.1:8000/api/token/refresh/' : 'https://confiaplus-api.onrender.com/api/token/refresh/';
           
           const response = await axios.post(refreshUrl, {
             refresh: refreshToken

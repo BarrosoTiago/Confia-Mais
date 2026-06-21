@@ -1,11 +1,20 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 
+from rest_framework_simplejwt.views import (
+    TokenObtainPairView,
+    TokenRefreshView,       # ← ADICIONAR se não existir
+    TokenBlacklistView,     # ← ADICIONAR se não existir
+)
+ 
+
 # --- 1. IMPORT DAS VIEWS DO APP FINANCEIRO (DINHEIRO REAL) ---
 from financeiro.views import (
     FinanceiroDashboardView,
     EntradasPeriodoView,      # Atualizado
     DespesasPeriodoView,      # Adicionado
+    SaudeFinanceiraView,  # <--- ADICIONADO AQUI
+    ClientesInadimplentesView,
     TransacaoViewSet,
     PagamentoViewSet,
     DespesaViewSet,
@@ -62,9 +71,12 @@ router.register(r'categorias', CategoriaViewSet, basename='categoria')
 urlpatterns = [
     # --- FINANCEIRO & DASHBOARD ---
     path('financeiro/transacoes/dashboard/', FinanceiroDashboardView.as_view(), name='financeiro_dashboard'),
+    path('financeiro/dashboard/', FinanceiroDashboardView.as_view(), name='financeiro_dashboard_clean'),
     path('horarios/disponiveis/', HorarioDisponivelView.as_view(), name='horarios_disponiveis'),
     path('api/financeiro/entradas-periodo/', EntradasPeriodoView.as_view(), name='entradas-periodo'),
     path('api/financeiro/despesas-periodo/', DespesasPeriodoView.as_view(), name='despesas-periodo'),
+    path('api/financeiro/saude-financeira/', SaudeFinanceiraView.as_view(), name='saude-financeira'), # <--- ADICIONADO AQUI
+    path('inadimplencia/', ClientesInadimplentesView.as_view(), name='clientes-inadimplentes'),
 
     # --- AVALIAÇÕES ---
     path('agendamentos/<int:pk>/avaliar/', AvaliarAgendamentoView.as_view(), name='avaliar_agendamento'),
@@ -76,6 +88,8 @@ urlpatterns = [
     path('auth/login/', CustomLoginView.as_view(), name='login'),
     path('auth/users/me/', UserMeView.as_view(), name='user_me'),
     path('auth/users/delete/', DeleteAccountView.as_view(), name='delete_account'),
+    path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    path('token/blacklist/', TokenBlacklistView.as_view(), name='token_blacklist'),
     path('auth/logout/', LogoutView.as_view(), name='logout'),
     
     # --- LISTAS AUXILIARES ---

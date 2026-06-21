@@ -18,8 +18,6 @@ export const AuthProvider = ({ children }) => {
             if (token) {
                 try {
                     api.defaults.headers.Authorization = `Bearer ${token}`;
-                    
-                    // CORRIGIDO: Adicionado /api/
                     const response = await api.get('/auth/users/me/');
                     setUser(response.data);
                 } catch (error) {
@@ -34,13 +32,10 @@ export const AuthProvider = ({ children }) => {
         recoverUser();
     }, []);
 
-    // 2. Login Otimizado
+    // 2. Login
     const login = async (username, password) => {
         try {
-            // ATENÇÃO: Verifique se no Django a rota é '/api/auth/jwt/create/' ou '/api/auth/login/'
             const response = await api.post('/auth/login/', { username, password });
-            
-            // Extraímos os tokens e o resto guardamos na variável userData
             const { access, refresh } = response.data;
 
             localStorage.setItem('access_token', access); 
@@ -48,12 +43,9 @@ export const AuthProvider = ({ children }) => {
 
             api.defaults.headers.Authorization = `Bearer ${access}`;
           
-            // Busca os dados do usuário
             const userResponse = await api.get('/auth/users/me/');
             const userData = userResponse.data;
 
-            // Como o Django já mandou o id, username e tipo_usuario, não precisamos
-            // daquele segundo api.get()! Só salvamos direto no estado:
             setUser(userData);
             return userData; 
 
@@ -66,10 +58,9 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
-    // 3. Cadastro (Register)
+    // 3. Cadastro
     const register = async (userData) => {
         try {
-            // ATENÇÃO: Verifique se no seu Django a rota de criação é '/api/auth/users/' ou '/api/auth/register/'
             const response = await api.post('/auth/register/', userData);
             return response.data;
         } catch (error) {
@@ -82,15 +73,20 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
-    // 4. Logout
-    const logout = () => {
-        localStorage.removeItem('access_token'); 
-        localStorage.removeItem('refresh_token'); 
-        localStorage.removeItem('user_data');
-        setUser(null);
-        api.defaults.headers.Authorization = null;
-        
-        window.location.href = '/login';
+    // 4. Logout — CORRIGIDO: adicionado async para permitir o await do api.post
+    const logout = async () => {
+        const refresh = localStorage.getItem('refresh_token');
+        try {
+            await api.post('/auth/logout/', { refresh });
+        } catch (error) {
+            // Mesmo se o servidor falhar, limpamos a sessão local
+            console.error("Erro ao invalidar token no servidor:", error);
+        } finally {
+            localStorage.removeItem('access_token');
+            localStorage.removeItem('refresh_token');
+            delete api.defaults.headers.Authorization;
+            setUser(null);
+        }
     };
 
     const value = {

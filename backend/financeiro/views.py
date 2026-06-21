@@ -3,6 +3,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.db.models import Sum
 from django.utils import timezone
+from datetime import timedelta
 from .models import Transacao, Pagamento, Despesa, CalculadoraPrecificacao
 from agendamentos.models import Agendamento 
 from .serializers import (
@@ -11,6 +12,118 @@ from .serializers import (
     DespesaSerializer, 
     CalculadoraSerializer
 )
+
+class SaudeFinanceiraView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        usuario = request.user
+        hoje = timezone.now().date()
+        inicio_mes = hoje.replace(day=1)
+        
+        # 1. BUSCA DE CUSTOS FIXOS (Da calculadora ou agregados)
+        calc = CalculadoraPrecificacao.objects.filter(usuario=usuario).first()
+        custo_fixo_calculadora = calc.custo_fixo_mensal if calc else Decimal('0.00')
+        
+        # Despesas reais lançadas no mês atual
+        despesas_mes = Despesa.objects.filter(usuario=usuario, data_despesa__gte=inicio_mes, data_despesa__lte=hoje)
+        custo_fixo_real = despesas_mes.filter(categoria__iexact='Fixo').aggregate(total=Sum('valor'))['total'] or Decimal('0.00')
+        custo_variavel_real = despesas_mes.filter(categoria__iexact='Variável').aggregate(total=Sum('valor'))['total'] or Decimal('0.00')
+        
+        # Garantir que usamos o maior indicador de custo fixo disponível para segurança do cálculo
+        custo_fixo_total = max(custo_fixo_calculadora, custo_fixo_real)
+        total_despesas = custo_fixo_real + custo_variavel_real
+
+        # 2. ENTRADAS REAIS (Pagamentos liquidados no mês)
+        entradas_mes = Pagamento.objects.filter(
+            transacao__agendamento__servicos__criado_por=usuario, # <--- Alterado aqui
+            data_pagamento__gte=inicio_mes
+        ).aggregate(total=Sum('valor'))['total'] or Decimal('0.00')
+
+        # 3. CÁLCULO DE MARGEM E PONTO DE EQUILÍBRIO
+        faturamento_total = entradas_mes # Usando entradas liquidadas como base de faturamento bruto
+        lucro_liquido = faturamento_total - total_despesas
+        
+        margem_lucro = 0
+        if faturamento_total > 0:
+            margem_lucro = round((lucro_liquido / faturamento_total) * 100, 2)
+            
+        # Ponto de Equilíbrio Simplificado (Custo Fixo / Margem de Contribuição estimada)
+        # Se não houver histórico, estimamos uma margem padrão de 50% para a taxa de contribuição
+        margem_contribuicao_estimada = Decimal('0.50') 
+        ponto_equilibrio = custo_fixo_total / margem_contribuicao_estimada if custo_fixo_total > 0 else Decimal('0.00')
+
+        # 4. RISCO DE INADIMPLÊNCIA (Transações pendentes com agendamentos passados)
+        transacoes_pendentes = Transacao.objects.filter(
+            agendamento__servicos__criado_por=usuario, # <--- Alterado aqui
+            status_pagamento__in=['PENDENTE', 'PARCIAL']
+        )
+        
+        total_pendente = sum([t.saldo_restante() for t in transacoes_pendentes])
+        
+        # Classificação básica de risco por tempo de atraso
+        atraso_7_dias = Decimal('0.00')
+        atraso_30_dias = Decimal('0.00')
+        atraso_critico = Decimal('0.00')
+
+        for t in transacoes_pendentes:
+            dias_atraso = (hoje - t.agendamento.data_hora_inicio.date()).days # <--- Alterado aqui
+            saldo = t.saldo_restante()
+            if dias_atraso <= 7:
+                atraso_7_dias += saldo
+            elif dias_atraso <= 30:
+                atraso_30_dias += saldo
+            else:
+                atraso_critico += saldo
+
+        # 5. GRÁFICO FLUXO DE CAIXA (Agrupado por meses recentes - últimos 5 meses)
+        grafico_fluxo = []
+        for i in range(4, -1, -1):
+            mes_alvo = hoje - timedelta(days=i*30)
+            label_mes = mes_alvo.strftime('%b')
+            
+            ent = Pagamento.objects.filter(
+                transacao__agendamento__servicos__criado_por=usuario, # <--- Alterado aqui
+                data_pagamento__month=mes_alvo.month,
+                data_pagamento__year=mes_alvo.year
+            ).aggregate(total=Sum('valor'))['total'] or Decimal('0.00')
+            
+            sai = Despesa.objects.filter(
+                usuario=usuario,
+                data_despesa__month=mes_alvo.month,
+                data_despesa__year=mes_alvo.year
+            ).aggregate(total=Sum('valor'))['total'] or Decimal('0.00')
+            
+            grafico_fluxo.append({
+                "label": label_mes,
+                "entradas": float(ent),
+                "saidas": float(sai)
+            })
+
+        # Montagem do JSON de resposta estruturado para o Recharts
+        dados_saude = {
+            "metricas": {
+                "margem_lucro": float(margem_lucro),
+                "ponto_equilibrio": float(ponto_equilibrio),
+                "liquidez": 1.2 if total_despesas == 0 else round(float(faturamento_total / total_despesas), 2),
+                "capital_giro": float(custo_fixo_total * 2), # Regra de bolso contábil: Guardar 2 meses de custo fixo
+                "total_pendente": float(total_pendente),
+                "pmr": 15, # Prazos médios simulados estruturalmente ou calculados se houver histórico estrito
+                "pmp": 30
+            },
+            "grafico_fluxo": grafico_fluxo,
+            "grafico_inadimplencia": [
+                { "name": "Até 7 dias", "value": float(atraso_7_dias), "color": "#2DCE89" },
+                { "name": "8 a 30 dias", "value": float(atraso_30_dias), "color": "#FB6340" },
+                { "name": "Mais de 30 dias", "value": float(atraso_critico), "color": "#F5365C" }
+            ],
+            "grafico_margins": [
+                { "name": "Fixas", "margem": float(custo_fixo_real) },
+                { "name": "Variáveis", "margem": float(custo_variavel_real) }
+            ]
+        }
+
+        return Response(dados_saude)
 
 class FinanceiroDashboardView(APIView):
     permission_classes = [permissions.IsAuthenticated]
@@ -67,21 +180,7 @@ class PagamentoViewSet(viewsets.ModelViewSet):
             transacao__agendamento__servicos__criado_por=user
         ).distinct().order_by('-data_pagamento')
 
-    def perform_create(self, serializer):
-        agendamento_id = self.request.data.get('agendamento')
-        serializer.validated_data.pop('agendamento', None)
-
-        if agendamento_id:
-            transacao, created = Transacao.objects.get_or_create(agendamento_id=agendamento_id)
-            
-            # Recalcula o valor total da transação baseado nos serviços
-            total_servicos = transacao.agendamento.servicos.aggregate(total=Sum('preco'))['total'] or 0
-            transacao.valor_total = total_servicos
-            transacao.save()
-            
-            serializer.save(transacao=transacao)
-        else:
-            serializer.save()
+    # O perform_create antigo foi limpo porque o Serializer já resolve o relacionamento no 'validate'
 
 class TransacaoViewSet(viewsets.ModelViewSet):
     serializer_class = TransacaoSerializer
@@ -199,7 +298,7 @@ class EntradasPeriodoView(APIView):
             "quantidade_entradas": pagamentos_filtrados.count(),
             "dados_grafico": dados_grafico_formatados,
             "entradas": detalhes_pagamentos
-        }, status=status.HTTP_OK)
+        }, status=status.HTTP_200_OK)
 
 class DespesasPeriodoView(APIView):
     permission_classes = [permissions.IsAuthenticated]
@@ -281,4 +380,73 @@ class DespesasPeriodoView(APIView):
             "quantidade_despesas": despesas_filtradas.count(),
             "dados_grafico": dados_grafico_formatados,
             "despesas": detalhes_despesas
-        }, status=status.HTTP_OK)
+        }, status=status.HTTP_200_OK)
+
+
+class ClientesInadimplentesView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        usuario = request.user
+        hoje = timezone.now().date()
+        
+        transacoes_pendentes = Transacao.objects.filter(
+            agendamento__servicos__criado_por=usuario,  # <--- Alterado aqui
+            agendamento__status__in=['CONFIRMADO', 'CONCLUIDO'],
+            status_pagamento__in=['PENDENTE', 'PARCIAL']
+        ).distinct().order_by('agendamento__data_hora_inicio')
+        
+        lista_inadimplentes = []
+        total_devido_acumulado = 0
+        clientes_unicos = set()
+        
+        for t in transacoes_pendentes:
+            agendamento = t.agendamento
+            cliente = agendamento.cliente
+            
+            if not agendamento or not cliente:
+                continue
+                
+            data_servico = agendamento.data_hora_inicio.date()
+            
+            # --- CORREÇÃO DO FLUXO ---
+            # Se a data do serviço for hoje ou no futuro, os dias de atraso zeram (mas ele CONTINUA na lista)
+            # Se a data for no passado, calcula quantos dias está atrasado
+            if data_servico <= hoje:
+                dias_atraso = (hoje - data_servico).days
+            else:
+                dias_atraso = 0 # Agendamento futuro confirmado, porém ainda não pago
+                
+            # Captura o saldo restante que falta pagar
+            valor_devido = float(t.saldo_restante())
+            
+            if valor_devido <= 0:
+                continue
+                
+            # Junta os nomes dos serviços em uma única string
+            nomes_servicos = ", ".join([s.nome for s in agendamento.servicos.all()])
+            
+            # Captura e limpa o telefone para o WhatsApp
+            telefone_cliente = getattr(cliente, 'telefone', '') or getattr(cliente, 'celular', '')
+            telefone_limpo = "".join(filter(str.isdigit, str(telefone_cliente)))
+            if not telefone_limpo.startswith('55') and len(telefone_limpo) >= 10:
+                telefone_limpo = f"55{telefone_limpo}"
+
+            total_devido_acumulado += valor_devido
+            clientes_unicos.add(cliente.id)
+            
+            lista_inadimplentes.append({
+                "id": t.id,
+                "cliente": cliente.nome_completo or cliente.get_full_name() or cliente.username,
+                "servico": nomes_servicos,
+                "dataConclusao": data_servico.strftime('%d/%m/%Y'),
+                "diasAtraso": dias_atraso,
+                "valor": valor_devido,
+                "telefone": telefone_limpo
+            })
+            
+        return Response({
+            "totalDevido": round(total_devido_acumulado, 2),
+            "quantidade": len(clientes_unicos),
+            "inadimplentes": lista_inadimplentes
+        }, status=status.HTTP_200_OK)
