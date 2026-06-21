@@ -1,8 +1,6 @@
-# iot/views.py — ATUALIZADO para pagamento dividido
-#
-# Mudança principal: ao selecionar um agendamento, calcula o preço
-# total dos serviços vinculados e envia junto ao publicar o contexto.
+# iot/views.py
 
+import logging
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
@@ -13,46 +11,33 @@ from .models import AtendimentoAtivo
 from .mqtt_publisher import publicar_atendimento_ativo, publicar_alerta
 from agendamentos.models import Agendamento
 
+logger = logging.getLogger(__name__)
+
 
 def _calcular_valor_total_servico(agendamento):
-    """
-    Soma o preço de todos os serviços vinculados ao agendamento.
-    Ajuste o nome do related_name/campo conforme seu model real
-    (no diagrama ER do capítulo, isso seria via Agendamentos_has_Servicos).
-    """
     if not agendamento:
         return None
-
     try:
         total = sum(
             float(servico.preco)
             for servico in agendamento.servicos.all()
         )
         return total if total > 0 else None
-    except Exception:
-        # Se a relação não existir ainda ou o campo tiver outro nome,
-        # falha de forma segura: retorna None (modo sem total, igual antes)
+    except Exception as e:
+        logger.warning(f"[VIEW] Erro ao calcular valor total: {e}")
         return None
 
 
 class SelecionarAtendimentoAtivoView(APIView):
-    """
-    POST /api/iot/atendimento-ativo/
-
-    Body esperado:
-    {
-        "agendamento_id": 42        // ou null para walk-in
-        "nome_cliente": "Maria"     // obrigatório se agendamento_id for null
-        "valor_total_manual": 80.0  // NOVO — opcional, para walk-in com preço conhecido
-    }
-    """
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
+        logger.info(f"[VIEW] POST /api/iot/atendimento-ativo/ — user={request.user.id}")
+
         empreendedor = request.user
         agendamento_id = request.data.get("agendamento_id")
         nome_cliente = request.data.get("nome_cliente", "").strip()
-        valor_total_manual = request.data.get("valor_total_manual")  # NOVO
+        valor_total_manual = request.data.get("valor_total_manual")
 
         agendamento = None
         valor_total_esperado = None
@@ -64,8 +49,10 @@ class SelecionarAtendimentoAtivoView(APIView):
                     empreendedor=empreendedor,
                 )
                 nome_cliente = agendamento.nome_cliente
-                valor_total_esperado = _calcular_valor_total_servico(agendamento)  # NOVO
+                valor_total_esperado = _calcular_valor_total_servico(agendamento)
+                logger.info(f"[VIEW] Agendamento {agendamento_id} encontrado — cliente={nome_cliente}, valor={valor_total_esperado}")
             except Agendamento.DoesNotExist:
+                logger.warning(f"[VIEW] Agendamento {agendamento_id} não encontrado para user={empreendedor.id}")
                 return Response(
                     {"erro": "Agendamento não encontrado para este usuário."},
                     status=status.HTTP_404_NOT_FOUND,
@@ -76,9 +63,9 @@ class SelecionarAtendimentoAtivoView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
         else:
-            # Walk-in: usa o valor manual se foi informado pelo app
             if valor_total_manual is not None:
                 valor_total_esperado = float(valor_total_manual)
+            logger.info(f"[VIEW] Walk-in: cliente={nome_cliente}, valor={valor_total_esperado}")
 
         AtendimentoAtivo.objects.filter(
             empreendedor=empreendedor, is_ativo=True
@@ -88,17 +75,24 @@ class SelecionarAtendimentoAtivoView(APIView):
             empreendedor=empreendedor,
             agendamento=agendamento,
             nome_cliente_exibicao=nome_cliente,
-            valor_total_esperado=valor_total_esperado,  # NOVO campo no model
-            valor_acumulado=0,                          # NOVO — começa zerado
+            valor_total_esperado=valor_total_esperado,
+            valor_acumulado=0,
             is_ativo=True,
         )
+        logger.info(f"[VIEW] AtendimentoAtivo criado — id={contexto.id}")
 
-        publicar_atendimento_ativo(
-            empreendedor_id=empreendedor.id,
-            nome_cliente=nome_cliente,
-            contexto_id=contexto.id,
-            valor_total_esperado=valor_total_esperado,  # NOVO
-        )
+        # ← LOGS para rastrear o publish
+        logger.info(f"[VIEW] Chamando publicar_atendimento_ativo — empreendedor_id={empreendedor.id}, nome={nome_cliente}, valor={valor_total_esperado}")
+        try:
+            publicar_atendimento_ativo(
+                empreendedor_id=empreendedor.id,
+                nome_cliente=nome_cliente,
+                contexto_id=contexto.id,
+                valor_total_esperado=valor_total_esperado,
+            )
+            logger.info(f"[VIEW] publicar_atendimento_ativo executado sem exceção")
+        except Exception as e:
+            logger.error(f"[VIEW] ERRO em publicar_atendimento_ativo: {e}", exc_info=True)
 
         mensagem = (
             f"Painel atualizado. Total esperado: R$ {valor_total_esperado:.2f}"
@@ -122,6 +116,7 @@ class CancelarAtendimentoAtivoView(APIView):
     permission_classes = [IsAuthenticated]
 
     def delete(self, request):
+        logger.info(f"[VIEW] DELETE /api/iot/atendimento-ativo/cancelar/ — user={request.user.id}")
         empreendedor = request.user
         atualizado = AtendimentoAtivo.objects.filter(
             empreendedor=empreendedor, is_ativo=True
@@ -129,6 +124,7 @@ class CancelarAtendimentoAtivoView(APIView):
 
         if atualizado:
             publicar_alerta(empreendedor.id, "Selecao cancelada")
+            logger.info(f"[VIEW] Painel cancelado para user={empreendedor.id}")
 
         return Response(status=status.HTTP_204_NO_CONTENT)
 
@@ -148,7 +144,7 @@ class AtendimentoAtivoAtualView(APIView):
             "ativo": True,
             "nome_cliente_exibicao": contexto.nome_cliente_exibicao,
             "agendamento_id": contexto.agendamento_id,
-            "valor_total_esperado": contexto.valor_total_esperado,  # NOVO
-            "valor_acumulado": contexto.valor_acumulado,            # NOVO
+            "valor_total_esperado": contexto.valor_total_esperado,
+            "valor_acumulado": contexto.valor_acumulado,
             "selecionado_em": contexto.selecionado_em,
         })
