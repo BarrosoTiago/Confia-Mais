@@ -24,11 +24,19 @@ def _publicar(topico: str, payload: str, qos: int = 1, retain: bool = False):
         logger.error(f"Erro ao publicar no MQTT (tópico={topico}): {e}", exc_info=True)
 
 
-def publicar_atendimento_ativo(empreendedor_id: int, nome_cliente: str, contexto_id: int):
+def publicar_atendimento_ativo(empreendedor_id: int, nome_cliente: str, contexto_id: int, valor_total: float = 0.0):
+    """
+    Publica os dados do atendimento ativo, incluindo o valor total do serviço
+    para que o ESP32 possa gerenciar pagamentos divididos.
+    """
+    # Garante que o nome não ultrapasse os 16 caracteres do display LCD
+    nome_formatado = nome_cliente[:16] if nome_cliente else ""
+
     payload = json.dumps({
         "empreendedor_id": empreendedor_id,
-        "nome_cliente": nome_cliente,
+        "nome_cliente": nome_formatado,
         "contexto_id": contexto_id,
+        "valor_total": float(valor_total) # Incluído para o cálculo das parcelas no ESP32
     })
     _publicar(TOPICO_ATENDIMENTO_ATIVO, payload, retain=True)
 
@@ -38,6 +46,7 @@ def publicar_atendimento_limpo(empreendedor_id: int):
         "empreendedor_id": empreendedor_id,
         "nome_cliente": None,
         "contexto_id": None,
+        "valor_total": 0.0
     })
     _publicar(TOPICO_ATENDIMENTO_ATIVO, payload, retain=True)
 

@@ -37,6 +37,8 @@ class SelecionarAtendimentoAtivoView(APIView):
             nome_cliente = request.data.get("nome_cliente", "").strip()
 
             agendamento = None
+            valor_total = 0.0  # Nova variável para armazenar o preço do serviço
+
             if agendamento_id:
                 try:
                     agendamento = Agendamento.objects.get(
@@ -44,6 +46,11 @@ class SelecionarAtendimentoAtivoView(APIView):
                         empreendedor=request.user,  # garante que é agendamento do seu negócio
                     )
                     nome_cliente = agendamento.nome_cliente  # usa a property
+                    
+                    # Captura o valor do serviço se existir
+                    if getattr(agendamento, 'servico', None) and agendamento.servico.preco:
+                        valor_total = float(agendamento.servico.preco)
+                        
                 except Agendamento.DoesNotExist:
                     return Response(
                         {"erro": "Agendamento não encontrado para este usuário."},
@@ -55,10 +62,12 @@ class SelecionarAtendimentoAtivoView(APIView):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
+            # Limpa qualquer atendimento que já estivesse ativo para este profissional
             AtendimentoAtivo.objects.filter(
                 empreendedor=empreendedor, is_ativo=True
             ).update(is_ativo=False, finalizado_em=timezone.now())
 
+            # Cria o novo contexto na cadeira
             contexto = AtendimentoAtivo.objects.create(
                 empreendedor=empreendedor,
                 agendamento=agendamento,
@@ -66,10 +75,12 @@ class SelecionarAtendimentoAtivoView(APIView):
                 is_ativo=True,
             )
 
+            # Envia a ordem para a bancada (agora incluindo o valor_total)
             publicar_atendimento_ativo(
                 empreendedor_id=empreendedor.id,
                 nome_cliente=nome_cliente,
                 contexto_id=contexto.id,
+                valor_total=valor_total
             )
 
             return Response(

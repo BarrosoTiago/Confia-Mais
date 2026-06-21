@@ -94,9 +94,14 @@ def _processar_pagamento_concluido(payload: dict):
         publicar_alerta(empreendedor_id, "Contexto perdido")
         return
 
-    forma_raw = payload.get("forma", "DINHEIRO")
-    forma     = FORMA_MAP.get(forma_raw, "DINHEIRO")
-    valor     = float(payload.get("valor", 0.0))
+    # Extrai a lista de pagamentos do payload
+    pagamentos_raw = payload.get("pagamentos")
+    
+    # Fallback: Se o ESP32 enviar o formato antigo (apenas uma forma e valor), convertemos para lista
+    if not pagamentos_raw:
+        forma_unica = payload.get("forma", "DINHEIRO")
+        valor_unico = float(payload.get("valor", 0.0))
+        pagamentos_raw = [{"forma": forma_unica, "valor": valor_unico}]
 
     agendamento = contexto.agendamento
 
@@ -105,52 +110,66 @@ def _processar_pagamento_concluido(payload: dict):
         agendamento.status = "CONCLUIDO"
         agendamento.save(update_fields=["status"])
 
-        # 2) Cria ou recupera a Transacao
+        # 2) Define o valor total da transação com base no serviço (ou na soma das parcelas se não houver serviço)
+        if getattr(agendamento, 'servico', None) and agendamento.servico.preco:
+            valor_total_esperado = float(agendamento.servico.preco)
+        else:
+            valor_total_esperado = sum(float(p.get("valor", 0.0)) for p in pagamentos_raw)
+
+        # 3) Cria ou recupera a Transacao
         transacao, _ = Transacao.objects.get_or_create(
             agendamento=agendamento,
-            defaults={"valor_total": valor, "status_pagamento": "PENDENTE"},
+            defaults={"valor_total": valor_total_esperado, "status_pagamento": "PENDENTE"},
         )
 
-        # 3) Registra o Pagamento
-        if forma == "FIADO":
-            Pagamento.objects.create(
-                transacao=transacao,
-                valor=valor,
-                forma_pagamento="FIADO",
-                observacao="Fiado — registrado via Painel IoT",
-            )
-            transacao.status_pagamento = "PENDENTE"
-            transacao.save(update_fields=["status_pagamento"])
-            logger.info(f"Fiado registrado: R$ {valor} — agendamento {agendamento.id}")
-        else:
-            Pagamento.objects.create(
-                transacao=transacao,
-                valor=valor,
-                forma_pagamento=forma,
-                observacao=f"Registrado via Painel IoT ({forma_raw})",
-            )
-            total_pago = transacao.pagamentos.aggregate(
-                total=models.Sum('valor')
-            )['total'] or 0
+        # 4) Registra os múltiplos Pagamentos percorrendo a lista
+        for parcela in pagamentos_raw:
+            forma_raw = parcela.get("forma", "DINHEIRO")
+            forma     = FORMA_MAP.get(forma_raw, "DINHEIRO")
+            valor_parcela = float(parcela.get("valor", 0.0))
 
-            transacao.valor_pago = total_pago
-            transacao.status_pagamento = (
-                "PAGO"    if total_pago >= transacao.valor_total else
-                "PARCIAL" if total_pago > 0 else
-                "PENDENTE"
-            )
-            transacao.save(update_fields=["valor_pago", "status_pagamento"])
-            logger.info(
-                f"Pagamento salvo: {forma} R$ {valor} "
-                f"({transacao.status_pagamento}) — agendamento {agendamento.id}"
-            )
+            if forma == "FIADO":
+                Pagamento.objects.create(
+                    transacao=transacao,
+                    valor=valor_parcela,
+                    forma_pagamento="FIADO",
+                    observacao="Fiado — registrado via Painel IoT",
+                )
+                logger.info(f"Fiado registrado: R$ {valor_parcela} — agendamento {agendamento.id}")
+            else:
+                Pagamento.objects.create(
+                    transacao=transacao,
+                    valor=valor_parcela,
+                    forma_pagamento=forma,
+                    observacao=f"Registrado via Painel IoT ({forma_raw})",
+                )
+                logger.info(f"Pagamento parcela salva: {forma} R$ {valor_parcela} — agendamento {agendamento.id}")
+
+        # 5) Atualiza totais da transação com base no que foi efetivamente pago
+        total_pago = transacao.pagamentos.exclude(forma_pagamento="FIADO").aggregate(
+            total=models.Sum('valor')
+        )['total'] or 0
+
+        transacao.valor_pago = total_pago
+        transacao.status_pagamento = (
+            "PAGO"    if total_pago >= transacao.valor_total else
+            "PARCIAL" if total_pago > 0 else
+            "PENDENTE"
+        )
+        transacao.save(update_fields=["valor_pago", "status_pagamento"])
+        logger.info(
+            f"Transação atualizada: Total Pago R$ {total_pago} "
+            f"({transacao.status_pagamento}) — agendamento {agendamento.id}"
+        )
     else:
+        # Registro para clientes Walk-in (sem agendamento)
+        resumo_walkin = ", ".join([f"{p.get('forma')} (R$ {p.get('valor')})" for p in pagamentos_raw])
         logger.info(
             f"Walk-in concluído: {contexto.nome_cliente_exibicao} "
-            f"— R$ {valor} ({forma_raw})"
+            f"— Múltiplos pagamentos: {resumo_walkin}"
         )
 
-    # 4) Libera o painel
+    # 6) Libera o painel
     contexto.is_ativo = False
     contexto.finalizado_em = timezone.now()
     contexto.save(update_fields=["is_ativo", "finalizado_em"])
