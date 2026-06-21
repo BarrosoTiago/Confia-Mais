@@ -14,20 +14,40 @@ from .mqtt_publisher import publicar_atendimento_ativo, publicar_alerta
 from agendamentos.models import Agendamento
 
 
-class SelecionarAtendimentoAtivoView(APIView):
+class AtendimentoAtivoView(APIView):
     """
+    GET /api/iot/atendimento-ativo/
+        Permite que o app consulte o estado atual do painel.
+
     POST /api/iot/atendimento-ativo/
+        Chamado pelo APP quando o profissional toca em um cliente da lista
+        (ou em "Atendimento sem agendamento" para um walk-in).
 
-    Chamado pelo APP quando o profissional toca em um cliente da lista
-    (ou em "Atendimento sem agendamento" para um walk-in).
+        Body esperado:
+        {
+            "agendamento_id": 42        // ou null para walk-in
+            "nome_cliente": "Maria"     // obrigatório se agendamento_id for null
+        }
 
-    Body esperado:
-    {
-        "agendamento_id": 42        // ou null para walk-in
-        "nome_cliente": "Maria"     // obrigatório se agendamento_id for null
-    }
+    DELETE /api/iot/atendimento-ativo/
+        Permite que o profissional cancele a seleção pelo app.
     """
     permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        contexto = AtendimentoAtivo.objects.filter(
+            empreendedor=request.user, is_ativo=True
+        ).first()
+
+        if not contexto:
+            return Response({"ativo": False})
+
+        return Response({
+            "ativo": True,
+            "nome_cliente_exibicao": contexto.nome_cliente_exibicao,
+            "agendamento_id": contexto.agendamento_id,
+            "selecionado_em": contexto.selecionado_em,
+        })
 
     def post(self, request):
         import traceback
@@ -37,26 +57,21 @@ class SelecionarAtendimentoAtivoView(APIView):
             nome_cliente = request.data.get("nome_cliente", "").strip()
 
             agendamento = None
-            valor_total = 0.0  # Nova variável para armazenar o preço do serviço
+            valor_total = 0.0
 
             if agendamento_id:
                 try:
                     agendamento = Agendamento.objects.get(
                         id=agendamento_id,
-                        empreendedor=request.user,  # garante que é agendamento do seu negócio
+                        empreendedor=request.user,
                     )
                     nome_cliente = agendamento.nome_cliente
                     
-                    # --- A BUSCA CORRETA PELO PREÇO (SOMANDO A LISTA) ---
-                    # Como um agendamento pode ter múltiplos serviços (ManyToMany),
-                    # nós somamos o preço de todos eles.
                     if hasattr(agendamento, 'servicos'):
-                        # Pega todos os serviços atrelados e soma os preços
                         soma = sum(float(s.preco) for s in agendamento.servicos.all() if getattr(s, 'preco', None))
                         if soma > 0:
                             valor_total = soma
                             
-                    # Fallback (Plano B): Se o valor ainda for zero, tenta pegar direto do agendamento
                     if valor_total == 0.0 and hasattr(agendamento, 'valor_total') and agendamento.valor_total:
                         valor_total = float(agendamento.valor_total)
                         
@@ -84,7 +99,7 @@ class SelecionarAtendimentoAtivoView(APIView):
                 is_ativo=True,
             )
 
-            # Envia a ordem para a bancada (agora incluindo o valor_total)
+            # Envia a ordem para a bancada
             publicar_atendimento_ativo(
                 empreendedor_id=empreendedor.id,
                 nome_cliente=nome_cliente,
@@ -103,7 +118,6 @@ class SelecionarAtendimentoAtivoView(APIView):
             )
 
         except Exception as e:
-            # Mostra o erro EXATO no terminal e retorna no body da resposta
             tb = traceback.format_exc()
             print("=" * 60)
             print("ERRO NA VIEW IoT:")
@@ -113,15 +127,6 @@ class SelecionarAtendimentoAtivoView(APIView):
                 {"erro": str(e), "traceback": tb},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
-
-class CancelarAtendimentoAtivoView(APIView):
-    """
-    DELETE /api/iot/atendimento-ativo/
-
-    Permite que o profissional cancele a seleção pelo app
-    (ex: selecionou o cliente errado por engano).
-    """
-    permission_classes = [IsAuthenticated]
 
     def delete(self, request):
         empreendedor = request.user
@@ -133,28 +138,3 @@ class CancelarAtendimentoAtivoView(APIView):
             publicar_alerta(empreendedor.id, "Selecao cancelada")
 
         return Response(status=status.HTTP_204_NO_CONTENT)
-
-
-class AtendimentoAtivoAtualView(APIView):
-    """
-    GET /api/iot/atendimento-ativo/
-
-    Permite que o app consulte o estado atual do painel
-    (útil ao reabrir o app e ver "o que está rolando agora").
-    """
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request):
-        contexto = AtendimentoAtivo.objects.filter(
-            empreendedor=request.user, is_ativo=True
-        ).first()
-
-        if not contexto:
-            return Response({"ativo": False})
-
-        return Response({
-            "ativo": True,
-            "nome_cliente_exibicao": contexto.nome_cliente_exibicao,
-            "agendamento_id": contexto.agendamento_id,
-            "selecionado_em": contexto.selecionado_em,
-        })
