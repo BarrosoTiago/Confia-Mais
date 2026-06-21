@@ -26,8 +26,13 @@ FORMA_MAP = {
 
 def _buscar_contexto_ativo(empreendedor_id: int = None) -> AtendimentoAtivo | None:
     qs = AtendimentoAtivo.objects.filter(is_ativo=True)
-    if empreendedor_id:
-        qs = qs.filter(empreendedor_id=empreendedor_id)
+    
+    # Se temos o ID e existe um registro para este ID
+    if empreendedor_id and qs.filter(empreendedor_id=empreendedor_id).exists():
+        return qs.filter(empreendedor_id=empreendedor_id).first()
+        
+    # Fallback: Se não achou pelo ID ou não veio ID, pega o único ativo globalmente
+    # Isso resolve o problema de o ESP32 não enviar o ID correto.
     return qs.first()
 
 
