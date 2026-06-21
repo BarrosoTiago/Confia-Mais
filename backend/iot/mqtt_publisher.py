@@ -10,33 +10,31 @@ TOPICO_DISPLAY_ALERTA    = "confia/display/alerta"
 
 
 def _publicar(topico: str, payload: str, qos: int = 1, retain: bool = False):
-    """Wrapper central com tratamento de erro — nunca deixa vazar exceção MQTT."""
     try:
         client = get_mqtt_client()
+
+        # ← NOVO: loga antes de publicar
+        logger.info(f"[MQTT] Publicando em '{topico}' (retain={retain}): {payload}")
+
         result = client.publish(topico, payload, qos=qos, retain=retain)
 
-        # Paho retorna (MQTT_ERR_SUCCESS=0, mid) — loga se falhou
+        # ← NOVO: loga o resultado imediato
+        logger.info(f"[MQTT] Resultado publish '{topico}': rc={result.rc}, mid={result.mid}")
+
         if result.rc != 0:
-            logger.warning(f"MQTT publish falhou no tópico '{topico}': rc={result.rc}")
+            logger.warning(f"[MQTT] Publish falhou em '{topico}': rc={result.rc}")
 
     except Exception as e:
-        # Nunca deixa o MQTT derrubar o endpoint HTTP
-        logger.error(f"Erro ao publicar no MQTT (tópico={topico}): {e}", exc_info=True)
+        logger.error(f"[MQTT] Erro ao publicar em '{topico}': {e}", exc_info=True)
 
 
 def publicar_atendimento_ativo(empreendedor_id: int, nome_cliente: str, contexto_id: int, valor_total: float = 0.0):
-    """
-    Publica os dados do atendimento ativo, incluindo o valor total do serviço
-    para que o ESP32 possa gerenciar pagamentos divididos.
-    """
-    # Garante que o nome não ultrapasse os 16 caracteres do display LCD
     nome_formatado = nome_cliente[:16] if nome_cliente else ""
-
     payload = json.dumps({
         "empreendedor_id": empreendedor_id,
         "nome_cliente": nome_formatado,
         "contexto_id": contexto_id,
-        "valor_total": float(valor_total) # Incluído para o cálculo das parcelas no ESP32
+        "valor_total": float(valor_total),
     })
     _publicar(TOPICO_ATENDIMENTO_ATIVO, payload, retain=True)
 
@@ -46,7 +44,7 @@ def publicar_atendimento_limpo(empreendedor_id: int):
         "empreendedor_id": empreendedor_id,
         "nome_cliente": None,
         "contexto_id": None,
-        "valor_total": 0.0
+        "valor_total": 0.0,
     })
     _publicar(TOPICO_ATENDIMENTO_ATIVO, payload, retain=True)
 
