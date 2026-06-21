@@ -61,9 +61,9 @@ class SelecionarAtendimentoAtivoView(APIView):
             try:
                 agendamento = Agendamento.objects.get(
                     id=agendamento_id,
-                    usuario=empreendedor,
+                    empreendedor=empreendedor,
                 )
-                nome_cliente = agendamento.cliente_nome
+                nome_cliente = agendamento.nome_cliente
                 valor_total_esperado = _calcular_valor_total_servico(agendamento)  # NOVO
             except Agendamento.DoesNotExist:
                 return Response(

@@ -1,17 +1,31 @@
+# iot/urls.py
+
 from django.urls import path
 from .views import (
     SelecionarAtendimentoAtivoView,
     CancelarAtendimentoAtivoView,
-    AtendimentoAtivoAtualView
+    AtendimentoAtivoAtualView,
 )
 
 urlpatterns = [
-    # Rota para selecionar um atendimento (POST)
-    path('atendimento-ativo/', SelecionarAtendimentoAtivoView.as_view(), name='selecionar-atendimento'),
+    # Aceita POST (App manda o cliente para a bancada)
+    path(
+        "atendimento-ativo/",
+        SelecionarAtendimentoAtivoView.as_view(),
+        name="selecionar-atendimento-ativo",
+    ),
     
-    # Rota para buscar o atendimento que está rolando agora (GET)
-    path('atendimento-ativo/atual/', AtendimentoAtivoAtualView.as_view(), name='atendimento-atual'),
+    # Aceita GET (App consulta quem está na bancada agora)
+    path(
+        "atendimento-ativo/status/",
+        AtendimentoAtivoAtualView.as_view(),
+        name="status-atendimento-ativo",
+    ),
     
-    # Rota para cancelar o atendimento atual (DELETE)
-    path('atendimento-ativo/cancelar/', CancelarAtendimentoAtivoView.as_view(), name='cancelar-atendimento'),
+    # Aceita DELETE (App cancela a seleção e limpa a bancada)
+    path(
+        "atendimento-ativo/cancelar/",
+        CancelarAtendimentoAtivoView.as_view(),
+        name="cancelar-atendimento-ativo",
+    ),
 ]
