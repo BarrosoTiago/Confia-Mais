@@ -469,3 +469,6 @@ class RedefinirSenhaView(APIView):
 
         except User.DoesNotExist:
             return Response({"erro": "Usuário não encontrado."}, status=status.HTTP_404_NOT_FOUND)
+
+
+            

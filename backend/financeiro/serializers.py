@@ -97,3 +97,6 @@ class CalculadoraSerializer(serializers.ModelSerializer):
         model = CalculadoraPrecificacao
         fields = '__all__'
         read_only_fields = ('usuario',)
+
+
+        

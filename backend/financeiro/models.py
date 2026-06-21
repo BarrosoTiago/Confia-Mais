@@ -132,3 +132,5 @@ class Pagamento(models.Model):
     def __str__(self):
         return f"Pagamento de R$ {self.valor} em {self.transacao}"
     
+
+    

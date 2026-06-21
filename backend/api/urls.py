@@ -105,3 +105,5 @@ urlpatterns = [
     path('', include(router.urls)),
     path('dashboard/', DashboardView.as_view(), name='api_dashboard'),
 ]
+
+
