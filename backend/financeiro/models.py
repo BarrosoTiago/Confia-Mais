@@ -42,19 +42,18 @@ class Transacao(models.Model):
     """
     STATUS_PAGAMENTO = (
         ('PENDENTE', 'Pendente'),
+        ('EM_ABERTO', 'Em Aberto'),       # NOVO: Necessário para suportar parcelas do IoT
         ('PARCIAL', 'Parcialmente Pago'),
         ('PAGO', 'Pago'),
         ('ESTORNADO', 'Estornado'),
     )
     
-    # Ligação com o Agendamento
     agendamento = models.OneToOneField(
         Agendamento, 
         on_delete=models.CASCADE,
         related_name='transacao'
     )
     
-    # Valores acumulados (Calculados automaticamente)
     valor_total = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Valor Total (R$)")
     valor_pago = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="Total Já Pago (R$)")
     status_pagamento = models.CharField(max_length=20, choices=STATUS_PAGAMENTO, default='PENDENTE')
@@ -65,7 +64,6 @@ class Transacao(models.Model):
 
     def recalcular_totais(self):
         if self.agendamento_id:
-            # Abordagem híbrida segura para evitar o bug do Sum zerado
             total_servicos = self.agendamento.servicos.aggregate(total=Sum('preco'))['total'] or 0
             if total_servicos == 0:
                 total_servicos = sum([s.preco for s in self.agendamento.servicos.all()])
@@ -84,7 +82,6 @@ class Transacao(models.Model):
         super().save()
 
     def save(self, *args, **kwargs):
-        # Na primeira criação, se não houver valor_total, busca dos serviços
         if not self.valor_total and self.agendamento_id:
             total = self.agendamento.servicos.aggregate(total=Sum('preco'))['total'] or 0
             self.valor_total = total
@@ -104,7 +101,9 @@ class Pagamento(models.Model):
         ('DINHEIRO', 'Dinheiro'),
         ('CARTAO_CREDITO', 'Cartão de Crédito'),
         ('CARTAO_DEBITO', 'Cartão de Débito'),
+        ('CARTAO', 'Cartão'), # NOVO: Vindo do ESP32
         ('BOLETO', 'Boleto'),
+        ('FIADO', 'Fiado'),   # NOVO: Vindo do ESP32
     )
 
     transacao = models.ForeignKey(
@@ -119,7 +118,6 @@ class Pagamento(models.Model):
     observacao = models.CharField(max_length=255, blank=True, null=True, help_text="Ex: Entrada de 50%")
 
     def save(self, *args, **kwargs):
-        # Deixe o save limpo, confiando na validação prévia do Serializer/View
         super().save(*args, **kwargs)
         if self.transacao:
             self.transacao.recalcular_totais()
@@ -131,6 +129,3 @@ class Pagamento(models.Model):
 
     def __str__(self):
         return f"Pagamento de R$ {self.valor} em {self.transacao}"
-    
-
-    

@@ -1,8 +1,4 @@
-# iot/models.py
-#
-# Modelo que representa o "contexto ativo" do Painel de Bancada.
-# Resolve o problema de "qual agendamento está sendo atendido":
-# o app define este contexto ANTES do profissional usar o teclado físico.
+# iot/models.py — ATUALIZADO para pagamento dividido
 
 from django.db import models
 from django.conf import settings
@@ -10,19 +6,13 @@ from django.conf import settings
 
 class AtendimentoAtivo(models.Model):
     """
-    Representa qual agendamento está "selecionado" no Painel de Bancada
-    de um determinado empreendedor, em um dado momento.
+    Representa qual agendamento está "selecionado" no Painel de Bancada.
 
-    Fluxo:
-    1. Profissional abre o app e toca no agendamento (ou em "sem agendamento")
-    2. App chama a API que cria/atualiza este registro e publica via MQTT
-    3. ESP32 assina o tópico e exibe o nome do cliente no LCD
-    4. Quando o pagamento é concluído, o consumer usa este registro para
-       saber qual Agendamento/Transacao atualizar — sem ambiguidade.
-    5. Após concluir ou cancelar, o registro é limpo (is_ativo=False).
-
-    Cada empreendedor tem no máximo UM atendimento ativo por vez —
-    é exatamente o que sincroniza com o estado físico do dispositivo.
+    NOVO nesta versão: suporte a pagamento dividido em múltiplas formas.
+    valor_total_esperado é o preço do serviço (vindo do agendamento ou
+    informado manualmente para walk-in). valor_acumulado é a soma das
+    parcelas já registradas. Quando valor_acumulado == valor_total_esperado,
+    o atendimento é considerado pago e o contexto é encerrado.
     """
 
     empreendedor = models.ForeignKey(
@@ -31,7 +21,6 @@ class AtendimentoAtivo(models.Model):
         related_name="atendimentos_ativos",
     )
 
-    # Pode ser nulo: cobre o caso de "walk-in" (cliente sem agendamento prévio)
     agendamento = models.ForeignKey(
         "agendamentos.Agendamento",
         on_delete=models.SET_NULL,
@@ -40,18 +29,23 @@ class AtendimentoAtivo(models.Model):
         related_name="contextos_ativos",
     )
 
-    # Guardamos o nome separadamente para os casos de walk-in
-    # (sem agendamento) e para exibir no LCD sem precisar de outro JOIN.
     nome_cliente_exibicao = models.CharField(max_length=100)
+
+    # ─── NOVO: suporte a pagamento dividido ───
+    valor_total_esperado = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True,
+        help_text="Preço do serviço. Null = modo livre (sem total definido)."
+    )
+    valor_acumulado = models.DecimalField(
+        max_digits=10, decimal_places=2, default=0,
+        help_text="Soma das parcelas já registradas para este atendimento."
+    )
 
     is_ativo = models.BooleanField(default=True)
     selecionado_em = models.DateTimeField(auto_now_add=True)
     finalizado_em = models.DateTimeField(null=True, blank=True)
 
     class Meta:
-        # Garante, a nível de banco, que um empreendedor não tenha
-        # dois contextos "ativos" simultâneos — evita condição de corrida
-        # entre o app e o teclado físico.
         constraints = [
             models.UniqueConstraint(
                 fields=["empreendedor"],
@@ -60,6 +54,49 @@ class AtendimentoAtivo(models.Model):
             )
         ]
 
+    @property
+    def valor_restante(self):
+        """Quanto ainda falta pagar. None se não houver total definido."""
+        if self.valor_total_esperado is None:
+            return None
+        return float(self.valor_total_esperado) - float(self.valor_acumulado)
+
+    @property
+    def esta_completo(self):
+        """True quando o acumulado bateu (ou passou) o total esperado."""
+        if self.valor_total_esperado is None:
+            return False  # modo livre nunca "completa" automaticamente
+        return float(self.valor_acumulado) >= float(self.valor_total_esperado)
+
     def __str__(self):
         status = "ATIVO" if self.is_ativo else "finalizado"
         return f"{self.nome_cliente_exibicao} ({status}) — {self.empreendedor}"
+
+
+class ParcelaPagamento(models.Model):
+    """
+    NOVO MODEL: cada parcela de um pagamento dividido.
+    Uma Transacao pode ter N ParcelaPagamento (uma por forma usada).
+
+    Exemplo: atendimento de R$ 120 pago em R$ 60 dinheiro + R$ 60 Pix
+    gera 2 registros aqui, ambos vinculados à mesma Transacao.
+    """
+
+    FORMA_CHOICES = [
+        ("PIX", "Pix"),
+        ("CARTAO", "Cartão"),
+        ("DINHEIRO", "Dinheiro"),
+        ("FIADO", "Fiado"),
+    ]
+
+    transacao = models.ForeignKey(
+        "financeiro.Transacao",
+        on_delete=models.CASCADE,
+        related_name="parcelas",
+    )
+    forma_pagamento = models.CharField(max_length=10, choices=FORMA_CHOICES)
+    valor = models.DecimalField(max_digits=10, decimal_places=2)
+    registrado_em = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.forma_pagamento}: R$ {self.valor} (Transação #{self.transacao_id})"

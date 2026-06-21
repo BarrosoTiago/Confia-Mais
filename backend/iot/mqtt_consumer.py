@@ -1,39 +1,33 @@
+# iot/mqtt_consumer.py — ATUALIZADO para pagamento dividido
+#
+# Mudança principal: confia/pagamento/conclusao agora representa
+# UMA PARCELA, não necessariamente o fim do atendimento. O consumer
+# soma ao valor_acumulado e só finaliza de fato quando bate o total.
+
 import json
 import logging
-from django.db import models
+from decimal import Decimal
+
 from django.utils import timezone
+from django.db import transaction as db_transaction
 
 from .mqtt_client import get_mqtt_client
-from .mqtt_publisher import publicar_atendimento_limpo, publicar_alerta
-from .models import AtendimentoAtivo
+from .mqtt_publisher import publicar_atendimento_limpo, publicar_alerta, publicar_falta_pagar
+from .models import AtendimentoAtivo, ParcelaPagamento
 
 logger = logging.getLogger("iot.consumer")
 
-TOPICO_SERVICO_INICIO      = "confia/servico/inicio"
-TOPICO_PAGAMENTO_CONCLUSAO = "confia/pagamento/conclusao"
-TOPICO_SERVICO_CANCELAR    = "confia/servico/cancelar"
+TOPICO_SERVICO_INICIO = "confia/servico/inicio"
+TOPICO_PAGAMENTO_CONCLUSAO = "confia/pagamento/conclusao"  # agora = "parcela"
+TOPICO_SERVICO_CANCELAR = "confia/servico/cancelar"
 
-# Fallback caso o payload não envie empreendedor_id
-EMPREENDEDOR_ID_FALLBACK = 1
-
-FORMA_MAP = {
-    "PIX":      "PIX",
-    "DINHEIRO": "DINHEIRO",
-    "CARTAO":   "CARTAO_CREDITO",
-    "FIADO":    "FIADO",
-}
+EMPREENDEDOR_ID_PROTOTIPO = 1
 
 
-def _buscar_contexto_ativo(empreendedor_id: int = None) -> AtendimentoAtivo | None:
-    qs = AtendimentoAtivo.objects.filter(is_ativo=True)
-    
-    # Se temos o ID e existe um registro para este ID
-    if empreendedor_id and qs.filter(empreendedor_id=empreendedor_id).exists():
-        return qs.filter(empreendedor_id=empreendedor_id).first()
-        
-    # Fallback: Se não achou pelo ID ou não veio ID, pega o único ativo globalmente
-    # Isso resolve o problema de o ESP32 não enviar o ID correto.
-    return qs.first()
+def _buscar_contexto_ativo(empreendedor_id: int):
+    return AtendimentoAtivo.objects.filter(
+        empreendedor_id=empreendedor_id, is_ativo=True
+    ).first()
 
 
 def _on_connect(client, userdata, flags, rc):
@@ -42,7 +36,6 @@ def _on_connect(client, userdata, flags, rc):
         client.subscribe(TOPICO_SERVICO_INICIO, qos=1)
         client.subscribe(TOPICO_PAGAMENTO_CONCLUSAO, qos=1)
         client.subscribe(TOPICO_SERVICO_CANCELAR, qos=1)
-        logger.info("Assinado: inicio, pagamento/conclusao, cancelar")
     else:
         logger.error(f"Falha ao conectar ao broker MQTT, rc={rc}")
 
@@ -52,7 +45,7 @@ def _on_message(client, userdata, msg):
     try:
         payload = json.loads(msg.payload.decode())
     except json.JSONDecodeError:
-        logger.warning(f"Payload inválido em {topico}: {msg.payload}")
+        logger.warning(f"Payload inválido recebido em {topico}: {msg.payload}")
         return
 
     logger.info(f"MQTT recebido [{topico}]: {payload}")
@@ -61,141 +54,148 @@ def _on_message(client, userdata, msg):
         if topico == TOPICO_SERVICO_INICIO:
             _processar_inicio_servico(payload)
         elif topico == TOPICO_PAGAMENTO_CONCLUSAO:
-            _processar_pagamento_concluido(payload)
+            _processar_parcela_pagamento(payload)  # RENOMEADO conceitualmente
         elif topico == TOPICO_SERVICO_CANCELAR:
             _processar_cancelamento(payload)
     except Exception:
         logger.exception(f"Erro ao processar mensagem do tópico {topico}")
-        empreendedor_id = payload.get("empreendedor_id", EMPREENDEDOR_ID_FALLBACK)
-        publicar_alerta(empreendedor_id, "Erro no servidor")
+        publicar_alerta(EMPREENDEDOR_ID_PROTOTIPO, "Erro no servidor")
 
 
 def _processar_inicio_servico(payload: dict):
-    empreendedor_id = payload.get("empreendedor_id", EMPREENDEDOR_ID_FALLBACK)
-    contexto = _buscar_contexto_ativo(empreendedor_id)
+    contexto = _buscar_contexto_ativo(EMPREENDEDOR_ID_PROTOTIPO)
 
     if not contexto:
-        logger.warning(f"Inicio recebido sem AtendimentoAtivo para empreendedor_id={empreendedor_id}")
-        publicar_alerta(empreendedor_id, "Selecione um cliente")
+        logger.warning("Inicio recebido sem AtendimentoAtivo definido!")
+        publicar_alerta(EMPREENDEDOR_ID_PROTOTIPO, "Selecione um cliente")
         return
 
     if contexto.agendamento:
         agendamento = contexto.agendamento
-        agendamento.status = "CONFIRMADO"
-        agendamento.save(update_fields=["status"])
-        logger.info(f"Agendamento {agendamento.id} → atendimento iniciado")
-    else:
-        logger.info(f"Walk-in iniciado: {contexto.nome_cliente_exibicao}")
+        agendamento.status = "EM_ATENDIMENTO"
+        agendamento.hora_inicio_real = timezone.now()
+        agendamento.save(update_fields=["status", "hora_inicio_real"])
+        logger.info(f"Agendamento {agendamento.id} → EM_ATENDIMENTO")
 
 
-def _processar_pagamento_concluido(payload: dict):
-    from financeiro.models import Transacao, Pagamento
+def _processar_parcela_pagamento(payload: dict):
+    """
+    Payload esperado do ESP32 (agora representa UMA PARCELA):
+    {
+        "forma": "PIX" | "CARTAO" | "DINHEIRO" | "FIADO",
+        "valor": 60.00,
+        "duracao_segundos": 1820,   // só relevante na ÚLTIMA parcela
+        "status_pagamento": "PAGO" | "PENDENTE"
+    }
+    """
+    from financeiro.models import Pagamento, Transacao
 
-    empreendedor_id = payload.get("empreendedor_id", EMPREENDEDOR_ID_FALLBACK)
-    contexto = _buscar_contexto_ativo(empreendedor_id)
+    contexto = _buscar_contexto_ativo(EMPREENDEDOR_ID_PROTOTIPO)
 
     if not contexto:
-        logger.warning(f"Pagamento recebido sem AtendimentoAtivo para empreendedor_id={empreendedor_id}")
-        publicar_alerta(empreendedor_id, "Contexto perdido")
+        logger.warning("Pagamento recebido sem AtendimentoAtivo definido!")
+        publicar_alerta(EMPREENDEDOR_ID_PROTOTIPO, "Contexto perdido")
         return
 
-    # Extrai a lista de pagamentos do payload
-    pagamentos_raw = payload.get("pagamentos")
-    
-    # Fallback: Se o ESP32 enviar o formato antigo (apenas uma forma e valor), convertemos para lista
-    if not pagamentos_raw:
-        forma_unica = payload.get("forma", "DINHEIRO")
-        valor_unico = float(payload.get("valor", 0.0))
-        pagamentos_raw = [{"forma": forma_unica, "valor": valor_unico}]
+    forma = payload.get("forma")
+    valor_parcela = Decimal(str(payload.get("valor", 0.0)))
+    duracao_segundos = payload.get("duracao_segundos", 0)
+    status_pagamento = payload.get("status_pagamento", "PAGO")
 
+    with db_transaction.atomic():
+        # 1) Atualiza o acumulado do contexto
+        contexto.valor_acumulado = Decimal(str(contexto.valor_acumulado)) + valor_parcela
+        contexto.save(update_fields=["valor_acumulado"])
+
+        # 2) Garante que existe uma Transacao "em aberto"
+        # CORREÇÃO APLICADA: status_pagamento movido para defaults, usuario_id removido
+        transacao, criada = Transacao.objects.get_or_create(
+            agendamento=contexto.agendamento,
+            defaults={
+                "valor_total": contexto.valor_total_esperado or valor_parcela,
+                "status_pagamento": "EM_ABERTO", 
+            },
+        )
+
+        # 3) Registra esta parcela na tabela do IoT
+        ParcelaPagamento.objects.create(
+            transacao=transacao,
+            forma_pagamento=forma,
+            valor=valor_parcela,
+        )
+
+        # 4) Registra o pagamento na tabela financeira principal
+        # CORREÇÃO APLICADA: valor_pago virou valor, observacoes virou observacao
+        Pagamento.objects.create(
+            transacao=transacao,
+            valor=valor_parcela if status_pagamento == "PAGO" else 0,
+            forma_pagamento=forma,
+            observacao="Parcela registrada via Painel de Bancada IoT",
+        )
+
+        logger.info(
+            f"Parcela registrada: {forma} R$ {valor_parcela} — "
+            f"acumulado R$ {contexto.valor_acumulado} de "
+            f"R$ {contexto.valor_total_esperado or 'modo livre'}"
+        )
+
+        # ─── Decisão: finaliza ou continua aguardando? ───
+        deve_finalizar = (
+            contexto.valor_total_esperado is None  # modo livre: 1 parcela = fim
+            or contexto.esta_completo               # bateu o total
+        )
+
+        if deve_finalizar:
+            _finalizar_atendimento(contexto, transacao, duracao_segundos, status_pagamento)
+        else:
+            # Ainda falta pagar — mantém o painel "aguardando mais parcelas"
+            restante = contexto.valor_restante
+            publicar_falta_pagar(EMPREENDEDOR_ID_PROTOTIPO, restante)
+            logger.info(f"Aguardando mais parcelas — falta R$ {restante}")
+
+
+def _finalizar_atendimento(contexto, transacao, duracao_segundos, ultimo_status_pagamento):
+    """
+    Encerra de fato o atendimento: conclui o agendamento, marca a
+    Transacao como paga (ou pendente, se a ÚLTIMA parcela foi fiado)
+    e libera o painel para o próximo cliente.
+    """
     agendamento = contexto.agendamento
 
     if agendamento:
-        # 1) Conclui o agendamento
         agendamento.status = "CONCLUIDO"
-        agendamento.save(update_fields=["status"])
+        agendamento.hora_fim_real = timezone.now()
+        agendamento.duracao_real_segundos = duracao_segundos
+        agendamento.save(update_fields=[
+            "status", "hora_fim_real", "duracao_real_segundos"
+        ])
 
-        # 2) Define o valor total da transação com base no serviço (ou na soma das parcelas se não houver serviço)
-        if getattr(agendamento, 'servico', None) and agendamento.servico.preco:
-            valor_total_esperado = float(agendamento.servico.preco)
-        else:
-            valor_total_esperado = sum(float(p.get("valor", 0.0)) for p in pagamentos_raw)
+    transacao.status_pagamento = ultimo_status_pagamento  # PAGO ou PENDENTE
+    transacao.valor_total = contexto.valor_acumulado  # ajusta ao que foi de fato pago
+    transacao.save(update_fields=["status_pagamento", "valor_total"])
 
-        # 3) Cria ou recupera a Transacao
-        transacao, _ = Transacao.objects.get_or_create(
-            agendamento=agendamento,
-            defaults={"valor_total": valor_total_esperado, "status_pagamento": "PENDENTE"},
-        )
-
-        # 4) Registra os múltiplos Pagamentos percorrendo a lista
-        for parcela in pagamentos_raw:
-            forma_raw = parcela.get("forma", "DINHEIRO")
-            forma     = FORMA_MAP.get(forma_raw, "DINHEIRO")
-            valor_parcela = float(parcela.get("valor", 0.0))
-
-            if forma == "FIADO":
-                Pagamento.objects.create(
-                    transacao=transacao,
-                    valor=valor_parcela,
-                    forma_pagamento="FIADO",
-                    observacao="Fiado — registrado via Painel IoT",
-                )
-                logger.info(f"Fiado registrado: R$ {valor_parcela} — agendamento {agendamento.id}")
-            else:
-                Pagamento.objects.create(
-                    transacao=transacao,
-                    valor=valor_parcela,
-                    forma_pagamento=forma,
-                    observacao=f"Registrado via Painel IoT ({forma_raw})",
-                )
-                logger.info(f"Pagamento parcela salva: {forma} R$ {valor_parcela} — agendamento {agendamento.id}")
-
-        # 5) Atualiza totais da transação com base no que foi efetivamente pago
-        total_pago = transacao.pagamentos.exclude(forma_pagamento="FIADO").aggregate(
-            total=models.Sum('valor')
-        )['total'] or 0
-
-        transacao.valor_pago = total_pago
-        transacao.status_pagamento = (
-            "PAGO"    if total_pago >= transacao.valor_total else
-            "PARCIAL" if total_pago > 0 else
-            "PENDENTE"
-        )
-        transacao.save(update_fields=["valor_pago", "status_pagamento"])
-        logger.info(
-            f"Transação atualizada: Total Pago R$ {total_pago} "
-            f"({transacao.status_pagamento}) — agendamento {agendamento.id}"
-        )
-    else:
-        # Registro para clientes Walk-in (sem agendamento)
-        resumo_walkin = ", ".join([f"{p.get('forma')} (R$ {p.get('valor')})" for p in pagamentos_raw])
-        logger.info(
-            f"Walk-in concluído: {contexto.nome_cliente_exibicao} "
-            f"— Múltiplos pagamentos: {resumo_walkin}"
-        )
-
-    # 6) Libera o painel
     contexto.is_ativo = False
     contexto.finalizado_em = timezone.now()
     contexto.save(update_fields=["is_ativo", "finalizado_em"])
-    publicar_atendimento_limpo(empreendedor_id)
+
+    publicar_atendimento_limpo(EMPREENDEDOR_ID_PROTOTIPO)
+
+    logger.info(
+        f"Atendimento finalizado: {contexto.nome_cliente_exibicao} — "
+        f"total R$ {contexto.valor_acumulado} em "
+        f"{transacao.parcelas.count()} parcela(s)"
+    )
 
 
 def _processar_cancelamento(payload: dict):
-    empreendedor_id = payload.get("empreendedor_id", EMPREENDEDOR_ID_FALLBACK)
-    contexto = _buscar_contexto_ativo(empreendedor_id)
+    contexto = _buscar_contexto_ativo(EMPREENDEDOR_ID_PROTOTIPO)
 
-    if not contexto:
-        logger.warning(f"Cancelamento recebido sem AtendimentoAtivo para empreendedor_id={empreendedor_id}")
-        return
-
-    if contexto.agendamento:
+    if contexto and contexto.agendamento:
         agendamento = contexto.agendamento
         agendamento.status = "PENDENTE"
-        agendamento.save(update_fields=["status"])
+        agendamento.hora_inicio_real = None
+        agendamento.save(update_fields=["status", "hora_inicio_real"])
         logger.info(f"Agendamento {agendamento.id} revertido para PENDENTE")
-    else:
-        logger.info(f"Walk-in cancelado: {contexto.nome_cliente_exibicao}")
 
 
 def iniciar_consumer():
@@ -206,4 +206,4 @@ def iniciar_consumer():
     if client.is_connected():
         _on_connect(client, None, None, 0)
 
-    logger.info("Consumer do Painel de Bancada IoT iniciado.")
+    logger.info("Consumer do Painel de Bancada IoT iniciado (com pagamento dividido).")
