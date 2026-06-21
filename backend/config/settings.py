@@ -237,6 +237,22 @@ LOGGING = {
             'level': 'DEBUG',
             'propagate': True,
         },
+        # ← ADICIONE ESTES
+        'iot': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'iot.consumer': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'iot.mqtt_client': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
     },
 }
 
@@ -255,4 +271,3 @@ if 'pytest' in sys.modules or 'test' in sys.argv:
     }
 
 
-    
