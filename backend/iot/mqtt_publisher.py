@@ -37,7 +37,7 @@ def publicar_atendimento_ativo(
         "contexto_id": contexto_id,
         "valor_total": float(valor_total_esperado) if valor_total_esperado else 0.0,
     })
-    _publicar(TOPICO_ATENDIMENTO_ATIVO, payload, retain=True)
+    _publicar(TOPICO_ATENDIMENTO_ATIVO, payload, retain=False)  # ← False por enquanto
 
 
 def publicar_atendimento_limpo(empreendedor_id: int):
