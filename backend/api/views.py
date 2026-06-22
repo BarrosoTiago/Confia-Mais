@@ -337,7 +337,7 @@ class DashboardView(APIView):
                 nome_servico = primeiro_servico.nome if primeiro_servico else "Sem serviço"
                 preco_servico = primeiro_servico.preco if primeiro_servico else 0.00
 
-                nome_cliente = getattr(ag.cliente, 'nome_completo', None) or getattr(ag.cliente, 'first_name', None) or ag.cliente.username
+                nome_cliente = ag.nome_cliente
 
                 ultimos_agendamentos_lista.append({
                     "id": ag.id,
