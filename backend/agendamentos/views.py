@@ -57,8 +57,16 @@ class AgendamentoViewSet(viewsets.ModelViewSet):
         # AQUI FOI CORRIGIDO TAMBÉM!
         if user.tipo_usuario in ['EMPREENDEDOR', 'ADMIN']:
             cliente_id = self.request.data.get('cliente')
+            cliente_nome_avulso = self.request.data.get('cliente_nome_avulso')
             print(f"⏱️ [Marcar 1] Tipo EMPREENDEDOR. Tempo decorrido: {time.time() - t_inicio:.4f}s")
-            agendamento = serializer.save(cliente_id=cliente_id if cliente_id else user.id)
+            
+            if cliente_id:
+                agendamento = serializer.save(cliente_id=cliente_id)
+            elif cliente_nome_avulso:
+                # Agendamento de cliente avulso (via App Mobile ou Web sem cadastro)
+                agendamento = serializer.save(cliente=None)
+            else:
+                agendamento = serializer.save(cliente_id=user.id)
         else:
             print(f"⏱️ [Marcar 1] Tipo CLIENTE. Tempo decorrido: {time.time() - t_inicio:.4f}s")
             agendamento = serializer.save(cliente=user)
