@@ -30,6 +30,7 @@ export default function EntradasMes() {
     dados_grafico: [],
     entradas: []
   });
+  
 
   const [searchTerm, setSearchTerm] = useState('');
   const [filterForma, setFilterForma] = useState('TODOS');
@@ -411,3 +412,5 @@ useEffect(() => {
     </>
   );
 }
+
+

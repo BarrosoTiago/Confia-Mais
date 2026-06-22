@@ -127,6 +127,7 @@ class HorarioConfigSerializer(serializers.ModelSerializer):
 class AgendamentoSerializer(serializers.ModelSerializer):
     servicos_detalhes = ServicoSerializer(source='servicos', many=True, read_only=True)
     cliente_nome = serializers.ReadOnlyField(source='cliente.nome_completo')
+    cliente_telefone = serializers.ReadOnlyField(source='cliente.telefone')
     
     financeiro = serializers.SerializerMethodField()
 

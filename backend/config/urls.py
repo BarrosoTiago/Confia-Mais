@@ -6,6 +6,7 @@ from django.conf.urls.static import static
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/', include('api.urls')),
+    path('api/iot/', include('iot.urls')),
 ]
 
 # Adiciona a rota de mídia (Só funciona se DEBUG=True)

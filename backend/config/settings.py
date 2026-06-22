@@ -1,5 +1,6 @@
 from pathlib import Path
 import os
+import sys
 from datetime import timedelta
 from dotenv import load_dotenv 
 from decouple import config
@@ -57,6 +58,7 @@ INSTALLED_APPS = [
     'servicos',
     'financeiro',
     'agendamentos',
+    'iot.apps.IotConfig',
 ]
 
 CLOUDINARY_STORAGE = {
@@ -109,6 +111,7 @@ CORS_ALLOW_ALL_ORIGINS = False
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://localhost:5173",
+    "http://localhost:8081",
     "https://confia-mais.onrender.com",
 ]
 
@@ -235,5 +238,37 @@ LOGGING = {
             'level': 'DEBUG',
             'propagate': True,
         },
+        # ← ADICIONE ESTES
+        'iot': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'iot.consumer': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'iot.mqtt_client': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
     },
 }
+
+# ==========================================
+# CONFIGURAÇÃO EXCLUSIVA PARA TESTES
+# ==========================================
+# Se o comando executado for o Pytest, forçamos o uso do SQLite local
+# para não poluir nem travar no banco de dados da nuvem.
+
+if 'pytest' in sys.modules or 'test' in sys.argv:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db_test.sqlite3',
+        }
+    }
+
+

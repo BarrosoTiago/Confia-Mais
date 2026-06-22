@@ -10,28 +10,45 @@ class Agendamento(models.Model):
         ('CONCLUIDO', 'Concluído'),
     )
 
+    empreendedor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='agendamentos_criados',  # agendamentos do negócio
+    )
+
     cliente = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
-        related_name='meus_agendamentos'
+        related_name='meus_agendamentos',     # agendamentos do cliente
+        null=True,
+        blank=True,                           # null = cliente walk-in / sem conta
+    )
+
+    # Para walk-in ou cliente sem conta no sistema
+    cliente_nome_avulso = models.CharField(
+        max_length=100, blank=True, null=True,
+        verbose_name="Nome do cliente (sem conta)"
     )
 
     servicos = models.ManyToManyField(Servico, related_name='agendamentos')
-
-    data_hora_inicio = models.DateTimeField(verbose_name="Data e Hora do Início")
-    data_hora_fim = models.DateTimeField(verbose_name="Data e Hora do Fim", blank=True, null=True)
-
+    data_hora_inicio = models.DateTimeField()
+    data_hora_fim = models.DateTimeField(blank=True, null=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='PENDENTE')
-    
     criado_em = models.DateTimeField(auto_now_add=True)
-    observacoes = models.TextField(blank=True, null=True, verbose_name="Observações do Cliente")
+    observacoes = models.TextField(blank=True, null=True)
+
+    @property
+    def nome_cliente(self):
+        """Retorna o nome do cliente independente de ter conta ou não."""
+        if self.cliente:
+            return self.cliente.get_full_name().strip() or self.cliente.username
+        return self.cliente_nome_avulso or "Cliente avulso"
 
     def __str__(self):
-        return f"Agendamento de {self.cliente} em {self.data_hora_inicio}"
-    
-    class Meta:
-        ordering = ['-data_hora_inicio'] 
+        return f"{self.nome_cliente} com {self.empreendedor} em {self.data_hora_inicio}"
 
+    class Meta:
+        ordering = ['-data_hora_inicio']
 class HorarioFuncionamento(models.Model):
     DIAS_SEMANA = (
         (0, 'Segunda-feira'),
@@ -85,3 +102,7 @@ class Anotacao(models.Model):
 
     def __str__(self):
         return self.titulo
+
+
+
+        

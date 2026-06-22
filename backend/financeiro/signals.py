@@ -25,3 +25,5 @@ def atualizar_total_transacao_m2m(sender, instance, action, **kwargs):
 def atualizar_valor_pago_transacao(sender, instance, **kwargs):
     if hasattr(instance, 'transacao') and instance.transacao:
         instance.transacao.recalcular_totais()
+
+        

@@ -31,6 +31,7 @@ from agendamentos.views import (
     AnotacaoViewSet
 )
 
+
 # --- 3. IMPORT DAS VIEWS DE SERVIÇOS ---
 from servicos.views import CategoriaViewSet
 
@@ -104,3 +105,5 @@ urlpatterns = [
     path('', include(router.urls)),
     path('dashboard/', DashboardView.as_view(), name='api_dashboard'),
 ]
+
+
