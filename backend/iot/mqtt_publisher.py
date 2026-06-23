@@ -17,11 +17,20 @@ def _publicar(topico: str, payload: str, qos: int = 1, retain: bool = False):
         client = get_mqtt_client()
         logger.info(f"[MQTT] Publicando em '{topico}' (retain={retain}): {payload}")
         result = client.publish(topico, payload, qos=qos, retain=retain)
-        logger.info(f"[MQTT] Resultado publish '{topico}': rc={result.rc}, mid={result.mid}")
-        if result.rc != 0:
-            logger.warning(f"[MQTT] Publish falhou em '{topico}': rc={result.rc}")
+        
+        # O pulo do gato: forçar o Django a esperar o "OK" do servidor HiveMQ (até 3 segundos)
+        # Se a conexão TCP estava zumbi ou morta, isso vai falhar ou dar timeout!
+        try:
+            result.wait_for_publish(timeout=3.0)
+            if result.is_published():
+                logger.info(f"[MQTT] SUCESSO ABSOLUTO! Mensagem '{topico}' entregue e confirmada (mid={result.mid})")
+            else:
+                logger.error(f"[MQTT] ERRO: Timeout. A mensagem não chegou no HiveMQ!")
+        except Exception as err_wait:
+            logger.error(f"[MQTT] ERRO GRAVE de rede ao esperar confirmação: {err_wait}")
+            
     except Exception as e:
-        logger.error(f"[MQTT] Erro ao publicar em '{topico}': {e}", exc_info=True)
+        logger.error(f"[MQTT] Erro ao instanciar ou publicar em '{topico}': {e}", exc_info=True)
 
 
 def publicar_atendimento_ativo(
