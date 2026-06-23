@@ -12,25 +12,40 @@ TOPICO_ATENDIMENTO_ATIVO = "confia/painel/atendimento_ativo"
 TOPICO_FALTA_PAGAR       = "confia/painel/falta_pagar"
 
 
+import paho.mqtt.publish as mqtt_publish
+from .mqtt_client import MQTT_BROKER, MQTT_PORT, MQTT_USER, MQTT_PASS, MQTT_CLIENT_ID
+import os
+import uuid
+import ssl
+
 def _publicar(topico: str, payload: str, qos: int = 1, retain: bool = False):
     try:
-        client = get_mqtt_client()
-        logger.info(f"[MQTT] Publicando em '{topico}' (retain={retain}): {payload}")
-        result = client.publish(topico, payload, qos=qos, retain=retain)
+        logger.info(f"[MQTT] Iniciando publicação síncrona em '{topico}': {payload}")
         
-        # O pulo do gato: forçar o Django a esperar o "OK" do servidor HiveMQ (até 3 segundos)
-        # Se a conexão TCP estava zumbi ou morta, isso vai falhar ou dar timeout!
-        try:
-            result.wait_for_publish(timeout=3.0)
-            if result.is_published():
-                logger.info(f"[MQTT] SUCESSO ABSOLUTO! Mensagem '{topico}' entregue e confirmada (mid={result.mid})")
-            else:
-                logger.error(f"[MQTT] ERRO: Timeout. A mensagem não chegou no HiveMQ!")
-        except Exception as err_wait:
-            logger.error(f"[MQTT] ERRO GRAVE de rede ao esperar confirmação: {err_wait}")
-            
+        # ID exclusivo para essa exata requisição HTTP
+        client_id_temp = f"{MQTT_CLIENT_ID}-pub-{os.getpid()}-{uuid.uuid4().hex[:4]}"
+        
+        auth = {'username': MQTT_USER, 'password': MQTT_PASS}
+        
+        # O Paho fará tudo sozinho: Conectar, Autenticar, Enviar, Esperar ACK e Desconectar.
+        # Sem threads em background, sem sockets zumbis!
+        mqtt_publish.single(
+            topic=topico,
+            payload=payload,
+            qos=qos,
+            retain=retain,
+            hostname=MQTT_BROKER,
+            port=MQTT_PORT,
+            client_id=client_id_temp,
+            auth=auth,
+            # No Python (diferente do ESP32) não precisamos desativar certificados Let's Encrypt
+            tls={'tls_version': ssl.PROTOCOL_TLS},
+            protocol=mqtt.MQTTv311
+        )
+        logger.info(f"[MQTT] SUCESSO ABSOLUTO! Mensagem '{topico}' entregue ao HiveMQ.")
+        
     except Exception as e:
-        logger.error(f"[MQTT] Erro ao instanciar ou publicar em '{topico}': {e}", exc_info=True)
+        logger.error(f"[MQTT] Falha catastrófica ao publicar síncrono em '{topico}': {e}", exc_info=True)
 
 
 def publicar_atendimento_ativo(
