@@ -1,3 +1,6 @@
+import collections                          # ← CORRIGIDO: import faltando
+from decimal import Decimal                 # ← CORRIGIDO: import faltando
+
 from rest_framework import viewsets, permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -21,53 +24,44 @@ class SaudeFinanceiraView(APIView):
         hoje = timezone.now().date()
         inicio_mes = hoje.replace(day=1)
         
-        # 1. BUSCA DE CUSTOS FIXOS (Da calculadora ou agregados)
         calc = CalculadoraPrecificacao.objects.filter(usuario=usuario).first()
         custo_fixo_calculadora = calc.custo_fixo_mensal if calc else Decimal('0.00')
         
-        # Despesas reais lançadas no mês atual
         despesas_mes = Despesa.objects.filter(usuario=usuario, data_despesa__gte=inicio_mes, data_despesa__lte=hoje)
         custo_fixo_real = despesas_mes.filter(categoria__iexact='Fixo').aggregate(total=Sum('valor'))['total'] or Decimal('0.00')
         custo_variavel_real = despesas_mes.filter(categoria__iexact='Variável').aggregate(total=Sum('valor'))['total'] or Decimal('0.00')
         
-        # Garantir que usamos o maior indicador de custo fixo disponível para segurança do cálculo
         custo_fixo_total = max(custo_fixo_calculadora, custo_fixo_real)
         total_despesas = custo_fixo_real + custo_variavel_real
 
-        # 2. ENTRADAS REAIS (Pagamentos liquidados no mês)
         entradas_mes = Pagamento.objects.filter(
-            transacao__agendamento__servicos__criado_por=usuario, # <--- Alterado aqui
+            transacao__agendamento__servicos__criado_por=usuario,
             data_pagamento__gte=inicio_mes
         ).aggregate(total=Sum('valor'))['total'] or Decimal('0.00')
 
-        # 3. CÁLCULO DE MARGEM E PONTO DE EQUILÍBRIO
-        faturamento_total = entradas_mes # Usando entradas liquidadas como base de faturamento bruto
+        faturamento_total = entradas_mes
         lucro_liquido = faturamento_total - total_despesas
         
         margem_lucro = 0
         if faturamento_total > 0:
             margem_lucro = round((lucro_liquido / faturamento_total) * 100, 2)
             
-        # Ponto de Equilíbrio Simplificado (Custo Fixo / Margem de Contribuição estimada)
-        # Se não houver histórico, estimamos uma margem padrão de 50% para a taxa de contribuição
         margem_contribuicao_estimada = Decimal('0.50') 
         ponto_equilibrio = custo_fixo_total / margem_contribuicao_estimada if custo_fixo_total > 0 else Decimal('0.00')
 
-        # 4. RISCO DE INADIMPLÊNCIA (Transações pendentes com agendamentos passados)
         transacoes_pendentes = Transacao.objects.filter(
-            agendamento__servicos__criado_por=usuario, # <--- Alterado aqui
+            agendamento__servicos__criado_por=usuario,
             status_pagamento__in=['PENDENTE', 'PARCIAL']
         )
         
         total_pendente = sum([t.saldo_restante() for t in transacoes_pendentes])
         
-        # Classificação básica de risco por tempo de atraso
         atraso_7_dias = Decimal('0.00')
         atraso_30_dias = Decimal('0.00')
         atraso_critico = Decimal('0.00')
 
         for t in transacoes_pendentes:
-            dias_atraso = (hoje - t.agendamento.data_hora_inicio.date()).days # <--- Alterado aqui
+            dias_atraso = (hoje - t.agendamento.data_hora_inicio.date()).days
             saldo = t.saldo_restante()
             if dias_atraso <= 7:
                 atraso_7_dias += saldo
@@ -76,14 +70,13 @@ class SaudeFinanceiraView(APIView):
             else:
                 atraso_critico += saldo
 
-        # 5. GRÁFICO FLUXO DE CAIXA (Agrupado por meses recentes - últimos 5 meses)
         grafico_fluxo = []
         for i in range(4, -1, -1):
             mes_alvo = hoje - timedelta(days=i*30)
             label_mes = mes_alvo.strftime('%b')
             
             ent = Pagamento.objects.filter(
-                transacao__agendamento__servicos__criado_por=usuario, # <--- Alterado aqui
+                transacao__agendamento__servicos__criado_por=usuario,
                 data_pagamento__month=mes_alvo.month,
                 data_pagamento__year=mes_alvo.year
             ).aggregate(total=Sum('valor'))['total'] or Decimal('0.00')
@@ -100,15 +93,14 @@ class SaudeFinanceiraView(APIView):
                 "saidas": float(sai)
             })
 
-        # Montagem do JSON de resposta estruturado para o Recharts
         dados_saude = {
             "metricas": {
                 "margem_lucro": float(margem_lucro),
                 "ponto_equilibrio": float(ponto_equilibrio),
                 "liquidez": 1.2 if total_despesas == 0 else round(float(faturamento_total / total_despesas), 2),
-                "capital_giro": float(custo_fixo_total * 2), # Regra de bolso contábil: Guardar 2 meses de custo fixo
+                "capital_giro": float(custo_fixo_total * 2),
                 "total_pendente": float(total_pendente),
-                "pmr": 15, # Prazos médios simulados estruturalmente ou calculados se houver histórico estrito
+                "pmr": 15,
                 "pmp": 30
             },
             "grafico_fluxo": grafico_fluxo,
@@ -130,34 +122,26 @@ class FinanceiroDashboardView(APIView):
 
     def get(self, request):
         user = request.user
-        # Usamos o timezone consciente para evitar problemas de fuso horário no dashboard
         agora = timezone.now()
         hoje = agora.date()
         inicio_mes = agora.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
-        # 1. Busca todos os IDs de agendamento que pertencem ao profissional logado
         ag_ids = Agendamento.objects.filter(servicos__criado_por=user).values_list('id', flat=True).distinct()
 
-        # 2. CÁLCULOS DE RECEITA REAL (Dinheiro que já entrou via Pagamentos)
         pagamentos_base = Pagamento.objects.filter(transacao__agendamento_id__in=ag_ids)
         
         receita_total = pagamentos_base.aggregate(total=Sum('valor'))['total'] or 0
         receita_hoje = pagamentos_base.filter(data_pagamento__date=hoje).aggregate(total=Sum('valor'))['total'] or 0
         
-        # CORREÇÃO: Filtro robusto para Entradas do Mês
         receita_mes = pagamentos_base.filter(
             data_pagamento__gte=inicio_mes
         ).aggregate(total=Sum('valor'))['total'] or 0
 
-        # 3. VALOR PREVISTO / A RECEBER
-        # REGRA DE NEGÓCIO: Só conta como valor previsto se o status for 'CONFIRMADO'.
-        # Pedidos 'PENDENTES' não entram na soma de previsão financeira.
         total_confirmado = Agendamento.objects.filter(
             id__in=ag_ids, 
             status='CONFIRMADO'
         ).aggregate(total=Sum('servicos__preco'))['total'] or 0
 
-        # 4. DESPESAS TOTAIS
         despesas_total = Despesa.objects.filter(usuario=user).aggregate(total=Sum('valor'))['total'] or 0
 
         return Response({
@@ -180,8 +164,6 @@ class PagamentoViewSet(viewsets.ModelViewSet):
             transacao__agendamento__servicos__criado_por=user
         ).distinct().order_by('-data_pagamento')
 
-    # O perform_create antigo foi limpo porque o Serializer já resolve o relacionamento no 'validate'
-
 class TransacaoViewSet(viewsets.ModelViewSet):
     serializer_class = TransacaoSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -196,7 +178,6 @@ class DespesaViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
     
     def get_queryset(self): 
-        # CORREÇÃO: Alterado de '-data' para '-data_despesa'
         return Despesa.objects.filter(usuario=self.request.user).order_by('-data_despesa')
     
     def perform_create(self, serializer): 
@@ -391,7 +372,7 @@ class ClientesInadimplentesView(APIView):
         hoje = timezone.now().date()
         
         transacoes_pendentes = Transacao.objects.filter(
-            agendamento__servicos__criado_por=usuario,  # <--- Alterado aqui
+            agendamento__servicos__criado_por=usuario,
             agendamento__status__in=['CONFIRMADO', 'CONCLUIDO'],
             status_pagamento__in=['PENDENTE', 'PARCIAL']
         ).distinct().order_by('agendamento__data_hora_inicio')
@@ -409,24 +390,18 @@ class ClientesInadimplentesView(APIView):
                 
             data_servico = agendamento.data_hora_inicio.date()
             
-            # --- CORREÇÃO DO FLUXO ---
-            # Se a data do serviço for hoje ou no futuro, os dias de atraso zeram (mas ele CONTINUA na lista)
-            # Se a data for no passado, calcula quantos dias está atrasado
             if data_servico <= hoje:
                 dias_atraso = (hoje - data_servico).days
             else:
-                dias_atraso = 0 # Agendamento futuro confirmado, porém ainda não pago
+                dias_atraso = 0
                 
-            # Captura o saldo restante que falta pagar
             valor_devido = float(t.saldo_restante())
             
             if valor_devido <= 0:
                 continue
                 
-            # Junta os nomes dos serviços em uma única string
             nomes_servicos = ", ".join([s.nome for s in agendamento.servicos.all()])
             
-            # Captura e limpa o telefone para o WhatsApp
             telefone_cliente = getattr(cliente, 'telefone', '') or getattr(cliente, 'celular', '')
             telefone_limpo = "".join(filter(str.isdigit, str(telefone_cliente)))
             if not telefone_limpo.startswith('55') and len(telefone_limpo) >= 10:

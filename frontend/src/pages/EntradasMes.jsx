@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Container, Table, Button, Row, Col, Spinner, Form, Badge } from 'react-bootstrap';
 import api from '../services/api';
-import { useNavigate, useLocation } from 'react-router-dom'; // Adicionado useLocation
+import { useNavigate, useLocation } from 'react-router-dom';
 import AnimatedBackground from '../components/AnimatedBackground';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import { 
@@ -15,7 +15,7 @@ import {
 
 export default function EntradasMes() {
   const navigate = useNavigate();
-  const location = useLocation(); // Captura a URL atual para sincronizar o estado inicial
+  const location = useLocation();
   
   const [loading, setLoading] = useState(true);
   
@@ -30,19 +30,17 @@ export default function EntradasMes() {
     dados_grafico: [],
     entradas: []
   });
-  
 
   const [searchTerm, setSearchTerm] = useState('');
   const [filterForma, setFilterForma] = useState('TODOS');
 
-useEffect(() => {
+  useEffect(() => {
     const periodoVindoDoMenu = location.state?.periodo;
     if (periodoVindoDoMenu && periodoVindoDoMenu !== periodoAtivo) {
       setPeriodoAtivo(periodoVindoDoMenu);
     }
   }, [location.state, periodoAtivo]);
 
-  // Sincroniza o estado caso o usuário mude de opção usando o menu de contexto com a página já aberta
   useEffect(() => {
     if (location.pathname.endsWith('entradas-dia')) setPeriodoAtivo('dia');
     else if (location.pathname.endsWith('entradas-semana')) setPeriodoAtivo('semana');
@@ -57,7 +55,8 @@ useEffect(() => {
   async function fetchDadosPeriodo() {
     try {
       setLoading(true);
-      const response = await api.get(`/api/financeiro/entradas-periodo/?periodo=${periodoAtivo}`);
+      // CORRIGIDO: removido o /api/ duplicado — baseURL já inclui /api
+      const response = await api.get(`/financeiro/entradas-periodo/?periodo=${periodoAtivo}`);
       if (response.data) {
         setDadosPeriodo(response.data);
       }
@@ -179,7 +178,6 @@ useEffect(() => {
 
   const handleTabChange = (periodo) => {
     setPeriodoAtivo(periodo);
-    // Atualiza a "bagagem" interna do histórico para que se o usuário atualizar a página, ela permaneça na aba certa
     navigate('/admin/financeiro/entradas-mes', { state: { periodo }, replace: true });
   };
 
@@ -236,10 +234,9 @@ useEffect(() => {
         <div className="container-limit">
           <div className="custom-header">
             <div className="header-left-side">
-              {/* CORRIGIDO: Rota alterada para '/admin', retornando com segurança ao painel principal */}
               <button 
                 className="btn-back-dashboard" 
-                onClick={() => navigate(-1)} // <--- ALTERADO AQUI: Volta exatamente para a tela anterior
+                onClick={() => navigate(-1)}
                 title="Voltar ao Painel"
               >
                 <FaArrowLeft />
@@ -250,7 +247,6 @@ useEffect(() => {
               </div>
             </div>
 
-            {/* CORRIGIDO: Chamando handleTabChange para manter URL e estado sincronizados */}
             <div className="tabs-periodo">
               <button className={`btn-tab ${periodoAtivo === 'dia' ? 'active' : ''}`} onClick={() => handleTabChange('dia')}>Dia</button>
               <button className={`btn-tab ${periodoAtivo === 'semana' ? 'active' : ''}`} onClick={() => handleTabChange('semana')}>Semana</button>
@@ -412,5 +408,3 @@ useEffect(() => {
     </>
   );
 }
-
-
