@@ -1,4 +1,9 @@
-# iot/views.py
+# iot/views.py — CORRIGIDO com campos reais do model Agendamento
+#
+# Campos confirmados via shell:
+# - FK do empreendedor: "empreendedor" ✓
+# - FK do cliente: "cliente" (objeto) + "cliente_nome_avulso" (walk-in sem FK)
+# - Nome do cliente: agendamento.cliente.nome OU agendamento.cliente_nome_avulso
 
 import logging
 from rest_framework.views import APIView
@@ -8,7 +13,7 @@ from rest_framework import status
 from django.utils import timezone
 
 from .models import AtendimentoAtivo
-from .mqtt_publisher import publicar_atendimento_ativo, publicar_alerta
+from .mqtt_publisher import publicar_atendimento_ativo, publicar_atendimento_limpo, publicar_alerta
 from agendamentos.models import Agendamento
 
 logger = logging.getLogger(__name__)
@@ -26,6 +31,25 @@ def _calcular_valor_total_servico(agendamento):
     except Exception as e:
         logger.warning(f"[VIEW] Erro ao calcular valor total: {e}")
         return None
+
+
+def _nome_do_cliente(agendamento):
+    """
+    Retorna o nome do cliente do agendamento.
+    Tenta primeiro pelo FK 'cliente', depois pelo campo avulso.
+    """
+    try:
+        if agendamento.cliente:
+            # Tenta os atributos mais comuns — ajuste se necessário
+            return (
+                getattr(agendamento.cliente, 'nome_completo', None)
+                or getattr(agendamento.cliente, 'nome', None)
+                or str(agendamento.cliente)
+            )
+    except Exception:
+        pass
+
+    return agendamento.cliente_nome_avulso or "Cliente"
 
 
 class SelecionarAtendimentoAtivoView(APIView):
@@ -46,13 +70,18 @@ class SelecionarAtendimentoAtivoView(APIView):
             try:
                 agendamento = Agendamento.objects.get(
                     id=agendamento_id,
-                    empreendedor=empreendedor,
+                    empreendedor=empreendedor,  # ← campo correto confirmado
                 )
-                nome_cliente = agendamento.nome_cliente
+                nome_cliente = _nome_do_cliente(agendamento)  # ← função corrigida
                 valor_total_esperado = _calcular_valor_total_servico(agendamento)
-                logger.info(f"[VIEW] Agendamento {agendamento_id} encontrado — cliente={nome_cliente}, valor={valor_total_esperado}")
+                logger.info(
+                    f"[VIEW] Agendamento {agendamento_id} encontrado — "
+                    f"cliente={nome_cliente}, valor={valor_total_esperado}"
+                )
             except Agendamento.DoesNotExist:
-                logger.warning(f"[VIEW] Agendamento {agendamento_id} não encontrado para user={empreendedor.id}")
+                logger.warning(
+                    f"[VIEW] Agendamento {agendamento_id} não encontrado para user={empreendedor.id}"
+                )
                 return Response(
                     {"erro": "Agendamento não encontrado para este usuário."},
                     status=status.HTTP_404_NOT_FOUND,
@@ -67,6 +96,7 @@ class SelecionarAtendimentoAtivoView(APIView):
                 valor_total_esperado = float(valor_total_manual)
             logger.info(f"[VIEW] Walk-in: cliente={nome_cliente}, valor={valor_total_esperado}")
 
+        # Encerra contexto anterior
         AtendimentoAtivo.objects.filter(
             empreendedor=empreendedor, is_ativo=True
         ).update(is_ativo=False, finalizado_em=timezone.now())
@@ -81,8 +111,6 @@ class SelecionarAtendimentoAtivoView(APIView):
         )
         logger.info(f"[VIEW] AtendimentoAtivo criado — id={contexto.id}")
 
-        # ← LOGS para rastrear o publish
-        logger.info(f"[VIEW] Chamando publicar_atendimento_ativo — empreendedor_id={empreendedor.id}, nome={nome_cliente}, valor={valor_total_esperado}")
         try:
             publicar_atendimento_ativo(
                 empreendedor_id=empreendedor.id,
@@ -90,7 +118,7 @@ class SelecionarAtendimentoAtivoView(APIView):
                 contexto_id=contexto.id,
                 valor_total_esperado=valor_total_esperado,
             )
-            logger.info(f"[VIEW] publicar_atendimento_ativo executado sem exceção")
+            logger.info("[VIEW] publicar_atendimento_ativo executado com sucesso")
         except Exception as e:
             logger.error(f"[VIEW] ERRO em publicar_atendimento_ativo: {e}", exc_info=True)
 
@@ -116,15 +144,16 @@ class CancelarAtendimentoAtivoView(APIView):
     permission_classes = [IsAuthenticated]
 
     def delete(self, request):
-        logger.info(f"[VIEW] DELETE /api/iot/atendimento-ativo/cancelar/ — user={request.user.id}")
+        logger.info(f"[VIEW] DELETE cancelar — user={request.user.id}")
         empreendedor = request.user
         atualizado = AtendimentoAtivo.objects.filter(
             empreendedor=empreendedor, is_ativo=True
         ).update(is_ativo=False, finalizado_em=timezone.now())
 
         if atualizado:
+            publicar_atendimento_limpo(empreendedor.id)
             publicar_alerta(empreendedor.id, "Selecao cancelada")
-            logger.info(f"[VIEW] Painel cancelado para user={empreendedor.id}")
+            logger.info(f"[VIEW] Painel cancelado — user={empreendedor.id}")
 
         return Response(status=status.HTTP_204_NO_CONTENT)
 

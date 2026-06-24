@@ -1,3 +1,13 @@
+# iot/apps.py — CORRIGIDO
+#
+# Problema original: a condição bloqueava o consumer em desenvolvimento.
+# No runserver local, o processo principal NÃO seta RUN_MAIN —
+# o Django só seta RUN_MAIN="true" no processo FILHO (reloader).
+# Então a condição anterior nunca deixava o consumer subir localmente.
+#
+# Solução: inverter a lógica — bloqueia apenas o processo filho
+# do reloader (RUN_MAIN="true"), deixa passar em todos os outros casos.
+
 import os
 from django.apps import AppConfig
 
@@ -7,12 +17,11 @@ class IotConfig(AppConfig):
     name = "iot"
 
     def ready(self):
-        # Evita duplo início no autoreloader do runserver local
-        # No Render (Uvicorn/Gunicorn) sempre inicia normalmente
-        is_dev_reloader = os.environ.get("RUN_MAIN") == "true"
-        is_prod         = os.environ.get("IS_GUNICORN") or os.environ.get("RENDER")
-
-        if not is_dev_reloader and not is_prod:
+        # RUN_MAIN="true" = processo filho do autoreloader do Django
+        # (o filho apenas recarrega o código, o pai já iniciou o consumer)
+        # Em todos os outros casos (processo principal local, Gunicorn,
+        # Render, Uvicorn) — deixa o consumer subir normalmente.
+        if os.environ.get("RUN_MAIN") == "true":
             return
 
         from .mqtt_consumer import iniciar_consumer
