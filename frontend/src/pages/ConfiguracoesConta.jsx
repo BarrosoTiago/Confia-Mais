@@ -1,12 +1,41 @@
 import { useNavigate } from 'react-router-dom';
-import { Row, Col } from 'react-bootstrap';
+import { Row, Col, Spinner, Image } from 'react-bootstrap';
 import AnimatedBackground from '../components/AnimatedBackground';
-import { FaArrowLeft, FaLock, FaUserTimes, FaShieldAlt, FaChevronRight } from 'react-icons/fa';
+import { FaArrowLeft, FaLock, FaUserTimes, FaShieldAlt, FaChevronRight, FaCamera } from 'react-icons/fa';
 import { useAuth } from '../context/AuthContext';
+import api from '../services/api';
+import { useRef, useState } from 'react';
 
 export default function ConfiguracoesConta() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, checkAuth } = useAuth();
+  
+  const fileInputRef = useRef(null);
+  const [uploading, setUploading] = useState(false);
+
+  const handleFileChange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('foto', file);
+
+    try {
+      setUploading(true);
+      await api.patch('/auth/me/', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      await checkAuth(); // Atualiza o usuário no contexto
+      alert('Foto atualizada com sucesso!');
+    } catch (error) {
+      console.error(error);
+      alert('Erro ao atualizar foto.');
+    } finally {
+      setUploading(false);
+    }
+  };
 
   return (
     <>
@@ -108,6 +137,52 @@ export default function ConfiguracoesConta() {
               <h1>Configurações</h1>
               <span>Gerencie a segurança da sua conta</span>
             </div>
+          </div>
+
+          {/* SESSÃO DE AVATAR */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 40 }}>
+            <div 
+              style={{
+                width: 120, height: 120, borderRadius: '50%', backgroundColor: 'rgba(255,255,255,0.1)',
+                display: 'flex', justifyContent: 'center', alignItems: 'center', position: 'relative',
+                overflow: 'hidden', border: '3px solid rgba(255,255,255,0.2)'
+              }}
+            >
+              {uploading ? (
+                <Spinner animation="border" variant="light" />
+              ) : user?.foto ? (
+                <Image src={user.foto} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              ) : (
+                <span style={{ fontSize: '2.5rem', color: '#FFF', fontWeight: 'bold' }}>
+                  {user?.nome_completo?.charAt(0) || user?.username?.charAt(0) || 'U'}
+                </span>
+              )}
+              
+              {/* BOTÃO DE CÂMERA SOBREPOSTO */}
+              <div 
+                onClick={() => fileInputRef.current.click()}
+                style={{
+                  position: 'absolute', bottom: 0, width: '100%', height: '35%',
+                  backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', justifyContent: 'center',
+                  alignItems: 'center', cursor: 'pointer'
+                }}
+              >
+                <FaCamera color="#FFF" size={18} />
+              </div>
+            </div>
+            <input 
+              type="file" 
+              accept="image/*" 
+              ref={fileInputRef} 
+              style={{ display: 'none' }} 
+              onChange={handleFileChange}
+            />
+            <h4 style={{ color: 'white', marginTop: 15, fontWeight: '600' }}>
+              {user?.nome_completo || user?.username}
+            </h4>
+            <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.9rem' }}>
+              Toque na câmera para alterar sua foto
+            </span>
           </div>
 
           <Row className="g-4 justify-content-center">

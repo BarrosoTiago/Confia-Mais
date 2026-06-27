@@ -250,6 +250,14 @@ export default function HistoricoGeral() {
                             <div className="services-list">
                                 {agenda.servicos_detalhes.map(s => s.nome).join(', ')}
                             </div>
+                            {/* Alerta de Dívida / Fiado */}
+                            {agenda.status === 'CONCLUIDO' && agenda.financeiro && agenda.financeiro.restante > 0 && (
+                                <div style={{marginTop: 5}}>
+                                    <Badge bg="danger" style={{fontSize: '0.8rem', padding: '5px 8px'}}>
+                                        ⚠️ Pagamento Pendente: R$ {agenda.financeiro.restante.toFixed(2).replace('.', ',')}
+                                    </Badge>
+                                </div>
+                            )}
                         </div>
 
                         {/* 3. Status */}

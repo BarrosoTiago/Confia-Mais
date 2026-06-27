@@ -4,7 +4,7 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import AnimatedBackground from '../components/AnimatedBackground';
 import OnboardingHeader from '../components/OnboardingHeader';
-import { FaStore, FaCamera, FaSave, FaArrowRight, FaArrowLeft, FaMapMarkerAlt, FaPhone, FaInfoCircle } from 'react-icons/fa';
+import { FaStore, FaCamera, FaSave, FaArrowRight, FaArrowLeft, FaMapMarkerAlt, FaPhone, FaInfoCircle, FaTrash } from 'react-icons/fa';
 
 export default function PerfilLoja() {
     const navigate = useNavigate();
@@ -202,6 +202,16 @@ export default function PerfilLoja() {
                         .action-buttons { flex-direction: column-reverse; } /* Empilha os botões no celular */
                         .btn-outline-back, .btn-save { width: 100%; }
                     }
+
+                    .btn-delete-account {
+                        width: 100%; background: transparent; border: 2px solid #FEE2E2;
+                        color: #DC2626; padding: 13px 20px; border-radius: 30px;
+                        font-weight: 700; font-size: 0.9rem; cursor: pointer; transition: 0.2s;
+                        display: flex; align-items: center; justify-content: center; gap: 8px;
+                        margin-top: 12px;
+                    }
+
+                    .btn-delete-account:hover { background: #FEF2F2; border-color: #DC2626; }
                 `}</style>
 
                 <div className="main-card">
@@ -330,6 +340,19 @@ export default function PerfilLoja() {
                                             : <>Salvar Alterações <FaSave /></>
                                     )}
                                 </button>
+                            </div>
+
+                            <div className="mt-5">
+                                {/* EXCLUIR CONTA */}
+                                {!isOnboarding && (
+                                <button
+                                    type="button"
+                                    className="btn-delete-account"
+                                    onClick={() => navigate('/conta/excluir')}
+                                >
+                                    <FaTrash size={14} /> Excluir minha conta
+                                </button>
+                                )}
                             </div>
                         </div>
                     </Form>

@@ -1,15 +1,19 @@
 import { useState, useEffect } from 'react';
 import { Container, Row, Col, Card, Button, Modal, Spinner, Badge, Form, InputGroup } from 'react-bootstrap';
 import api from '../services/api';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { 
   FaArrowLeft, FaMapMarkerAlt, FaStar, FaClock, FaCheckCircle, 
   FaChevronLeft, FaChevronRight, FaStore, FaCalendarDay, FaSearch 
 } from 'react-icons/fa';
+import { useAuth } from '../context/AuthContext';
 
 export default function ClienteDashboard() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { lojaId } = useParams();
+  const { user } = useAuth();
+  
   const lojaRecebida = location.state?.loja;
 
   const [loja, setLoja] = useState(lojaRecebida || null);
@@ -28,14 +32,27 @@ export default function ClienteDashboard() {
   const [agendando, setAgendando] = useState(false);
   const [horariosDisponiveis, setHorariosDisponiveis] = useState([]);
 
-  // 1. Proteção contra F5
+  // 1. Inicialização (Via State ou Via Link URL)
   useEffect(() => {
-    if (!lojaRecebida || !lojaRecebida.id) {
-      navigate('/vitrine'); 
-      return;
+    async function initLoja() {
+      if (lojaRecebida && lojaRecebida.id) {
+        setLoja(lojaRecebida);
+        loadServicos(lojaRecebida.id);
+      } else if (lojaId) {
+        try {
+          const response = await api.get(`/auth/empreendedores/${lojaId}/`);
+          setLoja(response.data);
+          loadServicos(lojaId);
+        } catch (error) {
+          console.error("Erro ao carregar loja do link:", error);
+          navigate('/vitrine');
+        }
+      } else {
+        navigate('/vitrine');
+      }
     }
-    loadServicos();
-  }, [lojaRecebida]);
+    initLoja();
+  }, [lojaRecebida, lojaId]);
 
   // Carrega horários
   useEffect(() => {
@@ -66,7 +83,7 @@ export default function ClienteDashboard() {
     }
   }
 
-  async function loadServicos() {
+  async function loadServicos(targetLojaId) {
     try {
       const response = await api.get('/servicos/');
       const todos = response.data || [];
@@ -74,7 +91,7 @@ export default function ClienteDashboard() {
       const filtrados = todos.filter(s => {
           const idDono = s.criado_por || s.empreendedor || s.user;
           const idFinal = (typeof idDono === 'object' && idDono !== null) ? idDono.id : idDono;
-          return String(idFinal) === String(lojaRecebida.id);
+          return String(idFinal) === String(targetLojaId);
       });
       
       setServicos(filtrados);
@@ -116,6 +133,11 @@ export default function ClienteDashboard() {
   };
 
   const handleConfirmarAgendamento = async () => {
+      if (!user) {
+          navigate('/login');
+          return;
+      }
+
       if(!horaSelecionada) return;
       setAgendando(true);
       
@@ -126,7 +148,7 @@ export default function ClienteDashboard() {
 
       try {
           await api.post('/agendamentos/', {
-              empreendedor: lojaRecebida.id, 
+              empreendedor: loja.id, 
               servicos: [servicoSelecionado.id],
               data_hora_inicio: dataHoraFinal
           });

@@ -29,10 +29,16 @@ class Agendamento(models.Model):
         max_length=100, blank=True, null=True,
         verbose_name="Nome do cliente (sem conta)"
     )
+    cliente_telefone_avulso = models.CharField(
+        max_length=20, blank=True, null=True,
+        verbose_name="Telefone do cliente (sem conta)"
+    )
 
     servicos = models.ManyToManyField(Servico, related_name='agendamentos')
     data_hora_inicio = models.DateTimeField()
     data_hora_fim = models.DateTimeField(blank=True, null=True)
+    hora_fim_real = models.DateTimeField(blank=True, null=True, verbose_name="Término Real")
+    duracao_real_segundos = models.IntegerField(blank=True, null=True, verbose_name="Duração Real (s)")
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='PENDENTE')
     criado_em = models.DateTimeField(auto_now_add=True)
     observacoes = models.TextField(blank=True, null=True)
