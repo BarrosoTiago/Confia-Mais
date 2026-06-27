@@ -27,7 +27,6 @@ export default function Despesas() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategoria, setFilterCategoria] = useState('TODOS');
 
-  // Estado do Formulário
   const [formData, setFormData] = useState({
     id: null,
     descricao: '',
@@ -43,7 +42,8 @@ export default function Despesas() {
   async function fetchDadosPeriodo() {
     try {
       setLoading(true);
-      const response = await api.get(`/api/financeiro/despesas-periodo/?periodo=${periodoAtivo}`);
+      // CORREÇÃO 1: removido prefixo /api/ duplicado
+      const response = await api.get(`/financeiro/despesas-periodo/?periodo=${periodoAtivo}`);
       if (response.data) {
         setDadosPeriodo(response.data);
       }
@@ -57,9 +57,9 @@ export default function Despesas() {
   const money = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
   
   const formatDate = (dateString) => {
-      if(!dateString) return '-';
-      const date = new Date(dateString);
-      return date.toLocaleDateString('pt-BR', {timeZone: 'UTC'});
+    if (!dateString) return '-';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
   };
 
   const getTituloDinamico = () => {
@@ -72,19 +72,25 @@ export default function Despesas() {
     }
   };
 
-  // Modal Actions
   const handleShowAdd = () => {
-    setFormData({ id: null, descricao: '', valor: '', data_despesa: new Date().toISOString().split('T')[0], categoria: 'FIXA' });
+    setFormData({
+      id: null,
+      descricao: '',
+      valor: '',
+      data_despesa: new Date().toISOString().split('T')[0],
+      categoria: 'FIXA'
+    });
     setShowModal(true);
   };
 
+  // CORREÇÃO 2: serializer retorna o campo como 'data', não 'data_despesa'
   const handleShowEdit = (item) => {
     setFormData({
-        id: item.id,
-        descricao: item.descricao,
-        valor: item.valor,
-        data_despesa: item.data_despesa, 
-        categoria: item.categoria || 'FIXA'
+      id: item.id,
+      descricao: item.descricao,
+      valor: item.valor,
+      data_despesa: item.data,
+      categoria: item.categoria || 'FIXA'
     });
     setShowModal(true);
   };
@@ -92,13 +98,21 @@ export default function Despesas() {
   async function handleSubmit(e) {
     e.preventDefault();
     try {
+      // CORREÇÃO 3: serializer espera o campo como 'data', não 'data_despesa'
+      const payload = {
+        descricao: formData.descricao,
+        valor: formData.valor,
+        data: formData.data_despesa,
+        categoria: formData.categoria,
+      };
+
       if (formData.id) {
-        await api.put(`/despesas/${formData.id}/`, formData);
+        await api.put(`/despesas/${formData.id}/`, payload);
       } else {
-        await api.post('/despesas/', formData);
+        await api.post('/despesas/', payload);
       }
       setShowModal(false);
-      fetchDadosPeriodo(); 
+      fetchDadosPeriodo();
     } catch (error) {
       alert("Erro ao salvar despesa.");
     }
@@ -114,7 +128,6 @@ export default function Despesas() {
     }
   }
 
-  // 1. FILTRAGEM SIMULTÂNEA DA TABELA
   const despesasFiltradas = (dadosPeriodo.despesas || []).filter(d => {
     const term = searchTerm.toLowerCase();
     const desc = d.descricao.toLowerCase();
@@ -123,11 +136,9 @@ export default function Despesas() {
     return matchesSearch && matchesCat;
   });
 
-  // 2. CÁLCULO DOS CARDS DINÂMICOS BASEADO NO FILTRO ATUAL
   const totalFiltradoAcumulado = despesasFiltradas.reduce((acc, curr) => acc + curr.valor, 0);
   const quantidadeFiltrada = despesasFiltradas.length;
 
-  // 3. RECONSTRUÇÃO DINÂMICA DO GRÁFICO BASEADO NO FILTRO SELECIONADO
   const getDadosGraficoFiltrados = () => {
     if (filterCategoria === 'TODOS' && searchTerm === '') {
       return dadosPeriodo.dados_grafico || [];
@@ -153,7 +164,7 @@ export default function Despesas() {
       } else if (periodoAtivo === 'ano') {
         const meses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
         chave = meses[dtDespesa.getUTCMonth()];
-      } else { 
+      } else {
         const diaDoMes = dtDespesa.getUTCDate();
         if (diaDoMes <= 7) chave = 'Semana 1';
         else if (diaDoMes <= 14) chave = 'Semana 2';
@@ -260,7 +271,6 @@ export default function Despesas() {
         `}</style>
 
         <div className="container-limit">
-          {/* Cabeçalho Superior */}
           <div className="custom-header">
             <div className="header-left-side">
               <button className="btn-back-dashboard" onClick={() => navigate('/admin-dashboard')} title="Voltar ao Painel">
@@ -272,7 +282,6 @@ export default function Despesas() {
               </div>
             </div>
 
-            {/* Abas de Período e Ações */}
             <div className="d-flex align-items-center gap-3 flex-wrap">
               <div className="tabs-periodo">
                 <button className={`btn-tab ${periodoAtivo === 'dia' ? 'active' : ''}`} onClick={() => setPeriodoAtivo('dia')}>Dia</button>
@@ -292,7 +301,6 @@ export default function Despesas() {
             </div>
           ) : (
             <>
-              {/* Painel Gráfico */}
               <div className="chart-panel">
                 <h3>Evolução de Custos no Período</h3>
                 <div style={{ width: '100%', height: 240 }}>
@@ -314,7 +322,6 @@ export default function Despesas() {
                 </div>
               </div>
 
-              {/* Grid de Métricas Rápidas */}
               <div className="stats-grid">
                 <div className="mini-stat-card theme-red">
                   <div className="mini-icon-circle"><FaMoneyBillWave /></div>
@@ -332,7 +339,6 @@ export default function Despesas() {
                 </div>
               </div>
 
-              {/* Barra de Filtros Rápidos */}
               <div className="filters-panel">
                 <Row className="g-3">
                   <Col md={8}>
@@ -365,7 +371,6 @@ export default function Despesas() {
                 </Row>
               </div>
 
-              {/* Tabela Analítica */}
               <div className="table-panel">
                 <Table responsive className="clean-table m-0">
                   <thead>
@@ -390,7 +395,7 @@ export default function Despesas() {
                           <td>
                             <div className="date-cell">
                               <FaCalendarDay className="text-muted" />
-                              {formatDate(item.data_despesa)}
+                              {formatDate(item.data)}
                             </div>
                           </td>
                           <td><span className="desc-text">{item.descricao}</span></td>
@@ -421,7 +426,6 @@ export default function Despesas() {
         </div>
       </div>
 
-      {/* Modal de Cadastro e Edição */}
       <Modal show={showModal} onHide={() => setShowModal(false)} centered>
         <Modal.Header closeButton className="modal-clean-header">
           <Modal.Title style={{ fontFamily: 'Libre Baskerville', fontWeight: 700, fontSize: '1.3rem' }}>

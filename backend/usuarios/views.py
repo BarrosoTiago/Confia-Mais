@@ -14,7 +14,7 @@ class UserMeView(APIView):
         # Lógica de redirecionamento:
         # Se for ADMIN e NÃO tiver nenhum horário de funcionamento cadastrado...
         deve_configurar_horarios = False
-        if user.tipo_usuario == 'ADMIN':
+        if user.tipo_usuario in ['EMPREENDEDOR', 'ADMIN']:
             # Verificamos se existe algum registro na tabela HorarioFuncionamento para este user
             if not user.horarios_funcionamento.exists():
                 deve_configurar_horarios = True

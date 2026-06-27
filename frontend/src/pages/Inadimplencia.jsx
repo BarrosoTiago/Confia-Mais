@@ -54,11 +54,21 @@ export default function Inadimplencia() {
         );
     }
 
-    // Dados para o gráfico de barras (Dias de atraso por cliente)
-    const chartData = inadimplentes.map(item => ({
-        Nome: item.cliente.split(' ')[0], // Apenas o primeiro nome para não quebrar o layout
-        'Valor Devido': item.valor,
-        'Dias de Atraso': item.diasAtraso
+    // 1. Agrupamento por Cliente (Volume Total Retido)
+    const totalPorCliente = inadimplentes.reduce((acc, item) => {
+        const nomeCurto = item.cliente.split(' ')[0];
+        if (!acc[nomeCurto]) {
+            acc[nomeCurto] = { Nome: nomeCurto, 'Volume Total': 0 };
+        }
+        acc[nomeCurto]['Volume Total'] += item.valor;
+        return acc;
+    }, {});
+    const chartDataClientes = Object.values(totalPorCliente);
+
+    // 2. Volume retido por Serviço/Cliente
+    const chartDataServicos = inadimplentes.map(item => ({
+        Label: `${item.cliente.split(' ')[0]} - ${item.servico}`,
+        'Valor': item.valor
     }));
 
     return (
@@ -244,19 +254,38 @@ export default function Inadimplencia() {
                         </Table>
                     </div>
 
-                    {/* COLUNA DA DIREITA: GRÁFICO DO RECHARTS */}
-                    <div className="chart-panel">
-                        <div className="chart-title">Volume Retido por Cliente</div>
-                        <div style={{ width: '100%', height: 260 }}>
-                            <ResponsiveContainer>
-                                <BarChart data={chartData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
-                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
-                                    <XAxis dataKey="Nome" tick={{ fill: '#64748B', fontSize: 11 }} axisLine={false} tickLine={false} />
-                                    <YAxis tick={{ fill: '#64748B', fontSize: 11 }} axisLine={false} tickLine={false} />
-                                    <Tooltip formatter={(value) => formatMoney(value)} />
-                                    <Bar dataKey="Valor Devido" fill="#DC2626" radius={[4, 4, 0, 0]} barSize={25} />
-                                </BarChart>
-                            </ResponsiveContainer>
+                    {/* COLUNA DA DIREITA: GRÁFICOS DO RECHARTS */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                        {/* Gráfico 1: Volume Total por Cliente */}
+                        <div className="chart-panel">
+                            <div className="chart-title">Volume Total Retido por Cliente</div>
+                            <div style={{ width: '100%', height: 200 }}>
+                                <ResponsiveContainer>
+                                    <BarChart data={chartDataClientes} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
+                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
+                                        <XAxis dataKey="Nome" tick={{ fill: '#64748B', fontSize: 11 }} axisLine={false} tickLine={false} />
+                                        <YAxis tick={{ fill: '#64748B', fontSize: 11 }} axisLine={false} tickLine={false} />
+                                        <Tooltip formatter={(value) => formatMoney(value)} />
+                                        <Bar dataKey="Volume Total" fill="#DC2626" radius={[4, 4, 0, 0]} barSize={25} />
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            </div>
+                        </div>
+
+                        {/* Gráfico 2: Volume por Serviço */}
+                        <div className="chart-panel">
+                            <div className="chart-title">Volume por Serviço / Cliente</div>
+                            <div style={{ width: '100%', height: 200 }}>
+                                <ResponsiveContainer>
+                                    <BarChart data={chartDataServicos} margin={{ top: 10, right: 10, left: -25, bottom: 10 }}>
+                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
+                                        <XAxis dataKey="Label" tick={{ fill: '#64748B', fontSize: 9 }} axisLine={false} tickLine={false} interval={0} angle={-10} textAnchor="end" />
+                                        <YAxis tick={{ fill: '#64748B', fontSize: 11 }} axisLine={false} tickLine={false} />
+                                        <Tooltip formatter={(value) => formatMoney(value)} />
+                                        <Bar dataKey="Valor" fill="#E11D48" radius={[4, 4, 0, 0]} barSize={20} />
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            </div>
                         </div>
                     </div>
 

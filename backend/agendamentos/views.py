@@ -179,12 +179,13 @@ class HorarioDisponivelView(APIView):
             return Response([])
 
         from django.utils import timezone
+
         slots = []
-        atual = timezone.make_aware(datetime.combine(data_obj, config.horario_inicio))
-        fim_dia = timezone.make_aware(datetime.combine(data_obj, config.horario_fim))
+        atual = datetime.combine(data_obj, config.horario_inicio)
+        fim_dia = datetime.combine(data_obj, config.horario_fim)
         
-        almoco_ini = timezone.make_aware(datetime.combine(data_obj, config.almoco_inicio)) if config.almoco_inicio else None
-        almoco_fim = timezone.make_aware(datetime.combine(data_obj, config.almoco_fim)) if config.almoco_fim else None
+        almoco_ini = datetime.combine(data_obj, config.almoco_inicio) if config.almoco_inicio else None
+        almoco_fim = datetime.combine(data_obj, config.almoco_fim) if config.almoco_fim else None
 
         # Otimização de queries acopladas usando filtros diretos na base de dados
         agendamentos_conflitantes = Agendamento.objects.filter(

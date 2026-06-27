@@ -38,7 +38,8 @@ class ServicoViewSet(viewsets.ModelViewSet):
             return Servico.objects.filter(criado_por_id=empreendedor_id, ativo=True)
 
         # 2. Visão do Empreendedor (ADMIN logado no seu painel)
-        if user.is_authenticated and getattr(user, 'tipo_usuario', None) == 'ADMIN':
+        # Garante que o serviço seja sempre vinculado ao Empreendedor que o criou
+        if user.is_authenticated and getattr(user, 'tipo_usuario', None) in ['EMPREENDEDOR', 'ADMIN']:
             return Servico.objects.filter(criado_por=user)
         
         # 3. Visão Geral (FallBack)
