@@ -1,11 +1,11 @@
 import paho.mqtt.client as mqtt
 import ssl
 
-# Configurações do Broker HiveMQ
-MQTT_BROKER = "c7a51f5e5b0142c999d2b47cc1f0bf6d.s1.eu.hivemq.cloud"
-MQTT_PORT = 8883
-MQTT_USER = "esp32-painek"  # ou esp32-painel
-MQTT_PASS = "Confia05*"
+# Configurações do Broker EMQX (Público e sem bloqueios)
+MQTT_BROKER = "broker.emqx.io"
+MQTT_PORT = 1883
+MQTT_USER = "" 
+MQTT_PASS = ""
 
 def on_connect(client, userdata, flags, rc):
     if rc == 0:
@@ -34,11 +34,13 @@ def on_message(client, userdata, msg):
 
 # Configuração do Cliente MQTT
 client = mqtt.Client(client_id="simulador-esp32", protocol=mqtt.MQTTv311)
-client.username_pw_set(MQTT_USER, MQTT_PASS)
+if MQTT_USER:
+    client.username_pw_set(MQTT_USER, MQTT_PASS)
 
-# Configuração de TLS para HiveMQ Cloud
-client.tls_set(cert_reqs=ssl.CERT_NONE)
-client.tls_insecure_set(True)
+# Configuração de TLS apenas se usar 8883
+if MQTT_PORT == 8883:
+    client.tls_set(cert_reqs=ssl.CERT_NONE)
+    client.tls_insecure_set(True)
 
 client.on_connect = on_connect
 client.on_message = on_message
