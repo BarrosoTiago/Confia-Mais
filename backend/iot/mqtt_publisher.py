@@ -29,19 +29,14 @@ def _publicar(topico: str, payload: str, qos: int = 1, retain: bool = False):
         
         # O Paho fará tudo sozinho: Conectar, Autenticar, Enviar, Esperar ACK e Desconectar.
         # Sem threads em background, sem sockets zumbis!
-        mqtt_publish.single(
-            topic=topico,
-            payload=payload,
-            qos=qos,
-            retain=retain,
-            hostname=MQTT_BROKER,
-            port=MQTT_PORT,
-            client_id=client_id_temp,
-            auth=auth,
-            # No Python (diferente do ESP32) não precisamos desativar certificados Let's Encrypt
-            tls={'tls_version': ssl.PROTOCOL_TLS},
-            protocol=mqtt.MQTTv311
-        )
+        # Usando a conexão persistente já testada no mqtt_client.py
+        from .mqtt_client import get_mqtt_client
+        client = get_mqtt_client()
+        result = client.publish(topico, payload, qos=qos, retain=retain)
+        if result.rc == 0:
+             logger.info(f"[MQTT] Publish síncrono enviado para o buffer do Paho. rc={result.rc}")
+        else:
+             logger.warning(f"[MQTT] Falha ao adicionar no buffer Paho. rc={result.rc}")
         logger.info(f"[MQTT] SUCESSO ABSOLUTO! Mensagem '{topico}' entregue ao HiveMQ.")
         
     except Exception as e:
