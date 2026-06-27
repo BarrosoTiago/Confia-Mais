@@ -33,7 +33,10 @@ def _publicar(topico: str, payload: str, qos: int = 1, retain: bool = False):
         from .mqtt_client import get_mqtt_client
         client = get_mqtt_client()
         result = client.publish(topico, payload, qos=qos, retain=retain)
-        if result.rc == 0:
+        # Força o bloqueio até a mensagem sair fisicamente da máquina do Render
+        result.wait_for_publish(timeout=2.0)
+        
+        if result.is_published():
              logger.info(f"[MQTT] Publish síncrono enviado para o buffer do Paho. rc={result.rc}")
         else:
              logger.warning(f"[MQTT] Falha ao adicionar no buffer Paho. rc={result.rc}")
