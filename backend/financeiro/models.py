@@ -30,6 +30,7 @@ class Despesa(models.Model):
     valor = models.DecimalField(max_digits=10, decimal_places=2)
     data_despesa = models.DateField()
     categoria = models.CharField(max_length=50, blank=True, null=True) # Ex: Fixo, Variável
+    pago = models.BooleanField(default=False, verbose_name="Pago")
 
     def __str__(self):
         return f"{self.descricao} - R$ {self.valor}"

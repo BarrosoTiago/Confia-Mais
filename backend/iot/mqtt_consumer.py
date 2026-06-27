@@ -21,9 +21,6 @@ TOPICO_SERVICO_INICIO = "confia/servico/inicio"
 TOPICO_PAGAMENTO_CONCLUSAO = "confia/pagamento/conclusao"  # agora = "parcela"
 TOPICO_SERVICO_CANCELAR = "confia/servico/cancelar"
 
-EMPREENDEDOR_ID_PROTOTIPO = 1
-
-
 def _buscar_contexto_ativo(empreendedor_id: int):
     return AtendimentoAtivo.objects.filter(
         empreendedor_id=empreendedor_id, is_ativo=True
@@ -57,25 +54,25 @@ def _on_message(client, userdata, msg):
             _processar_parcela_pagamento(payload)  # RENOMEADO conceitualmente
         elif topico == TOPICO_SERVICO_CANCELAR:
             _processar_cancelamento(payload)
-    except Exception:
+    except Exception as e:
         logger.exception(f"Erro ao processar mensagem do tópico {topico}")
-        publicar_alerta(EMPREENDEDOR_ID_PROTOTIPO, "Erro no servidor")
-
+        # Apenas logamos o erro, não enviamos alerta pois não sabemos de quem é sem fazer parse seguro
+        pass
 
 def _processar_inicio_servico(payload: dict):
-    contexto = _buscar_contexto_ativo(EMPREENDEDOR_ID_PROTOTIPO)
+    emp_id = payload.get("empreendedor_id", 1)
+    contexto = _buscar_contexto_ativo(emp_id)
 
     if not contexto:
         logger.warning("Inicio recebido sem AtendimentoAtivo definido!")
-        publicar_alerta(EMPREENDEDOR_ID_PROTOTIPO, "Selecione um cliente")
+        publicar_alerta(emp_id, "Selecione um cliente")
         return
 
     if contexto.agendamento:
         agendamento = contexto.agendamento
-        agendamento.status = "EM_ATENDIMENTO"
-        agendamento.hora_inicio_real = timezone.now()
-        agendamento.save(update_fields=["status", "hora_inicio_real"])
-        logger.info(f"Agendamento {agendamento.id} → EM_ATENDIMENTO")
+        agendamento.status = "CONFIRMADO"
+        agendamento.save(update_fields=["status"])
+        logger.info(f"Agendamento {agendamento.id} → CONFIRMADO")
 
 
 def _processar_parcela_pagamento(payload: dict):
@@ -90,17 +87,28 @@ def _processar_parcela_pagamento(payload: dict):
     """
     from financeiro.models import Pagamento, Transacao
 
-    contexto = _buscar_contexto_ativo(EMPREENDEDOR_ID_PROTOTIPO)
+    emp_id = payload.get("empreendedor_id", 1)
+    contexto = _buscar_contexto_ativo(emp_id)
 
     if not contexto:
         logger.warning("Pagamento recebido sem AtendimentoAtivo definido!")
-        publicar_alerta(EMPREENDEDOR_ID_PROTOTIPO, "Contexto perdido")
+        publicar_alerta(emp_id, "Contexto perdido")
         return
 
     forma = payload.get("forma")
     valor_parcela = Decimal(str(payload.get("valor", 0.0)))
     duracao_segundos = payload.get("duracao_segundos", 0)
     status_pagamento = payload.get("status_pagamento", "PAGO")
+
+    # REGRA DE NEGÓCIO: Clientes avulsos não podem ter opção de Fiado
+    if forma == "FIADO":
+        if not contexto.agendamento or not contexto.agendamento.cliente:
+            logger.warning(f"Tentativa de FIADO bloqueada para cliente avulso: {emp_id}")
+            publicar_alerta(emp_id, "Erro: Cliente Avulso (Sem Fiado)")
+            # Emite evento de 'falta pagar' para forçar o painel a pedir outra forma de pagamento
+            restante = contexto.valor_total_esperado - float(contexto.valor_acumulado) if contexto.valor_total_esperado else 0
+            publicar_falta_pagar(emp_id, restante)
+            return
 
     with db_transaction.atomic():
         # 1) Atualiza o acumulado do contexto
@@ -125,7 +133,6 @@ def _processar_parcela_pagamento(payload: dict):
         )
 
         # 4) Registra o pagamento na tabela financeira principal
-        # CORREÇÃO APLICADA: valor_pago virou valor, observacoes virou observacao
         Pagamento.objects.create(
             transacao=transacao,
             valor=valor_parcela if status_pagamento == "PAGO" else 0,
@@ -150,7 +157,7 @@ def _processar_parcela_pagamento(payload: dict):
         else:
             # Ainda falta pagar — mantém o painel "aguardando mais parcelas"
             restante = contexto.valor_restante
-            publicar_falta_pagar(EMPREENDEDOR_ID_PROTOTIPO, restante)
+            publicar_falta_pagar(emp_id, restante)
             logger.info(f"Aguardando mais parcelas — falta R$ {restante}")
 
 
@@ -166,9 +173,7 @@ def _finalizar_atendimento(contexto, transacao, duracao_segundos, ultimo_status_
         agendamento.status = "CONCLUIDO"
         agendamento.hora_fim_real = timezone.now()
         agendamento.duracao_real_segundos = duracao_segundos
-        agendamento.save(update_fields=[
-            "status", "hora_fim_real", "duracao_real_segundos"
-        ])
+        agendamento.save(update_fields=["status", "hora_fim_real", "duracao_real_segundos"])
 
     transacao.status_pagamento = ultimo_status_pagamento  # PAGO ou PENDENTE
     transacao.valor_total = contexto.valor_acumulado  # ajusta ao que foi de fato pago
@@ -178,7 +183,7 @@ def _finalizar_atendimento(contexto, transacao, duracao_segundos, ultimo_status_
     contexto.finalizado_em = timezone.now()
     contexto.save(update_fields=["is_ativo", "finalizado_em"])
 
-    publicar_atendimento_limpo(EMPREENDEDOR_ID_PROTOTIPO)
+    publicar_atendimento_limpo(contexto.empreendedor_id)
 
     logger.info(
         f"Atendimento finalizado: {contexto.nome_cliente_exibicao} — "
@@ -188,13 +193,13 @@ def _finalizar_atendimento(contexto, transacao, duracao_segundos, ultimo_status_
 
 
 def _processar_cancelamento(payload: dict):
-    contexto = _buscar_contexto_ativo(EMPREENDEDOR_ID_PROTOTIPO)
+    emp_id = payload.get("empreendedor_id", 1)
+    contexto = _buscar_contexto_ativo(emp_id)
 
     if contexto and contexto.agendamento:
         agendamento = contexto.agendamento
         agendamento.status = "PENDENTE"
-        agendamento.hora_inicio_real = None
-        agendamento.save(update_fields=["status", "hora_inicio_real"])
+        agendamento.save(update_fields=["status"])
         logger.info(f"Agendamento {agendamento.id} revertido para PENDENTE")
 
 

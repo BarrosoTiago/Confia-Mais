@@ -29,6 +29,7 @@ def publicar_atendimento_ativo(
     nome_cliente: str,
     contexto_id: int,
     valor_total_esperado: float = None,
+    cliente_cadastrado: bool = False,
 ):
     nome_formatado = nome_cliente[:16] if nome_cliente else ""
     payload = json.dumps({
@@ -36,6 +37,7 @@ def publicar_atendimento_ativo(
         "nome_cliente": nome_formatado,
         "contexto_id": contexto_id,
         "valor_total": float(valor_total_esperado) if valor_total_esperado else 0.0,
+        "cliente_cadastrado": cliente_cadastrado,
     })
     _publicar(TOPICO_ATENDIMENTO_ATIVO, payload, retain=False)  # ← False por enquanto
 

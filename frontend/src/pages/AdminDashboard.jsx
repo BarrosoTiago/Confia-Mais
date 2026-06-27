@@ -15,7 +15,7 @@ import {
   FaSignOutAlt, FaExpandArrowsAlt, 
   FaCalendarAlt, FaMoneyBillWave, FaCheck, FaTimes, FaInfo, FaCircle,
   FaListOl, FaCalculator, FaStickyNote, FaHeart, FaRegCalendarCheck,
-  FaGripVertical, FaPen, FaArrowUp, FaFileInvoiceDollar, FaCog, FaChartPie
+  FaGripVertical, FaPen, FaArrowUp, FaFileInvoiceDollar, FaCog, FaChartPie, FaShareAlt, FaCopy
 } from 'react-icons/fa';
 import { IoMdClose } from 'react-icons/io';
 import { Spinner, Alert, Badge, Modal, Button } from 'react-bootstrap';
@@ -602,6 +602,16 @@ export default function AdminDashboard() {
       {/* HEADER SUPERIOR */}
       <div className="top-bar">
           <div className="d-flex gap-3">
+            <button 
+                className="btn-action-primary" 
+                onClick={() => {
+                    const link = `${window.location.origin}/loja/${user?.id}`;
+                    navigator.clipboard.writeText(link);
+                    alert("✅ Link da sua Loja Pública copiado para a área de transferência!\n\n" + link);
+                }}
+            >
+                <FaShareAlt size={14} /> Link Público
+            </button>
             {editMode ? (
                 <button className="btn-action-secondary" onClick={() => setEditMode(false)}>
                     <FaCheck /> Salvar Organização
@@ -653,6 +663,17 @@ export default function AdminDashboard() {
             <div className="menu-item" onClick={() => navigate('/admin/despesas')}><FaMoneyBillWave /> DESPESAS</div>
             <div className="menu-item" onClick={() => navigate('/admin/calculadora')}><FaCalculator /> CALCULADORA</div>
             <div className="menu-item" onClick={() => navigate('/admin/financeiro/saude-financeira')}><FaChartPie /> SAÚDE FINANCEIRA</div>
+            
+            <div className="menu-separator"></div>
+
+            <div className="menu-item" style={{color: '#002B55', fontWeight: 800}} onClick={() => {
+                const link = `${window.location.origin}/loja/${user?.id}`;
+                navigator.clipboard.writeText(link);
+                alert("✅ Link da sua Loja Pública copiado para a área de transferência!\n\n" + link);
+                setMenuOpen(false);
+            }}>
+                <FaShareAlt /> COPIAR MEU LINK
+            </div>
             
             <div className="entrepreneur-section" onClick={() => navigate('/admin/perfil')}>
                 <div className="logo-circle">

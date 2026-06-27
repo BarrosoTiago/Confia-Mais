@@ -48,6 +48,16 @@ class AgendamentoViewSet(viewsets.ModelViewSet):
         # CLIENTE vê apenas os próprios agendamentos
         return queryset.filter(cliente=user).distinct().order_by('-data_hora_inicio')
 
+    def create(self, request, *args, **kwargs):
+        try:
+            return super().create(request, *args, **kwargs)
+        except Exception as e:
+            print(f"❌ Erro ao criar agendamento: {e}")
+            return Response(
+                {"erro": "Falha ao processar o agendamento. Verifique se os dados estão corretos.", "detalhes": str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
     def perform_create(self, serializer):
         print("\n⏱️ ====== INÍCIO DO PROCESSO DE AGENDAMENTO ======")
         t_inicio = time.time()
@@ -72,6 +82,13 @@ class AgendamentoViewSet(viewsets.ModelViewSet):
             agendamento = serializer.save(cliente=user)
 
         print(f"⏱️ [Marcar 2] Banco de dados salvou o agendamento. Tempo decorrido: {time.time() - t_inicio:.4f}s")
+
+        # NOVO: Calcular data_hora_fim com base nos serviços selecionados
+        duracao_total = sum([s.duracao_minutos for s in agendamento.servicos.all()])
+        if duracao_total > 0:
+            agendamento.data_hora_fim = agendamento.data_hora_inicio + timedelta(minutes=duracao_total)
+            agendamento.save(update_fields=['data_hora_fim'])
+            print(f"⏱️ [Marcar 2.1] data_hora_fim calculada (+{duracao_total}m).")
 
         # Dispara o e-mail em uma thread separada (Não bloqueia o cliente/admin)
         try:
@@ -161,12 +178,13 @@ class HorarioDisponivelView(APIView):
         except:
             return Response([])
 
+        from django.utils import timezone
         slots = []
-        atual = datetime.combine(data_obj, config.horario_inicio)
-        fim_dia = datetime.combine(data_obj, config.horario_fim)
+        atual = timezone.make_aware(datetime.combine(data_obj, config.horario_inicio))
+        fim_dia = timezone.make_aware(datetime.combine(data_obj, config.horario_fim))
         
-        almoco_ini = datetime.combine(data_obj, config.almoco_inicio) if config.almoco_inicio else None
-        almoco_fim = datetime.combine(data_obj, config.almoco_fim) if config.almoco_fim else None
+        almoco_ini = timezone.make_aware(datetime.combine(data_obj, config.almoco_inicio)) if config.almoco_inicio else None
+        almoco_fim = timezone.make_aware(datetime.combine(data_obj, config.almoco_fim)) if config.almoco_fim else None
 
         # Otimização de queries acopladas usando filtros diretos na base de dados
         agendamentos_conflitantes = Agendamento.objects.filter(
@@ -186,7 +204,12 @@ class HorarioDisponivelView(APIView):
                 data_hora_fim__gt=atual
             ).exists()
 
-            if not eh_almoco and not conflito:
+            passado = False
+            hoje_agora = datetime.now()
+            if data_obj == hoje_agora.date() and atual.time() < hoje_agora.time():
+                passado = True
+
+            if not eh_almoco and not conflito and not passado:
                 slots.append(atual.strftime('%H:%M'))
             
             atual += timedelta(minutes=30)

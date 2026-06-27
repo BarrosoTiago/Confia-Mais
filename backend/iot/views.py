@@ -84,11 +84,16 @@ class SelecionarAtendimentoAtivoView(APIView):
         # ← LOGS para rastrear o publish
         logger.info(f"[VIEW] Chamando publicar_atendimento_ativo — empreendedor_id={empreendedor.id}, nome={nome_cliente}, valor={valor_total_esperado}")
         try:
+            is_cliente_cadastrado = False
+            if agendamento is not None and agendamento.cliente is not None:
+                is_cliente_cadastrado = True
+
             publicar_atendimento_ativo(
                 empreendedor_id=empreendedor.id,
                 nome_cliente=nome_cliente,
                 contexto_id=contexto.id,
                 valor_total_esperado=valor_total_esperado,
+                cliente_cadastrado=is_cliente_cadastrado,
             )
             logger.info(f"[VIEW] publicar_atendimento_ativo executado sem exceção")
         except Exception as e:
@@ -123,6 +128,8 @@ class CancelarAtendimentoAtivoView(APIView):
         ).update(is_ativo=False, finalizado_em=timezone.now())
 
         if atualizado:
+            from .mqtt_publisher import publicar_atendimento_limpo
+            publicar_atendimento_limpo(empreendedor.id)
             publicar_alerta(empreendedor.id, "Selecao cancelada")
             logger.info(f"[VIEW] Painel cancelado para user={empreendedor.id}")
 

@@ -58,11 +58,18 @@ class AgendamentoSerializer(serializers.ModelSerializer):
         status_pagamento = 'PENDENTE'
         data_ultima_confirmacao = None
 
-        if instance.status == 'CONFIRMADO':
+        historico_pagamentos = []
+        if instance.status in ['CONFIRMADO', 'CONCLUIDO']:
             # Só executa queries pesadas no banco se o agendamento já passou da fase pendente
-            transacao = Transacao.objects.filter(agendamento=instance).first()
+            transacao = Transacao.objects.filter(agendamento=instance).prefetch_related('pagamentos').first()
             if transacao:
                 total_pago = transacao.pagamentos.aggregate(Sum('valor'))['valor__sum'] or 0
+                for pag in transacao.pagamentos.all():
+                    historico_pagamentos.append({
+                        "forma_pagamento": pag.get_forma_pagamento_display() if hasattr(pag, 'get_forma_pagamento_display') else pag.forma_pagamento,
+                        "valor": float(pag.valor)
+                    })
+                
                 ultimo_pagamento = transacao.pagamentos.order_by('-data_pagamento').first()
                 if ultimo_pagamento:
                     data_ultima_confirmacao = ultimo_pagamento.data_pagamento
@@ -81,10 +88,13 @@ class AgendamentoSerializer(serializers.ModelSerializer):
         # Objeto financeiro injetado de forma segura e veloz
         representation['financeiro'] = {
             'total': float(total_servico),
-            'pago': float(total_pago),
+            'total_pago': float(total_pago),
             'restante': float(max(0, restante)),
             'status_pagamento': status_pagamento,
-            'data_confirmacao': data_ultima_confirmacao.isoformat() if data_ultima_confirmacao else None
+            'esta_pago': status_pagamento in ['QUITADO', 'PARCIAL', 'PAGO'],
+            'duracao_segundos': instance.duracao_real_segundos,
+            'data_confirmacao': data_ultima_confirmacao.isoformat() if data_ultima_confirmacao else None,
+            'historico': historico_pagamentos
         }
         
         # Detalhes dos serviços e do profissional
@@ -93,15 +103,19 @@ class AgendamentoSerializer(serializers.ModelSerializer):
                 "id": s.id, 
                 "nome": s.nome, 
                 "preco": float(s.preco),
+                "duracao_minutos": s.duracao_minutos,
                 "criado_por_nome": s.criado_por.nome_completo if s.criado_por else "Profissional"
             } for s in instance.servicos.all()
         ]
 
+        # Garantir o nome do cliente usando a property do modelo
+        representation['nome_cliente_formatado'] = instance.nome_cliente
         try:
             representation['cliente_nome'] = instance.cliente.nome_completo or instance.cliente.username
             representation['cliente_telefone'] = instance.cliente.telefone or ""
         except:
-            representation['cliente_nome'] = "Desconhecido"
+            representation['cliente_nome'] = instance.nome_cliente
+            representation['cliente_telefone'] = ""
             
             
         return representation
@@ -109,6 +123,22 @@ class AgendamentoSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         inicio = attrs.get('data_hora_inicio', getattr(self.instance, 'data_hora_inicio', None))
         servicos = attrs.get('servicos', None)
+        
+        # Mapeamento do request frontend para os campos avulsos (quando cliente=null)
+        request = self.context.get('request')
+        if request and 'cliente' not in attrs:
+            nome = request.data.get('cliente_nome')
+            telefone = request.data.get('cliente_telefone')
+            
+            # Limpa tudo que não for dígito do telefone (para garantir padronização na varredura)
+            if telefone:
+                import re
+                telefone = re.sub(r'\D', '', telefone)
+            
+            if nome:
+                attrs['cliente_nome_avulso'] = nome
+            if telefone:
+                attrs['cliente_telefone_avulso'] = telefone
         
         if servicos is None and self.instance:
             servicos_lista = self.instance.servicos.all()

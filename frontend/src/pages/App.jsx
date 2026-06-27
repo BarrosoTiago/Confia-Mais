@@ -178,17 +178,14 @@ export default function App() {
 
 
           {/* --- Rotas do CLIENTE --- */}
-          <Route path="/vitrine" element={
-            <PrivateRoute role="CLIENTE"><Vitrine /></PrivateRoute>
-          } />
+          <Route path="/vitrine" element={<Vitrine />} />
           
           <Route path="/meus-agendamentos" element={
             <PrivateRoute role="CLIENTE"><HistoricoGeral /></PrivateRoute>
           } />
 
-          <Route path="/cliente-dashboard" element={
-            <PrivateRoute role="CLIENTE"><ClienteDashboard /></PrivateRoute>
-          } />
+          {/* Rota Pública da Loja (Para compartilhamento de link e acesso vitrine) */}
+          <Route path="/loja/:lojaId" element={<ClienteDashboard />} />
 
           {/* Rota Padrão para 404 */}
           <Route path="*" element={<Navigate to="/" />} />

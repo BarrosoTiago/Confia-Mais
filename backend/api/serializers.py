@@ -144,16 +144,28 @@ class AgendamentoSerializer(serializers.ModelSerializer):
         try:
             from financeiro.models import Pagamento
             total_servicos = sum(s.preco for s in obj.servicos.all())
-            total_pago = Pagamento.objects.filter(transacao__agendamento=obj).aggregate(Sum('valor'))['valor__sum'] or 0
+            pagamentos = Pagamento.objects.filter(transacao__agendamento=obj)
+            total_pago = pagamentos.aggregate(Sum('valor'))['valor__sum'] or 0
+            
+            historico = []
+            for p in pagamentos:
+                historico.append({
+                    "forma_pagamento": p.forma_pagamento,
+                    "valor": float(p.valor),
+                    "data": p.data_pagamento.isoformat() if p.data_pagamento else None
+                })
             
             return {
                 "total_estimado": float(total_servicos),
                 "total_pago": float(total_pago),
                 "restante": float(max(0, total_servicos - total_pago)),
-                "esta_pago": total_pago >= total_servicos
+                "esta_pago": total_pago >= total_servicos,
+                "duracao_segundos": obj.duracao_real_segundos,
+                "historico": historico
             }
-        except Exception:
-            return {"total_estimado": 0, "total_pago": 0, "restante": 0, "esta_pago": False}
+        except Exception as e:
+            print(f"Erro no serializer financeiro: {e}")
+            return {"total_estimado": 0, "total_pago": 0, "restante": 0, "esta_pago": False, "duracao_segundos": None, "historico": []}
 
     def validate(self, attrs):
         inicio_solicitado = attrs.get('data_hora_inicio')
@@ -183,6 +195,26 @@ class AgendamentoSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         fim = validated_data.pop('data_hora_fim_calculado')
         servicos = validated_data.pop('servicos')
+        
+        # Criação de cliente on-the-fly se vier dados extras
+        telefone_avulso = self.initial_data.get('cliente_telefone_avulso', '')
+        email_avulso = self.initial_data.get('cliente_email_avulso', '')
+        
+        if telefone_avulso or email_avulso:
+            from usuarios.models import Cliente
+            nome_avulso = validated_data.get('cliente_nome_avulso', 'Cliente Sem Nome')
+            empreendedor_obj = validated_data.get('empreendedor') or (servicos[0].criado_por if servicos else None)
+            
+            if empreendedor_obj:
+                # Tenta achar se já existe, senão cria
+                cliente, created = Cliente.objects.get_or_create(
+                    telefone=telefone_avulso if telefone_avulso else None,
+                    email=email_avulso if email_avulso else None,
+                    defaults={'nome': nome_avulso, 'empreendedor': empreendedor_obj}
+                )
+                validated_data['cliente'] = cliente
+                validated_data['cliente_nome_avulso'] = ''
+        
         agendamento = Agendamento.objects.create(data_hora_fim=fim, **validated_data)
         agendamento.servicos.set(servicos)
         

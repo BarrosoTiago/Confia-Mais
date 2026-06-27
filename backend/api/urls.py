@@ -44,6 +44,7 @@ from .views import (
     LogoutView, 
     ClienteListView, 
     EmpreendedorListView, 
+    EmpreendedorDetailView,
     ServicoViewSet, 
     HorarioConfigViewSet,
     DashboardView,
@@ -57,6 +58,7 @@ router = DefaultRouter()
 # Rotas de Negócio (Agendamentos)
 router.register(r'agendamentos', AgendamentoViewSet, basename='agendamento')
 router.register(r'horarios', HorarioViewSet, basename='horario')
+router.register(r'horarios-config', HorarioConfigViewSet, basename='horario-config')
 router.register(r'anotacoes', AnotacaoViewSet, basename='anotacao')
 
 # Rotas Financeiras
@@ -96,6 +98,7 @@ urlpatterns = [
     # --- LISTAS AUXILIARES ---
     path('auth/clientes/', ClienteListView.as_view(), name='clientes_list'),
     path('auth/empreendedores/', EmpreendedorListView.as_view(), name='empreendedores_list'),
+    path('auth/empreendedores/<int:pk>/', EmpreendedorDetailView.as_view(), name='empreendedor_detail'),
 
     # --- SENHA (ROTAS NOVAS CORRIGIDAS) 🔐 ---
     path('recuperar-senha/solicitar/', SolicitarRecuperacaoSenhaView.as_view(), name='solicitar-recuperacao'),
