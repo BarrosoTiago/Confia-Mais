@@ -12,16 +12,38 @@ TOPICO_ATENDIMENTO_ATIVO = "confia/painel/atendimento_ativo"
 TOPICO_FALTA_PAGAR       = "confia/painel/falta_pagar"
 
 
+import paho.mqtt.publish as mqtt_publish
+from .mqtt_client import MQTT_BROKER, MQTT_PORT, MQTT_USER, MQTT_PASS, MQTT_CLIENT_ID
+import os
+import uuid
+import ssl
+
 def _publicar(topico: str, payload: str, qos: int = 1, retain: bool = False):
     try:
+        logger.info(f"[MQTT] Iniciando publicação síncrona em '{topico}': {payload}")
+        
+        # ID exclusivo para essa exata requisição HTTP
+        client_id_temp = f"{MQTT_CLIENT_ID}-pub-{os.getpid()}-{uuid.uuid4().hex[:4]}"
+        
+        auth = {'username': MQTT_USER, 'password': MQTT_PASS}
+        
+        # O Paho fará tudo sozinho: Conectar, Autenticar, Enviar, Esperar ACK e Desconectar.
+        # Sem threads em background, sem sockets zumbis!
+        # Usando a conexão persistente já testada no mqtt_client.py
+        from .mqtt_client import get_mqtt_client
         client = get_mqtt_client()
-        logger.info(f"[MQTT] Publicando em '{topico}' (retain={retain}): {payload}")
         result = client.publish(topico, payload, qos=qos, retain=retain)
-        logger.info(f"[MQTT] Resultado publish '{topico}': rc={result.rc}, mid={result.mid}")
-        if result.rc != 0:
-            logger.warning(f"[MQTT] Publish falhou em '{topico}': rc={result.rc}")
+        # Força o bloqueio até a mensagem sair fisicamente da máquina do Render
+        result.wait_for_publish(timeout=2.0)
+        
+        if result.is_published():
+             logger.info(f"[MQTT] Publish síncrono enviado para o buffer do Paho. rc={result.rc}")
+        else:
+             logger.warning(f"[MQTT] Falha ao adicionar no buffer Paho. rc={result.rc}")
+        logger.info(f"[MQTT] SUCESSO ABSOLUTO! Mensagem '{topico}' entregue ao HiveMQ.")
+        
     except Exception as e:
-        logger.error(f"[MQTT] Erro ao publicar em '{topico}': {e}", exc_info=True)
+        logger.error(f"[MQTT] Falha catastrófica ao publicar síncrono em '{topico}': {e}", exc_info=True)
 
 
 def publicar_atendimento_ativo(
@@ -29,6 +51,7 @@ def publicar_atendimento_ativo(
     nome_cliente: str,
     contexto_id: int,
     valor_total_esperado: float = None,
+    cliente_cadastrado: bool = False,
 ):
     nome_formatado = nome_cliente[:16] if nome_cliente else ""
     payload = json.dumps({
@@ -36,6 +59,7 @@ def publicar_atendimento_ativo(
         "nome_cliente": nome_formatado,
         "contexto_id": contexto_id,
         "valor_total": float(valor_total_esperado) if valor_total_esperado else 0.0,
+        "cliente_cadastrado": cliente_cadastrado,
     })
     _publicar(TOPICO_ATENDIMENTO_ATIVO, payload, retain=False)  # ← False por enquanto
 

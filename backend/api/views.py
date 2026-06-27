@@ -28,7 +28,7 @@ from .serializers import (
 
 try:
     from agendamentos.models import Agendamento, HorarioFuncionamento
-    from financeiro.models import Despesa
+    from financeiro.models import Despesa, Pagamento, Transacao
     from servicos.models import Servico
 except ImportError:
     pass
@@ -47,6 +47,17 @@ class UserRegistrationView(generics.CreateAPIView):
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
         
+        # 0. LÓGICA DE REIVINDICAÇÃO DE CONTA (Vínculo Mágico)
+        # Se o usuário informou um telefone, varremos agendamentos "avulsos" com esse telefone
+        if getattr(user, 'telefone', None):
+            import re
+            telefone_limpo = re.sub(r'\D', '', user.telefone)
+            # Vincula agendamentos que estão sem cliente e cujo telefone avulso bata
+            Agendamento.objects.filter(
+                cliente__isnull=True, 
+                cliente_telefone_avulso=telefone_limpo
+            ).update(cliente=user)
+
         # 1. Gera o código de 6 dígitos
         codigo = str(random.randint(100000, 999999))
         user.codigo_verificacao = codigo
@@ -227,6 +238,12 @@ class EmpreendedorListView(generics.ListAPIView):
     def get_queryset(self):
         return User.objects.filter(tipo_usuario='EMPREENDEDOR')
 
+class EmpreendedorDetailView(generics.RetrieveAPIView):
+    permission_classes = [permissions.AllowAny]
+    serializer_class = UserRegistrationSerializer
+    def get_queryset(self):
+        return User.objects.filter(tipo_usuario='EMPREENDEDOR')
+
 # --- 7. VIEWSETS DO ONBOARDING E VITRINE ---
 
 class ServicoViewSet(viewsets.ModelViewSet):
@@ -284,36 +301,37 @@ class DashboardView(APIView):
             foto_url = request.build_absolute_uri(user.foto.url)
 
         try:
-            entradas_mes_query = Agendamento.objects.filter(
-                servicos__criado_por=user,
-                status='CONCLUIDO',
-                data_hora_inicio__month=mes_atual,
-                data_hora_inicio__year=ano_atual
-            ).aggregate(total=Sum('servicos__preco'))
+            # 1. Entradas Mês (Baseado em Pagamentos Reais)
+            entradas_mes_query = Pagamento.objects.filter(
+                transacao__agendamento__servicos__criado_por=user,
+                data_pagamento__month=mes_atual,
+                data_pagamento__year=ano_atual
+            ).aggregate(total=Sum('valor'))
             entradas_mes = entradas_mes_query['total'] or 0.00
 
-            recebidos_hoje_query = Agendamento.objects.filter(
-                servicos__criado_por=user,
-                status='CONCLUIDO',
-                data_hora_inicio__date=hoje
-            ).aggregate(total=Sum('servicos__preco'))
+            # 2. Recebidos Hoje (Baseado em Pagamentos Reais)
+            recebidos_hoje_query = Pagamento.objects.filter(
+                transacao__agendamento__servicos__criado_por=user,
+                data_pagamento__date=hoje
+            ).aggregate(total=Sum('valor'))
             recebidos_hoje = recebidos_hoje_query['total'] or 0.00
 
-            a_receber_query = Agendamento.objects.filter(
-                servicos__criado_por=user,
-                status__in=['PENDENTE', 'CONFIRMADO']
-            ).aggregate(total=Sum('servicos__preco'))
-            a_receber = a_receber_query['total'] or 0.00
+            # 3. A Receber (Fiados Pendentes reais)
+            transacoes_pendentes = Transacao.objects.filter(
+                agendamento__servicos__criado_por=user,
+                status_pagamento__in=['PENDENTE', 'PARCIAL', 'EM_ABERTO']
+            )
+            a_receber = sum([(float(t.valor_total) - float(t.valor_pago)) for t in transacoes_pendentes])
 
-            clientes_pendentes = Agendamento.objects.filter(
-                servicos__criado_por=user,
-                status__in=['PENDENTE', 'CONFIRMADO']
-            ).values('cliente').distinct().count()
+            # 4. Clientes Pendentes (Baseado nas transações)
+            clientes_pendentes = transacoes_pendentes.values('agendamento__cliente').distinct().count()
 
+            # 5. Despesas do Mês
             despesas_query = Despesa.objects.filter(
                 usuario=user,
                 data_despesa__month=mes_atual,
-                data_despesa__year=ano_atual
+                data_despesa__year=ano_atual,
+                pago=True
             ).aggregate(total=Sum('valor'))
             despesas = despesas_query['total'] or 0.00
 
@@ -352,6 +370,7 @@ class DashboardView(APIView):
 
             return Response({
                 "perfil": {
+                    "id": user.id,
                     "nome": nome_usuario,
                     "foto": foto_url
                 },
@@ -363,7 +382,7 @@ class DashboardView(APIView):
                     "balanco_total": float(balanco_total),
                     "despesas": float(despesas)
                 },
-                "ultimos_agendamentos": ultimos_agendamentos_lista
+                "proximos_agendamentos": ultimos_agendamentos_lista
             })
 
         except Exception as e:

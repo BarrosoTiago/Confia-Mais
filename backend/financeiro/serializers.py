@@ -88,7 +88,7 @@ class DespesaSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Despesa
-        fields = ['id', 'descricao', 'valor', 'data', 'categoria', 'usuario']
+        fields = ['id', 'descricao', 'valor', 'data', 'categoria', 'usuario', 'pago']
         read_only_fields = ('usuario',)
 
 # --- SERIALIZER DA CALCULADORA (Mantenha como está) ---

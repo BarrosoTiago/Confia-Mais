@@ -3,7 +3,7 @@ import api from '../services/api';
 import { useNavigate } from 'react-router-dom';
 import { Container, Row, Col, Spinner, Navbar, Nav } from 'react-bootstrap';
 import { useAuth } from '../context/AuthContext';
-import { FaSearch, FaStore, FaMapMarkerAlt, FaStar, FaSignOutAlt, FaCalendarCheck, FaUserCog } from 'react-icons/fa';
+import { FaSearch, FaStore, FaMapMarkerAlt, FaStar, FaSignOutAlt, FaCalendarCheck, FaUserCog, FaSignInAlt } from 'react-icons/fa';
 
 // --- IMPORTAÇÃO DO LOGO ---
 // Certifique-se que o arquivo existe em src/assets/logotipo1.svg
@@ -16,7 +16,7 @@ export default function Vitrine() {
   const [busca, setBusca] = useState('');
   const [loading, setLoading] = useState(true);
   
-  const { logout } = useAuth();
+  const { user, logout } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -35,8 +35,7 @@ export default function Vitrine() {
 
   const handleEntrarLoja = (loja) => {
     // Passa o objeto completo para o dashboard carregar instantaneamente
-    // O ClienteDashboard deve estar preparado para receber o state: { loja }
-    navigate('/cliente-dashboard', { 
+    navigate(`/loja/${loja.id}`, { 
         state: { loja } 
     });
   };
@@ -88,6 +87,14 @@ export default function Vitrine() {
             display: flex; align-items: center; gap: 6px; 
         }
         .btn-logout:hover { background: #D32F2F; color: white; }
+
+        .btn-auth-vitrine {
+            background: #002B55; color: white; border: none; border-radius: 50px; 
+            padding: 8px 24px; font-weight: 700; font-size: 0.95rem; transition: 0.3s;
+            box-shadow: 0 4px 10px rgba(0,43,85,0.2);
+            display: flex; align-items: center; gap: 8px;
+        }
+        .btn-auth-vitrine:hover { background: #004e92; transform: translateY(-2px); box-shadow: 0 6px 15px rgba(0,43,85,0.3); color: white; }
 
         /* HERO SECTION COM DEGRADÊ ELEGANTE */
         .hero-section {
@@ -298,19 +305,23 @@ export default function Vitrine() {
           </Navbar.Brand>
 
           <Nav className="ms-auto flex-row align-items-center gap-4">
-             <button className="nav-btn-link" onClick={() => navigate('/meus-agendamentos')}>
-                <FaCalendarCheck size={18} /> <span className="d-none d-md-inline">Meus Agendamentos</span>
-             </button>
-             
-             {/* BOTÃO ADICIONADO: MINHA CONTA */}
-             <button className="nav-btn-link" onClick={() => navigate('/conta/configuracoes')}>
-                <FaUserCog size={18} /> <span className="d-none d-md-inline">Minha Conta</span>
-             </button>
-             {/* ------------------------------- */}
-
-             <button className="btn-logout" onClick={logout}>
-                <FaSignOutAlt /> Sair
-             </button>
+             {user ? (
+                 <>
+                     <button className="nav-btn-link" onClick={() => navigate('/meus-agendamentos')}>
+                        <FaCalendarCheck size={18} /> <span className="d-none d-md-inline">Meus Agendamentos</span>
+                     </button>
+                     <button className="nav-btn-link" onClick={() => navigate('/conta/configuracoes')}>
+                        <FaUserCog size={18} /> <span className="d-none d-md-inline">Minha Conta</span>
+                     </button>
+                     <button className="btn-logout" onClick={logout}>
+                        <FaSignOutAlt /> Sair
+                     </button>
+                 </>
+             ) : (
+                 <button className="btn-auth-vitrine" onClick={() => navigate('/login')}>
+                    <FaSignInAlt size={16} /> Entrar / Cadastrar
+                 </button>
+             )}
           </Nav>
         </Container>
       </Navbar>
@@ -318,8 +329,8 @@ export default function Vitrine() {
       {/* HERO SECTION */}
       <div className="hero-section">
         <Container>
-            <h1 className="hero-title">Beleza e Bem-estar ao seu alcance</h1>
-            <p className="hero-subtitle">Descubra e agende horários com os melhores profissionais da sua região.</p>
+            <h1 className="hero-title">Os Melhores Serviços ao Seu Alcance</h1>
+            <p className="hero-subtitle">Descubra, agende e confie nos melhores empreendedores e profissionais da sua região.</p>
         </Container>
       </div>
 
@@ -329,7 +340,7 @@ export default function Vitrine() {
             <FaSearch className="ms-2 text-muted opacity-50" />
             <input 
                 className="search-input" 
-                placeholder="Busque por barbearia, manicure, spa..." 
+                placeholder="Busque por serviços (ex: mecânica, barbearia, limpeza...)" 
                 value={busca}
                 onChange={(e) => setBusca(e.target.value)}
             />

@@ -49,10 +49,10 @@ class SaudeFinanceiraView(APIView):
         margem_contribuicao_estimada = Decimal('0.50') 
         ponto_equilibrio = custo_fixo_total / margem_contribuicao_estimada if custo_fixo_total > 0 else Decimal('0.00')
 
-        transacoes_pendentes = Transacao.objects.filter(
+        transacoes_pendentes = Transacao.objects.select_related('agendamento').filter(
             agendamento__servicos__criado_por=usuario,
             status_pagamento__in=['PENDENTE', 'PARCIAL']
-        )
+        ).distinct()
         
         total_pendente = sum([t.saldo_restante() for t in transacoes_pendentes])
         
@@ -373,8 +373,7 @@ class ClientesInadimplentesView(APIView):
         
         transacoes_pendentes = Transacao.objects.filter(
             agendamento__servicos__criado_por=usuario,
-            agendamento__status__in=['CONFIRMADO', 'CONCLUIDO'],
-            status_pagamento__in=['PENDENTE', 'PARCIAL']
+            status_pagamento__in=['PENDENTE', 'PARCIAL', 'EM_ABERTO']
         ).distinct().order_by('agendamento__data_hora_inicio')
         
         lista_inadimplentes = []
@@ -385,7 +384,7 @@ class ClientesInadimplentesView(APIView):
             agendamento = t.agendamento
             cliente = agendamento.cliente
             
-            if not agendamento or not cliente:
+            if not agendamento:
                 continue
                 
             data_servico = agendamento.data_hora_inicio.date()
@@ -402,17 +401,29 @@ class ClientesInadimplentesView(APIView):
                 
             nomes_servicos = ", ".join([s.nome for s in agendamento.servicos.all()])
             
-            telefone_cliente = getattr(cliente, 'telefone', '') or getattr(cliente, 'celular', '')
+            # Tratamento para Cliente Cadastrado vs Avulso
+            nome_cliente = 'Cliente Avulso'
+            telefone_cliente = ''
+            cliente_id_unico = f"avulso_{agendamento.id}"
+            
+            if cliente:
+                nome_cliente = cliente.nome_completo or cliente.get_full_name() or cliente.username
+                telefone_cliente = getattr(cliente, 'telefone', '') or getattr(cliente, 'celular', '')
+                cliente_id_unico = cliente.id
+            elif agendamento.cliente_nome_avulso:
+                nome_cliente = agendamento.cliente_nome_avulso
+                telefone_cliente = ''
+
             telefone_limpo = "".join(filter(str.isdigit, str(telefone_cliente)))
-            if not telefone_limpo.startswith('55') and len(telefone_limpo) >= 10:
+            if telefone_limpo and not telefone_limpo.startswith('55') and len(telefone_limpo) >= 10:
                 telefone_limpo = f"55{telefone_limpo}"
 
             total_devido_acumulado += valor_devido
-            clientes_unicos.add(cliente.id)
+            clientes_unicos.add(cliente_id_unico)
             
             lista_inadimplentes.append({
                 "id": t.id,
-                "cliente": cliente.nome_completo or cliente.get_full_name() or cliente.username,
+                "cliente": nome_cliente,
                 "servico": nomes_servicos,
                 "dataConclusao": data_servico.strftime('%d/%m/%Y'),
                 "diasAtraso": dias_atraso,

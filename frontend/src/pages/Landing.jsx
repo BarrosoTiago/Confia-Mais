@@ -263,12 +263,12 @@ export default function Landing() {
           <div className="nav-links d-none d-md-block">
               <span onClick={() => document.getElementById('ecossistema').scrollIntoView({behavior:'smooth'})}>O Sistema</span>
               <span onClick={() => document.getElementById('recursos').scrollIntoView({behavior:'smooth'})}>Recursos</span>
-              <span onClick={() => document.getElementById('sobre').scrollIntoView({behavior:'smooth'})}>Equipe</span>
+              <span onClick={() => navigate('/vitrine')}>Vitrine de Serviços</span>
               <span onClick={() => navigate('/login')}>Entrar</span>
-              <Button variant="outline-light" className="ms-4 rounded-pill px-4 fw-bold" onClick={() => navigate('/register')}>Criar Conta</Button>
+              <Button variant="outline-light" className="ms-4 rounded-pill px-4 fw-bold" onClick={() => navigate('/register')}>Sou Profissional</Button>
           </div>
           <div className="d-md-none">
-              <Button size="sm" variant="outline-light" onClick={() => navigate('/login')}>Entrar</Button>
+              <Button size="sm" variant="outline-light" onClick={() => navigate('/vitrine')}>Vitrine</Button>
           </div>
       </nav>
 

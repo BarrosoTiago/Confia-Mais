@@ -1,6 +1,7 @@
 import os
 import ssl
 import logging
+import uuid
 import paho.mqtt.client as mqtt
 
 logger = logging.getLogger(__name__)
@@ -9,16 +10,22 @@ MQTT_BROKER    = os.environ.get("MQTT_BROKER", "c7a51f5e5b0142c999d2b47cc1f0bf6d
 MQTT_PORT      = int(os.environ.get("MQTT_PORT", 8883))
 MQTT_USER      = os.environ.get("MQTT_USER", "esp32-painek")
 MQTT_PASS      = os.environ.get("MQTT_PASS", "Confia05*")
-MQTT_CLIENT_ID = os.environ.get("MQTT_CLIENT_ID", f"confia-django-{os.getpid()}")
+MQTT_CLIENT_ID = os.environ.get("MQTT_CLIENT_ID", "confia-django")
 
 _client_instance = None
 
 
 def _criar_cliente() -> mqtt.Client:
-    client = mqtt.Client(client_id=MQTT_CLIENT_ID, protocol=mqtt.MQTTv311)
-    client.username_pw_set(MQTT_USER, MQTT_PASS)
-    client.tls_set(cert_reqs=ssl.CERT_NONE)
-    client.tls_insecure_set(True)
+    # Gera um ID 100% único por conexão usando o PID real do worker + um código aleatório.
+    # Isso evita que os múltiplos trabalhadores do Render (Gunicorn) derrubem uns aos outros (rc=7).
+    client_id_unico = f"{MQTT_CLIENT_ID}-{os.getpid()}-{uuid.uuid4().hex[:6]}"
+    
+    client = mqtt.Client(client_id=client_id_unico, protocol=mqtt.MQTTv311)
+    client.username_pw_set(MQTT_USER, MQTT_PASS) if MQTT_USER else None
+    
+    if MQTT_PORT == 8883:
+        client.tls_set(cert_reqs=ssl.CERT_NONE)
+        client.tls_insecure_set(True)
 
     client.on_disconnect = lambda c, userdata, rc: (
         logger.warning(f"MQTT desconectado (rc={rc}). Reconectará automaticamente.")
