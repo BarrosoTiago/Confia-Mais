@@ -23,12 +23,21 @@ def on_message(client, userdata, msg):
         payload = msg.payload.decode('utf-8')
         
         # Limpar a tela (simulado com quebra de linhas)
-        print("-" * 40)
+        print("-" * 50)
         if payload == '{"action": "limpar"}':
-            print("🖥️ TELA DO ESP32: [Painel Limpo / Standby]")
+            print("🖥️  [ ESP32 ] TELA: PAINEL LIMPO / MODO STANDBY")
+        elif "Selecao cancelada" in payload:
+            print("🛑  [ ESP32 ] AÇÃO: PAINEL BLOQUEADO / CANCELADO")
         else:
-            print(f"🖥️ TELA DO ESP32: {payload}")
-        print("-" * 40 + "\n")
+            import json
+            try:
+                dados = json.loads(payload)
+                print(f"🔓  [ ESP32 ] AÇÃO: PAINEL DESBLOQUEADO COM SUCESSO!")
+                print(f"👤  Cliente na bancada: {dados.get('nome_cliente', 'Walk-in')}")
+                print(f"💰  Valor do Serviço: R$ {dados.get('valor_total', 0.0)}")
+            except:
+                print(f"🖥️  [ ESP32 ] DADOS RECEBIDOS: {payload}")
+        print("-" * 50 + "\n")
     except Exception as e:
         print(f"Erro ao processar mensagem: {e}")
 

@@ -6,10 +6,10 @@ import paho.mqtt.client as mqtt
 
 logger = logging.getLogger(__name__)
 
-MQTT_BROKER    = os.environ.get("MQTT_BROKER", "broker.emqx.io")
-MQTT_PORT      = int(os.environ.get("MQTT_PORT", 1883))
-MQTT_USER      = os.environ.get("MQTT_USER", "")
-MQTT_PASS      = os.environ.get("MQTT_PASS", "")
+MQTT_BROKER    = os.environ.get("MQTT_BROKER", "c7a51f5e5b0142c999d2b47cc1f0bf6d.s1.eu.hivemq.cloud")
+MQTT_PORT      = int(os.environ.get("MQTT_PORT", 8883))
+MQTT_USER      = os.environ.get("MQTT_USER", "esp32-painek")
+MQTT_PASS      = os.environ.get("MQTT_PASS", "Confia05*")
 MQTT_CLIENT_ID = os.environ.get("MQTT_CLIENT_ID", "confia-django")
 
 _client_instance = None
