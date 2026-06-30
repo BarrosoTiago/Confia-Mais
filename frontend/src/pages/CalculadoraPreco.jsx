@@ -10,6 +10,10 @@ import {
   FaExclamationTriangle, FaSyncAlt, FaListUl, FaChartLine,
   FaDatabase, FaClock, FaBoxOpen, FaCheckCircle, FaTag
 } from 'react-icons/fa';
+import {
+  BarChart, Bar, XAxis, YAxis, Tooltip as ReTooltip,
+  ResponsiveContainer, Cell, Legend, PieChart, Pie
+} from 'recharts';
 
 // ── Tooltip simples inline ──────────────────────────────────────────────────
 function Tooltip({ text, children }) {
@@ -28,11 +32,13 @@ function Tooltip({ text, children }) {
           background: '#002B55', color: '#fff',
           fontSize: '0.72rem', fontWeight: 500,
           padding: '6px 10px', borderRadius: 8,
-          whiteSpace: 'nowrap', zIndex: 999,
+          zIndex: 999,
           boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
           pointerEvents: 'none',
           lineHeight: 1.4,
-          maxWidth: 220, whiteSpace: 'normal', textAlign: 'center',
+          maxWidth: 220, 
+          whiteSpace: 'normal', 
+          textAlign: 'center',
         }}>
           {text}
           <span style={{
@@ -50,6 +56,8 @@ function Tooltip({ text, children }) {
 export default function CalculadoraPreco() {
   const navigate = useNavigate();
   const { setNotification } = useAuth();
+
+  const [tipoGrafico, setTipoGrafico] = useState('barra');
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -694,6 +702,134 @@ export default function CalculadoraPreco() {
           /* ── MODAL ── */
           .modal-field-label { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: #8898AA; margin-bottom: 5px; }
 
+
+          /* ── SEÇÃO GRÁFICO ── */
+          .grafico-section {
+            max-width: 1200px; margin: 24px auto 0;
+            background: rgba(255,255,255,0.97);
+            border-radius: 20px;
+            padding: 28px 32px;
+            box-shadow: 0 8px 32px rgba(0,43,85,0.10);
+          }
+          .grafico-header {
+            display: flex; align-items: flex-start;
+            justify-content: space-between;
+            margin-bottom: 24px;
+            flex-wrap: wrap; gap: 16px;
+          }
+          .grafico-title {
+            font-size: 0.7rem; font-weight: 800;
+            text-transform: uppercase; letter-spacing: 1.2px;
+            color: #8898AA; margin-bottom: 4px;
+            display: flex; align-items: center; gap: 8px;
+          }
+          .grafico-title svg { color: #002B55; }
+          .grafico-subtitle {
+            font-size: 0.78rem; color: #8898AA; margin: 0;
+          }
+          .grafico-legenda {
+            display: flex; gap: 20px; align-items: center; flex-wrap: wrap;
+          }
+          .legenda-item {
+            display: flex; align-items: center; gap: 6px;
+            font-size: 0.75rem; font-weight: 600; color: #525F7F;
+          }
+          .legenda-dot {
+            width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0;
+          }
+          .grafico-indicadores {
+            display: flex; gap: 12px; margin-top: 28px;
+            flex-wrap: wrap;
+          }
+          .indicador-card {
+            flex: 1; min-width: 140px;
+            background: #F8F9FA; border: 1px solid #E9ECEF;
+            border-radius: 12px; padding: 14px 16px;
+          }
+          .indicador-label {
+            font-size: 0.65rem; font-weight: 800;
+            text-transform: uppercase; letter-spacing: 0.8px;
+            color: #8898AA; margin-bottom: 6px;
+            display: flex; align-items: center; gap: 6px;
+          }
+          .indicador-dot {
+            width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0;
+          }
+          .indicador-valor {
+            font-size: 1.3rem; font-weight: 800; color: #002B55;
+            font-variant-numeric: tabular-nums;
+          }
+          .indicador-pct {
+            font-size: 0.75rem; font-weight: 600; margin-top: 2px;
+          }
+          .grafico-empty {
+            text-align: center; padding: 40px 20px;
+            color: #8898AA; font-size: 0.85rem;
+          }
+          /* ── SEÇÃO GRÁFICO ── */
+          .grafico-secao {
+            margin-top: 28px;
+            background: rgba(255,255,255,0.97);
+            border-radius: 20px;
+            padding: 28px 32px;
+            box-shadow: 0 8px 32px rgba(0,43,85,0.10);
+          }
+          .grafico-header {
+            display: flex; align-items: flex-start;
+            justify-content: space-between;
+            margin-bottom: 28px;
+            flex-wrap: wrap; gap: 16px;
+          }
+          .grafico-title {
+            font-size: 0.7rem; font-weight: 800;
+            text-transform: uppercase; letter-spacing: 1.2px;
+            color: #8898AA; margin-bottom: 4px;
+            display: flex; align-items: center; gap: 8px;
+          }
+          .grafico-title svg { color: #002B55; }
+          .grafico-subtitle {
+            font-size: 0.8rem; color: #525F7F; font-weight: 500;
+          }
+          .grafico-legenda {
+            display: flex; gap: 20px; flex-wrap: wrap;
+          }
+          .legenda-item {
+            display: flex; align-items: center; gap: 7px;
+            font-size: 0.75rem; font-weight: 600; color: #525F7F;
+          }
+          .legenda-dot {
+            width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0;
+          }
+          .grafico-indicadores {
+            display: flex; gap: 12px; margin-top: 24px; flex-wrap: wrap;
+          }
+          .indicador-card {
+            flex: 1; min-width: 140px;
+            border-radius: 14px; padding: 16px 18px;
+            display: flex; flex-direction: column; gap: 4px;
+          }
+          .indicador-label {
+            font-size: 0.65rem; font-weight: 800;
+            text-transform: uppercase; letter-spacing: 0.8px;
+          }
+          .indicador-valor {
+            font-size: 1.4rem; font-weight: 800;
+            font-family: 'Libre Baskerville', serif;
+            line-height: 1.1;
+          }
+          .indicador-pct {
+            font-size: 0.75rem; font-weight: 700;
+          }
+          .indicador-barra {
+            height: 4px; border-radius: 2px;
+            margin-top: 8px; background: rgba(0,0,0,0.08);
+            overflow: hidden;
+          }
+          .indicador-barra-fill {
+            height: 100%; border-radius: 2px;
+            transition: width 0.4s ease;
+          }
+
           /* ── RESPONSIVE ── */
           @media (max-width: 991px) {
             .calc-card, .calc-card-dark { margin-bottom: 16px; }
@@ -1055,7 +1191,7 @@ export default function CalculadoraPreco() {
                       </div>
                     )}
 
-                    {/* ZONA 3 — APOIO: equilíbrio + lucro */}
+{/* ZONA 3 — APOIO: equilíbrio + lucro */}
                     <div className="zona-apoio">
                       <div className="apoio-pill">
                         <span className="apoio-pill-label">Ponto de equilíbrio</span>
@@ -1114,6 +1250,227 @@ export default function CalculadoraPreco() {
               </div>
             </Col>
           </Row>
+
+          {/* ── NOVO BLOCO: SEÇÃO 4 (GRÁFICO) ABAIXO DA SEÇÃO 1 E 2 ── */}
+          {/* Esta linha foi adicionada para criar a linha inferior que fica apenas abaixo do lado esquerdo */}
+          <Row>
+            <Col lg={12} md={12}>
+              {passo1Ok && meusServicos.length > 0 && (() => {
+                const horasMensais = horasTrabalhoDia * diasTrabalhoMes;
+                const custoHoraCalc = horasMensais > 0 ? gastosFixos / horasMensais : 0;
+
+                const dadosGrafico = meusServicos
+                  .filter(s => s.ativo !== false)
+                  .map(s => {
+                    const maoDeObra = parseFloat(((custoHoraCalc / 60) * (s.duracao_minutos || 60)).toFixed(2));
+                    const materiais = servicoSelecionado?.id === s.id ? parseFloat(custoMateriais || 0) : 0;
+                    const custoTotal = maoDeObra + materiais;
+                    const margem = parseFloat((custoTotal * (margemLucro / 100)).toFixed(2));
+                    return {
+                      nome: s.nome.length > 18 ? s.nome.slice(0, 16) + '…' : s.nome,
+                      nomeCompleto: s.nome,
+                      maoDeObra,
+                      materiais,
+                      margem,
+                      total: custoTotal + margem,
+                      ativo: servicoSelecionado?.id === s.id,
+                    };
+                  })
+                  .sort((a, b) => b.total - a.total)
+                  .slice(0, 8);
+
+                // Dados formatados especificamente para o gráfico de Pizza (composição do selecionado ou do primeiro)
+                const sel = servicoSelecionado
+                  ? dadosGrafico.find(d => d.nomeCompleto === servicoSelecionado.nome)
+                  : dadosGrafico[0];
+                
+                const totalSel = sel ? sel.maoDeObra + sel.materiais + sel.margem : 0;
+                const pctMao = totalSel > 0 ? ((sel.maoDeObra / totalSel) * 100).toFixed(0) : 0;
+                const pctMat = totalSel > 0 ? ((sel.materiais / totalSel) * 100).toFixed(0) : 0;
+                const pctMar = totalSel > 0 ? ((sel.margem / totalSel) * 100).toFixed(0) : 0;
+
+                const dadosPizza = sel ? [
+                  { name: 'Mão de obra', value: sel.maoDeObra, fill: '#3B82F6' },
+                  { name: 'Materiais', value: sel.materiais, fill: '#FB6340' },
+                  { name: 'Margem de lucro', value: sel.margem, fill: '#2DCE89' }
+                ] : [];
+
+                const CustomTooltip = ({ active, payload, label }) => {
+                  if (!active || !payload?.length) return null;
+                  const total = payload.reduce((s, p) => s + p.value, 0);
+                  return (
+                    <div style={{ background: '#002B55', borderRadius: 10, padding: '12px 16px', fontSize: '0.78rem', color: '#fff', boxShadow: '0 4px 16px rgba(0,0,0,0.2)' }}>
+                      <div style={{ fontWeight: 800, marginBottom: 8 }}>{label || payload[0].name}</div>
+                      {payload.map((p, i) => (
+                        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: 16, color: 'rgba(255,255,255,0.8)', marginBottom: 3 }}>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                            <span style={{ width: 8, height: 8, borderRadius: 2, background: p.fill || p.payload.fill, display: 'inline-block' }} />
+                            {p.name}
+                          </span>
+                          <span style={{ fontWeight: 700, color: '#fff' }}>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(p.value)}</span>
+                        </div>
+                      ))}
+                      {tipoGrafico === 'barra' && (
+                        <div style={{ borderTop: '1px solid rgba(255,255,255,0.15)', marginTop: 8, paddingTop: 8, display: 'flex', justifyContent: 'space-between', fontWeight: 800 }}>
+                          <span>Total</span>
+                          <span>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(total)}</span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                };
+
+                return (
+                  <div className="grafico-secao" style={{ marginTop: '24px' }}>
+                    <div className="grafico-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16 }}>
+                      <div>
+                        <div className="grafico-title">
+                          <FaChartLine /> {tipoGrafico === 'barra' ? 'Composição do preço por serviço' : `Composição: ${sel?.nomeCompleto || ''}`}
+                        </div>
+                        <div className="grafico-subtitle">
+                          {tipoGrafico === 'barra' 
+                            ? 'Veja como mão de obra, materiais e margem se distribuem em cada serviço' 
+                            : 'Distribuição percentual dos custos e margem do serviço selecionado'}
+                        </div>
+                      </div>
+
+                      {/* SELETOR DE TIPO DE GRÁFICO */}
+                      <div className="grafico-controles" style={{ display: 'flex', background: '#F1F5F9', padding: 4, borderRadius: 8, gap: 4 }}>
+                        <button 
+                          onClick={() => setTipoGrafico('barra')}
+                          style={{ border: 'none', background: tipoGrafico === 'barra' ? '#fff' : 'transparent', padding: '6px 12px', borderRadius: 6, fontSize: '0.75rem', fontWeight: 600, color: tipoGrafico === 'barra' ? '#002B55' : '#64748B', boxShadow: tipoGrafico === 'barra' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none', transition: 'all 0.2s' }}
+                        >
+                          Barras
+                        </button>
+                        <button 
+                          onClick={() => setTipoGrafico('pizza')}
+                          style={{ border: 'none', background: tipoGrafico === 'pizza' ? '#fff' : 'transparent', padding: '6px 12px', borderRadius: 6, fontSize: '0.75rem', fontWeight: 600, color: tipoGrafico === 'pizza' ? '#002B55' : '#64748B', boxShadow: tipoGrafico === 'pizza' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none', transition: 'all 0.2s' }}
+                        >
+                          Pizza
+                        </button>
+                      </div>
+
+                      <div className="grafico-legenda">
+                        {[
+                          { cor: '#3B82F6', label: 'Mão de obra' },
+                          { cor: '#FB6340', label: 'Materiais' },
+                          { cor: '#2DCE89', label: 'Margem de lucro' },
+                        ].map(({ cor, label }) => (
+                          <div key={label} className="legenda-item">
+                            <span className="legenda-dot" style={{ background: cor }} />
+                            {label}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* RENDERIZAÇÃO CONDICIONAL DO TIPO DE GRÁFICO */}
+                    {tipoGrafico === 'barra' ? (
+                      <ResponsiveContainer width="100%" height={Math.max(180, dadosGrafico.length * 48)}>
+                        <BarChart
+                          data={dadosGrafico}
+                          layout="vertical"
+                          margin={{ top: 0, right: 24, left: 8, bottom: 0 }}
+                          barSize={20}
+                        >
+                          <XAxis
+                            type="number"
+                            tickFormatter={v => `R$${v.toFixed(0)}`}
+                            tick={{ fontSize: 11, fill: '#8898AA', fontWeight: 600 }}
+                            axisLine={false} tickLine={false}
+                          />
+                          <YAxis
+                            type="category" dataKey="nome" width={110}
+                            tick={({ x, y, payload }) => (
+                              <text x={x} y={y} dy={4} textAnchor="end" fontSize={12}
+                                fontWeight={dadosGrafico.find(d => d.nome === payload.value)?.ativo ? 800 : 500}
+                                fill={dadosGrafico.find(d => d.nome === payload.value)?.ativo ? '#002B55' : '#8898AA'}>
+                                {payload.value}
+                              </text>
+                            )}
+                            axisLine={false} tickLine={false}
+                          />
+                          <ReTooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(0,43,85,0.04)' }} />
+                          <Bar dataKey="maoDeObra" name="Mão de obra" stackId="a" fill="#3B82F6">
+                            {dadosGrafico.map((entry, i) => (
+                              <Cell key={i} fill="#3B82F6" opacity={entry.ativo ? 1 : 0.45} />
+                            ))}
+                          </Bar>
+                          <Bar dataKey="materiais" name="Materiais" stackId="a" fill="#FB6340">
+                            {dadosGrafico.map((entry, i) => (
+                              <Cell key={i} fill="#FB6340" opacity={entry.ativo ? 1 : 0.45} />
+                            ))}
+                          </Bar>
+                          <Bar dataKey="margem" name="Margem de lucro" stackId="a" fill="#2DCE89" radius={[0,4,4,0]}>
+                            {dadosGrafico.map((entry, i) => (
+                              <Cell key={i} fill="#2DCE89" opacity={entry.ativo ? 1 : 0.45} />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <ResponsiveContainer width="100%" height={260}>
+                        <PieChart>
+                          <Pie
+                            data={dadosPizza}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={60}
+                            outerRadius={90}
+                            paddingAngle={4}
+                            dataKey="value"
+                          >
+                            {dadosPizza.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={entry.fill} />
+                            ))}
+                          </Pie>
+                          <ReTooltip content={<CustomTooltip />} />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    )}
+
+                    {sel && (
+                      <div className="grafico-indicadores">
+                        <div className="indicador-card" style={{ background: '#EFF6FF', border: '1.5px solid #BFDBFE' }}>
+                          <span className="indicador-label" style={{ color: '#1D4ED8' }}>Mão de obra</span>
+                          <span className="indicador-valor" style={{ color: '#1E40AF' }}>{money(sel.maoDeObra)}</span>
+                          <span className="indicador-pct" style={{ color: '#3B82F6' }}>{pctMao}% do preço total</span>
+                          <div className="indicador-barra">
+                            <div className="indicador-barra-fill" style={{ width: `${pctMao}%`, background: '#3B82F6' }} />
+                          </div>
+                        </div>
+                        <div className="indicador-card" style={{ background: '#FFF7ED', border: '1.5px solid #FED7AA' }}>
+                          <span className="indicador-label" style={{ color: '#C2410C' }}>Materiais</span>
+                          <span className="indicador-valor" style={{ color: '#9A3412' }}>{money(sel.materiais)}</span>
+                          <span className="indicador-pct" style={{ color: '#FB6340' }}>{pctMat}% do preço total</span>
+                          <div className="indicador-barra">
+                            <div className="indicador-barra-fill" style={{ width: `${pctMat}%`, background: '#FB6340' }} />
+                          </div>
+                        </div>
+                        <div className="indicador-card" style={{ background: '#F0FDF4', border: '1.5px solid #BBF7D0' }}>
+                          <span className="indicador-label" style={{ color: '#15803D' }}>Margem de lucro</span>
+                          <span className="indicador-valor" style={{ color: '#166534' }}>{money(sel.margem)}</span>
+                          <span className="indicador-pct" style={{ color: '#2DCE89' }}>{pctMar}% do preço total</span>
+                          <div className="indicador-barra">
+                            <div className="indicador-barra-fill" style={{ width: `${pctMar}%`, background: '#2DCE89' }} />
+                          </div>
+                        </div>
+                        <div className="indicador-card" style={{ background: '#002B55', border: '1.5px solid #003d7a' }}>
+                          <span className="indicador-label" style={{ color: 'rgba(255,255,255,0.45)' }}>Preço calculado</span>
+                          <span className="indicador-valor" style={{ color: '#fff' }}>{money(sel.total)}</span>
+                          <span className="indicador-pct" style={{ color: 'rgba(255,255,255,0.4)' }}>com {margemLucro}% de margem</span>
+                          <div className="indicador-barra" style={{ background: 'rgba(255,255,255,0.1)' }}>
+                            <div className="indicador-barra-fill" style={{ width: '100%', background: 'rgba(255,255,255,0.3)' }} />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+            </Col>
+          </Row>
+
         </div>
 
         {/* MODAL CUSTOS MANUAIS */}
@@ -1155,9 +1512,9 @@ export default function CalculadoraPreco() {
               <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: '0.78rem', fontWeight: 700, textTransform: 'uppercase' }}>Total mensal</span>
               <span style={{ color: '#fff', fontWeight: 800, fontSize: '1.1rem' }}>
                 {money(
-                  Number(detalhesCustos.aluguel) + Number(detalhesCustos.contas) +
-                  Number(detalhesCustos.sistemas) + Number(detalhesCustos.salarioDono) +
-                  Number(detalhesCustos.outros)
+                  Number(detalhesCustos.aluguel || 0) + Number(detalhesCustos.contas || 0) +
+                  Number(detalhesCustos.sistemas || 0) + Number(detalhesCustos.salarioDono || 0) +
+                  Number(detalhesCustos.outros || 0)
                 )}
               </span>
             </div>
