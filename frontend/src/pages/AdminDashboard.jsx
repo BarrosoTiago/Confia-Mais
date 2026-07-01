@@ -5,7 +5,7 @@ import api from '../services/api';
 import AnimatedBackground from '../components/AnimatedBackground';
 
 // Bibliotecas de arrastar
-import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, useDroppable } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, rectSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
@@ -22,7 +22,32 @@ import { Spinner, Alert, Badge, Modal, Button } from 'react-bootstrap';
 import logotipoSystem from "../assets/logotipo1.svg";
 import lightLogotipoSystem from "../assets/logotipo-light.svg"; 
 
-// --- COMPONENTE DO CARD ARRASTÁVEL ---
+// --- REGISTRO CENTRAL DE CARDS DISPONÍVEIS NO DASHBOARD ---
+// Qualquer card novo do sistema deve ser adicionado aqui para poder
+// aparecer na área de reserva / personalização de tela.
+const CARD_REGISTRY = {
+  receita_hoje:      { label: 'Recebidos Hoje',     icon: FaArrowUp,           color: '#16A34A' },
+  receita_mes:       { label: 'Entradas Mês',        icon: FaRegCalendarCheck,  color: '#0284C7' },
+  fiado:             { label: 'A Receber',           icon: FaFileInvoiceDollar, color: '#F97316' },
+  servicos_top:      { label: 'Top Serviços',        icon: FaListOl,            color: '#64748B' },
+  balanco:           { label: 'Balanço',              icon: FaChartLine,        color: '#64748B' },
+  calculadora:       { label: 'Calculadora',          icon: FaCalculator,       color: '#0D9488' },
+  fidelidade:        { label: 'Fidelidade',           icon: FaHeart,            color: '#D97706' },
+  anotacoes:         { label: 'Anotações',            icon: FaStickyNote,       color: '#002B55' },
+  saude_financeira:  { label: 'Saúde Financeira',     icon: FaChartPie,         color: '#7C3AED' },
+  despesas:          { label: 'Despesas',             icon: FaMoneyBillWave,    color: '#DC2626' },
+};
+
+const DEFAULT_ACTIVE_CARDS = [
+  'receita_hoje', 'receita_mes', 'fiado', 'servicos_top',
+  'balanco', 'calculadora', 'fidelidade', 'anotacoes'
+];
+const DEFAULT_RESERVE_CARDS = ['saude_financeira', 'despesas'];
+const ALL_CARD_IDS = Object.keys(CARD_REGISTRY);
+
+const getLayoutStorageKey = (userId) => `dashboard_layout_${userId || 'guest'}`;
+
+// --- COMPONENTE DO CARD ARRASTÁVEL (GRID ATIVO) ---
 function SortableCard({ id, children, editMode }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
   
@@ -39,7 +64,7 @@ function SortableCard({ id, children, editMode }) {
 
   return (
     <div ref={setNodeRef} style={style}>
-      <div className={`dashboard-card h-100 ${!editMode ? 'interactive' : ''}`}>
+      <div className={`dashboard-card h-100 ${!editMode ? 'interactive' : ''} ${editMode ? 'edit-target' : ''}`}>
          {editMode && (
             <div {...attributes} {...listeners} className="drag-handle">
                 <FaGripVertical color="#002B55" size={18} />
@@ -47,6 +72,58 @@ function SortableCard({ id, children, editMode }) {
          )}
          {children}
       </div>
+    </div>
+  );
+}
+
+// --- CHIP ARRASTÁVEL DA ÁREA DE RESERVA ---
+function ReserveCardChip({ id }) {
+  const meta = CARD_REGISTRY[id];
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    touchAction: 'none',
+  };
+
+  if (!meta) return null;
+  const Icon = meta.icon;
+
+  return (
+    <div ref={setNodeRef} style={style} {...attributes} {...listeners} className="reserve-chip">
+      <div className="reserve-chip-icon" style={{ color: meta.color }}><Icon size={16} /></div>
+      <span className="reserve-chip-label">{meta.label}</span>
+      <FaGripVertical className="reserve-chip-grip" size={12} />
+    </div>
+  );
+}
+
+// --- PAINEL DE RESERVA (menu fixo lateral - área de destino para receber cards trocados) ---
+function ReservePanel({ reserveCards, onReset }) {
+  const { setNodeRef } = useDroppable({ id: 'reserve-container' });
+
+  return (
+    <div className="reserve-panel">
+      <div className="reserve-panel-header">
+        <div className="d-flex justify-content-between align-items-start">
+          <span>Cards Disponíveis</span>
+          <button type="button" className="reserve-reset-btn" onClick={onReset} title="Restaurar layout padrão">
+            Restaurar
+          </button>
+        </div>
+        <small>Arraste um card até a posição do painel que deseja substituir</small>
+      </div>
+      <SortableContext items={reserveCards} strategy={rectSortingStrategy}>
+        <div ref={setNodeRef} className="reserve-panel-list">
+          {reserveCards.length === 0 ? (
+            <div className="reserve-empty">Nenhum card em reserva no momento.</div>
+          ) : (
+            reserveCards.map((id) => <ReserveCardChip key={id} id={id} />)
+          )}
+        </div>
+      </SortableContext>
     </div>
   );
 }
@@ -73,10 +150,8 @@ export default function AdminDashboard() {
   
   // Estados Drag & Drop
   const [editMode, setEditMode] = useState(false);
-  const [cardOrder, setCardOrder] = useState([
-      'receita_hoje', 'receita_mes', 'fiado', 'servicos_top', 
-      'balanco', 'calculadora', 'fidelidade', 'anotacoes'
-  ]);
+  const [activeCards, setActiveCards] = useState(DEFAULT_ACTIVE_CARDS);
+  const [reserveCards, setReserveCards] = useState(DEFAULT_RESERVE_CARDS);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -97,27 +172,118 @@ export default function AdminDashboard() {
     return () => window.removeEventListener('click', closeMenu);
   }, []);
 
+  // Carrega dados do dashboard (métricas + agendamentos)
   useEffect(() => {
-    const savedOrder = localStorage.getItem('dashboard_order_v2');
-    if (savedOrder) {
-        setCardOrder(JSON.parse(savedOrder));
-    }
     loadDashboardData();
-    const intervalo = setInterval(() => loadDashboardData(), 10000); 
+    const intervalo = setInterval(() => loadDashboardData(), 10000);
     return () => clearInterval(intervalo);
   }, []);
 
-  function handleDragEnd(event) {
-      const { active, over } = event;
-      if (active.id !== over.id) {
-          setCardOrder((items) => {
-              const oldIndex = items.indexOf(active.id);
-              const newIndex = items.indexOf(over.id);
-              const newOrder = arrayMove(items, oldIndex, newIndex);
-              localStorage.setItem('dashboard_order_v2', JSON.stringify(newOrder));
-              return newOrder;
-          });
+  // Carrega a personalização de tela salva do usuário (persistida por usuário)
+  useEffect(() => {
+    if (!user) return;
+
+    const key = getLayoutStorageKey(user.id);
+    const saved = localStorage.getItem(key);
+
+    let active = DEFAULT_ACTIVE_CARDS;
+    let reserve = DEFAULT_RESERVE_CARDS;
+
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed.active)) active = parsed.active;
+        if (Array.isArray(parsed.reserve)) reserve = parsed.reserve;
+      } catch (e) {
+        console.warn('Layout salvo inválido, usando padrão.', e);
       }
+    }
+
+    // Reconciliação: garante que cards novos do sistema (ainda não conhecidos
+    // pelo usuário) e cards removidos do sistema sejam tratados corretamente.
+    const known = new Set([...active, ...reserve]);
+    ALL_CARD_IDS.forEach((id) => {
+      if (!known.has(id)) reserve.push(id);
+    });
+    active = active.filter((id) => CARD_REGISTRY[id]);
+    reserve = reserve.filter((id) => CARD_REGISTRY[id]);
+
+    setActiveCards(active);
+    setReserveCards(reserve);
+  }, [user?.id]);
+
+  function persistLayout(newActive, newReserve) {
+    if (!user) return;
+    const key = getLayoutStorageKey(user.id);
+    localStorage.setItem(key, JSON.stringify({ active: newActive, reserve: newReserve }));
+  }
+
+  function resetLayout() {
+    setActiveCards(DEFAULT_ACTIVE_CARDS);
+    setReserveCards(DEFAULT_RESERVE_CARDS);
+    if (user) {
+      localStorage.removeItem(getLayoutStorageKey(user.id));
+    }
+  }
+
+  function handleDragEnd(event) {
+    const { active, over } = event;
+    if (!over) return;
+
+    const activeId = active.id;
+    const overId = over.id;
+    if (activeId === overId) return;
+
+    const activeInGrid = activeCards.includes(activeId);
+    const activeInReserve = reserveCards.includes(activeId);
+    const overInGrid = activeCards.includes(overId);
+    const overInReserve = reserveCards.includes(overId);
+
+    // Reordenar dentro do grid ativo
+    if (activeInGrid && overInGrid) {
+      const oldIndex = activeCards.indexOf(activeId);
+      const newIndex = activeCards.indexOf(overId);
+      const newActive = arrayMove(activeCards, oldIndex, newIndex);
+      setActiveCards(newActive);
+      persistLayout(newActive, reserveCards);
+      return;
+    }
+
+    // Reordenar dentro da reserva
+    if (activeInReserve && overInReserve) {
+      const oldIndex = reserveCards.indexOf(activeId);
+      const newIndex = reserveCards.indexOf(overId);
+      const newReserve = arrayMove(reserveCards, oldIndex, newIndex);
+      setReserveCards(newReserve);
+      persistLayout(activeCards, newReserve);
+      return;
+    }
+
+    // TROCA: card da reserva assume o lugar de um card ativo
+    if (activeInReserve && overInGrid) {
+      const overIndex = activeCards.indexOf(overId);
+      const newActive = [...activeCards];
+      newActive[overIndex] = activeId;
+      const newReserve = reserveCards.filter((id) => id !== activeId);
+      newReserve.push(overId);
+      setActiveCards(newActive);
+      setReserveCards(newReserve);
+      persistLayout(newActive, newReserve);
+      return;
+    }
+
+    // TROCA: card ativo é enviado para a reserva no lugar do card solto
+    if (activeInGrid && overInReserve) {
+      const activeIndex = activeCards.indexOf(activeId);
+      const newActive = [...activeCards];
+      newActive[activeIndex] = overId;
+      const newReserve = reserveCards.filter((id) => id !== overId);
+      newReserve.push(activeId);
+      setActiveCards(newActive);
+      setReserveCards(newReserve);
+      persistLayout(newActive, newReserve);
+      return;
+    }
   }
 
   async function loadDashboardData() {
@@ -358,6 +524,26 @@ export default function AdminDashboard() {
                      <span className="card-sub-text">Bloco de Notas</span>
                   </div>
               );
+          case 'saude_financeira':
+              return (
+                  <div onClick={() => !editMode && navigate('/admin/financeiro/saude-financeira')} className="h-100 d-flex flex-column justify-content-center align-items-center text-center p-2">
+                     <div className="icon-circle mb-2" style={{color: '#7C3AED', background: '#EDE9FE'}}>
+                        <FaChartPie size={20}/>
+                     </div>
+                     <h6 className="card-title-center">Saúde Financeira</h6>
+                     <span className="card-sub-text">Ver Relatório</span>
+                  </div>
+              );
+          case 'despesas':
+              return (
+                  <div onClick={() => !editMode && navigate('/admin/despesas')} className="h-100 d-flex flex-column justify-content-center align-items-center text-center p-2">
+                     <div className="icon-circle mb-2" style={{color: '#DC2626', background: '#FEE2E2'}}>
+                        <FaMoneyBillWave size={20}/>
+                     </div>
+                     <h6 className="card-title-center">Despesas</h6>
+                     <span className="card-sub-text">Controlar Gastos</span>
+                  </div>
+              );
           default: return null;
       }
   }
@@ -421,6 +607,13 @@ export default function AdminDashboard() {
             box-shadow: 0 12px 40px 0 rgba(62, 106, 149, 0.15);
             border-color: #E2E8F0;
         }
+        .dashboard-card.edit-target {
+            border: 2px dashed #CBD5E1;
+        }
+        .dashboard-card.edit-target:hover {
+            border-color: #0284C7;
+            box-shadow: 0 12px 30px rgba(2, 132, 199, 0.15);
+        }
         
         .drag-handle { 
             position: absolute; top: 10px; right: 10px; left: auto;
@@ -450,6 +643,61 @@ export default function AdminDashboard() {
         .fill-primary { background-color: var(--col-navy); height: 100%; border-radius: 10px; }
         .fill-success { background-color: var(--col-success); height: 100%; border-radius: 10px; }
         .fill-danger { background-color: var(--col-danger); height: 100%; border-radius: 10px; }
+
+        /* --- ÁREA DE RESERVA (PERSONALIZAR TELA) - MENU FIXO NA MARGEM DIREITA --- */
+        .reserve-sidebar-fixed {
+            position: fixed;
+            top: 90px;
+            right: 24px;
+            width: 260px;
+            z-index: 1500;
+            animation: slideInReserve 0.25s ease;
+        }
+        @keyframes slideInReserve {
+            from { opacity: 0; transform: translateX(16px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        .reserve-panel {
+            background: rgba(255,255,255,0.97);
+            backdrop-filter: blur(10px);
+            border: 1px solid #E2E8F0;
+            border-radius: 16px;
+            padding: 18px 16px;
+            max-height: calc(100vh - 130px);
+            overflow-y: auto;
+            box-shadow: 0 15px 40px rgba(0, 43, 85, 0.18);
+        }
+        .reserve-panel-header { display: flex; flex-direction: column; margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid #F1F5F9; }
+        .reserve-panel-header span { font-weight: 700; color: var(--col-navy); font-size: 0.95rem; }
+        .reserve-panel-header small { color: #64748B; font-size: 0.72rem; line-height: 1.3; margin-top: 2px; }
+        .reserve-reset-btn {
+            background: none; border: none; color: var(--col-sky);
+            font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 0.3px; cursor: pointer; padding: 2px 0;
+        }
+        .reserve-reset-btn:hover { color: var(--col-navy); text-decoration: underline; }
+        .reserve-panel-list { display: flex; flex-direction: column; gap: 10px; min-height: 48px; }
+        .reserve-chip {
+            display: flex; align-items: center; gap: 8px;
+            background: #F8FAFC; border: 1px dashed #CBD5E1; border-radius: 10px;
+            padding: 10px 12px; cursor: grab;
+            transition: 0.2s;
+            touch-action: none;
+        }
+        .reserve-chip:active { cursor: grabbing; }
+        .reserve-chip:hover { border-color: #0284C7; border-style: solid; background: #FFFFFF; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+        .reserve-chip-icon { display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+        .reserve-chip-label { font-size: 0.8rem; font-weight: 600; color: #334155; flex: 1; }
+        .reserve-chip-grip { color: #94A3B8; margin-left: 4px; flex-shrink: 0; }
+        .reserve-empty { color: #94A3B8; font-size: 0.85rem; font-style: italic; padding: 8px; }
+
+        @media (max-width: 992px) {
+            .reserve-sidebar-fixed { top: auto; bottom: 90px; left: 12px; right: 12px; width: auto; }
+            .reserve-panel { max-height: 45vh; }
+            .reserve-panel-list { flex-direction: row; flex-wrap: wrap; }
+            .reserve-chip { flex: 1 1 auto; min-width: 140px; }
+        }
         
         .recent-section { margin-top: 50px; margin-bottom: 20px; }
         .recent-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
@@ -537,7 +785,7 @@ export default function AdminDashboard() {
             font-size: 0.9rem; font-weight: 700; margin-bottom: 20px; 
             margin-top: 10px; text-transform: uppercase; letter-spacing: 1px; 
         }
-        
+
         .menu-separator { height: 2px; background-color: #BBB; width: 50px; margin: 20px 0 30px 0; }
 
         /* --- ESTILIZAÇÃO DO MENU DE CONTEXTO --- */
@@ -694,15 +942,21 @@ export default function AdminDashboard() {
          )}
 
          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-             <SortableContext items={cardOrder} strategy={rectSortingStrategy}>
+             <SortableContext items={activeCards} strategy={rectSortingStrategy}>
                  <div className="top-cards-grid">
-                     {cardOrder.map((id) => (
+                     {activeCards.map((id) => (
                          <SortableCard key={id} id={id} editMode={editMode}>
                              {renderCard(id)}
                          </SortableCard>
                      ))}
                  </div>
              </SortableContext>
+
+             {editMode && (
+                 <div className="reserve-sidebar-fixed">
+                     <ReservePanel reserveCards={reserveCards} onReset={resetLayout} />
+                 </div>
+             )}
          </DndContext>
 
          <div className="recent-section">
@@ -828,5 +1082,3 @@ export default function AdminDashboard() {
     </>
   );
 }
-
-
