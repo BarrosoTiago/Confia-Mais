@@ -32,6 +32,7 @@ export default function Despesas() {
     descricao: '',
     valor: '',
     data_despesa: '', 
+    data_vencimento: '',
     categoria: 'FIXA'
   });
 
@@ -78,6 +79,7 @@ export default function Despesas() {
       descricao: '',
       valor: '',
       data_despesa: new Date().toISOString().split('T')[0],
+      data_vencimento: '',
       categoria: 'FIXA'
     });
     setShowModal(true);
@@ -90,6 +92,7 @@ export default function Despesas() {
       descricao: item.descricao,
       valor: item.valor,
       data_despesa: item.data,
+      data_vencimento: item.data_vencimento || '',
       categoria: item.categoria || 'FIXA'
     });
     setShowModal(true);
@@ -103,6 +106,8 @@ export default function Despesas() {
         descricao: formData.descricao,
         valor: formData.valor,
         data: formData.data_despesa,
+        // Envia null em vez de string vazia quando o campo não for preenchido
+        data_vencimento: formData.data_vencimento || null,
         categoria: formData.categoria,
       };
 
@@ -466,7 +471,7 @@ export default function Despesas() {
 
               <Col md={6}>
                 <Form.Group>
-                  <Form.Label className="fw-600 text-muted small uppercase">Data da Saída</Form.Label>
+                  <Form.Label className="fw-600 text-muted small uppercase">Data da Saída (pagamento)</Form.Label>
                   <Form.Control 
                     type="date" 
                     required 
@@ -474,6 +479,23 @@ export default function Despesas() {
                     value={formData.data_despesa} 
                     onChange={e => setFormData({ ...formData, data_despesa: e.target.value })} 
                   />
+                </Form.Group>
+              </Col>
+
+              <Col md={6}>
+                <Form.Group>
+                  <Form.Label className="fw-600 text-muted small uppercase">
+                    Data de Vencimento <span className="text-muted" style={{ fontWeight: 400, textTransform: 'none' }}>(opcional)</span>
+                  </Form.Label>
+                  <Form.Control 
+                    type="date" 
+                    className="custom-input" 
+                    value={formData.data_vencimento} 
+                    onChange={e => setFormData({ ...formData, data_vencimento: e.target.value })} 
+                  />
+                  <Form.Text className="text-muted" style={{ fontSize: '0.75rem' }}>
+                    Usada para calcular o Prazo Médio de Pagamento (PMP) na Saúde Financeira.
+                  </Form.Text>
                 </Form.Group>
               </Col>
 

@@ -29,7 +29,10 @@ class Despesa(models.Model):
     descricao = models.CharField(max_length=100)
     valor = models.DecimalField(max_digits=10, decimal_places=2)
     data_despesa = models.DateField()
-    categoria = models.CharField(max_length=50, blank=True, null=True) # Ex: Fixo, Variável
+    # NOVO: usado para calcular o Prazo Médio de Pagamento (PMP) real.
+    # Opcional: despesas antigas ou pagas na hora podem não ter vencimento definido.
+    data_vencimento = models.DateField(null=True, blank=True, help_text="Data em que a despesa venceu (opcional, usada para calcular o PMP)")
+    categoria = models.CharField(max_length=50, blank=True, null=True) # Ex: FIXA, VARIAVEL, INVESTIMENTO
     pago = models.BooleanField(default=False, verbose_name="Pago")
 
     def __str__(self):
@@ -130,7 +133,3 @@ class Pagamento(models.Model):
 
     def __str__(self):
         return f"Pagamento de R$ {self.valor} em {self.transacao}"
-    
-
-
-    

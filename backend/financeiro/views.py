@@ -6,7 +6,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.db.models import Sum
 from django.utils import timezone
-from datetime import timedelta
+from datetime import timedelta, date
 from .models import Transacao, Pagamento, Despesa, CalculadoraPrecificacao
 from agendamentos.models import Agendamento 
 from .serializers import (
@@ -23,16 +23,23 @@ class SaudeFinanceiraView(APIView):
         usuario = request.user
         hoje = timezone.now().date()
         inicio_mes = hoje.replace(day=1)
-        
+        # Janela mais ampla (6 meses) só para as médias de prazo (PMR/PMP),
+        # já que um único mês costuma ter poucos registros para uma média confiável.
+        janela_prazos = hoje - timedelta(days=180)
+
         calc = CalculadoraPrecificacao.objects.filter(usuario=usuario).first()
         custo_fixo_calculadora = calc.custo_fixo_mensal if calc else Decimal('0.00')
-        
+
         despesas_mes = Despesa.objects.filter(usuario=usuario, data_despesa__gte=inicio_mes, data_despesa__lte=hoje)
-        custo_fixo_real = despesas_mes.filter(categoria__iexact='Fixo').aggregate(total=Sum('valor'))['total'] or Decimal('0.00')
-        custo_variavel_real = despesas_mes.filter(categoria__iexact='Variável').aggregate(total=Sum('valor'))['total'] or Decimal('0.00')
-        
+
+        # CORRIGIDO: as categorias salvas pelo frontend são 'FIXA' / 'VARIAVEL' / 'INVESTIMENTO',
+        # não 'Fixo' / 'Variável' como estava antes — por isso o cálculo sempre batia zero.
+        custo_fixo_real = despesas_mes.filter(categoria__iexact='FIXA').aggregate(total=Sum('valor'))['total'] or Decimal('0.00')
+        custo_variavel_real = despesas_mes.filter(categoria__iexact='VARIAVEL').aggregate(total=Sum('valor'))['total'] or Decimal('0.00')
+        custo_investimento_real = despesas_mes.filter(categoria__iexact='INVESTIMENTO').aggregate(total=Sum('valor'))['total'] or Decimal('0.00')
+
         custo_fixo_total = max(custo_fixo_calculadora, custo_fixo_real)
-        total_despesas = custo_fixo_real + custo_variavel_real
+        total_despesas = custo_fixo_real + custo_variavel_real + custo_investimento_real
 
         entradas_mes = Pagamento.objects.filter(
             transacao__agendamento__servicos__criado_por=usuario,
@@ -61,6 +68,9 @@ class SaudeFinanceiraView(APIView):
         atraso_critico = Decimal('0.00')
 
         for t in transacoes_pendentes:
+            # CORRIGIDO: protege contra Transacao sem Agendamento vinculado (evita AttributeError)
+            if not t.agendamento:
+                continue
             dias_atraso = (hoje - t.agendamento.data_hora_inicio.date()).days
             saldo = t.saldo_restante()
             if dias_atraso <= 7:
@@ -70,23 +80,65 @@ class SaudeFinanceiraView(APIView):
             else:
                 atraso_critico += saldo
 
+        # --- PMR real: média de dias entre a data do atendimento e a data do recebimento ---
+        pagamentos_pmr = Pagamento.objects.select_related('transacao__agendamento').filter(
+            transacao__agendamento__servicos__criado_por=usuario,
+            transacao__agendamento__isnull=False,
+            data_pagamento__date__gte=janela_prazos
+        )
+
+        diferencas_pmr = []
+        for p in pagamentos_pmr:
+            agendamento = p.transacao.agendamento
+            if not agendamento:
+                continue
+            dias = (p.data_pagamento.date() - agendamento.data_hora_inicio.date()).days
+            # Pagamentos feitos antes/no ato do serviço contam como prazo 0 (não negativo)
+            diferencas_pmr.append(max(dias, 0))
+
+        pmr = round(sum(diferencas_pmr) / len(diferencas_pmr)) if diferencas_pmr else 0
+
+        # --- PMP real: média de dias entre o vencimento e o pagamento efetivo da despesa ---
+        despesas_pmp = Despesa.objects.filter(
+            usuario=usuario,
+            data_vencimento__isnull=False,
+            data_despesa__gte=janela_prazos
+        )
+
+        diferencas_pmp = [
+            max((d.data_despesa - d.data_vencimento).days, 0)
+            for d in despesas_pmp
+        ]
+
+        pmp = round(sum(diferencas_pmp) / len(diferencas_pmp)) if diferencas_pmp else None
+
+        # CORRIGIDO: antes usava blocos fixos de 30 dias (hoje - i*30), o que fazia
+        # meses com 31 dias gerarem dois pontos com o mesmo label (ex: "May" duas vezes)
+        # e distorcia o volume real de cada mês. Agora navega por meses de calendário reais.
         grafico_fluxo = []
+        ano_ref = hoje.year
+        mes_ref = hoje.month
         for i in range(4, -1, -1):
-            mes_alvo = hoje - timedelta(days=i*30)
-            label_mes = mes_alvo.strftime('%b')
-            
+            mes_calc = mes_ref - i
+            ano_calc = ano_ref
+            while mes_calc <= 0:
+                mes_calc += 12
+                ano_calc -= 1
+
+            label_mes = date(ano_calc, mes_calc, 1).strftime('%b')
+
             ent = Pagamento.objects.filter(
                 transacao__agendamento__servicos__criado_por=usuario,
-                data_pagamento__month=mes_alvo.month,
-                data_pagamento__year=mes_alvo.year
+                data_pagamento__month=mes_calc,
+                data_pagamento__year=ano_calc
             ).aggregate(total=Sum('valor'))['total'] or Decimal('0.00')
-            
+
             sai = Despesa.objects.filter(
                 usuario=usuario,
-                data_despesa__month=mes_alvo.month,
-                data_despesa__year=mes_alvo.year
+                data_despesa__month=mes_calc,
+                data_despesa__year=ano_calc
             ).aggregate(total=Sum('valor'))['total'] or Decimal('0.00')
-            
+
             grafico_fluxo.append({
                 "label": label_mes,
                 "entradas": float(ent),
@@ -100,8 +152,10 @@ class SaudeFinanceiraView(APIView):
                 "liquidez": 1.2 if total_despesas == 0 else round(float(faturamento_total / total_despesas), 2),
                 "capital_giro": float(custo_fixo_total * 2),
                 "total_pendente": float(total_pendente),
-                "pmr": 15,
-                "pmp": 30
+                "pmr": pmr,
+                "pmp": pmp,                          # pode vir None se nenhuma despesa tiver data_vencimento
+                "amostra_pmr": len(diferencas_pmr),  # nº de pagamentos usados na média (transparência para o front)
+                "amostra_pmp": len(diferencas_pmp)
             },
             "grafico_fluxo": grafico_fluxo,
             "grafico_inadimplencia": [
@@ -111,7 +165,8 @@ class SaudeFinanceiraView(APIView):
             ],
             "grafico_margins": [
                 { "name": "Fixas", "margem": float(custo_fixo_real) },
-                { "name": "Variáveis", "margem": float(custo_variavel_real) }
+                { "name": "Variáveis", "margem": float(custo_variavel_real) },
+                { "name": "Investimento", "margem": float(custo_investimento_real) }
             ]
         }
 

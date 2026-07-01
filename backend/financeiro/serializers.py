@@ -82,13 +82,14 @@ class TransacaoSerializer(serializers.ModelSerializer):
         model = Transacao
         fields = '__all__'
 
-# --- SERIALIZER DE DESPESA (ATUALIZADO) ---
+# --- SERIALIZER DE DESPESA (ATUALIZADO: agora expõe data_vencimento) ---
 class DespesaSerializer(serializers.ModelSerializer):
     data = serializers.DateField(source='data_despesa')
+    data_vencimento = serializers.DateField(required=False, allow_null=True)
 
     class Meta:
         model = Despesa
-        fields = ['id', 'descricao', 'valor', 'data', 'categoria', 'usuario', 'pago']
+        fields = ['id', 'descricao', 'valor', 'data', 'data_vencimento', 'categoria', 'usuario', 'pago']
         read_only_fields = ('usuario',)
 
 # --- SERIALIZER DA CALCULADORA (Mantenha como está) ---
@@ -97,6 +98,3 @@ class CalculadoraSerializer(serializers.ModelSerializer):
         model = CalculadoraPrecificacao
         fields = '__all__'
         read_only_fields = ('usuario',)
-
-
-        
